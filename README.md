@@ -333,3 +333,4 @@ Para dúvidas ou problemas:
 **Versão**: 2.0.0  
 **Data**: Novembro 2024  
 **Status**: ✅ Pronto para Produção
+# cdl-ipira
