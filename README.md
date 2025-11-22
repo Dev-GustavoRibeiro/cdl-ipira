@@ -1,6 +1,6 @@
-# CDL Ipirá - Site Oficial
+# CDL Ipirá - Site Oficial (Versão PWA + Admin)
 
-Site institucional da Câmara de Dirigentes Lojistas de Ipirá, desenvolvido com Next.js 16 e TypeScript, baseado fielmente no layout da CDL Sorriso.
+Site institucional da Câmara de Dirigentes Lojistas de Ipirá, desenvolvido com Next.js 16 e TypeScript. Esta versão inclui um painel administrativo completo, funcionalidades de PWA (Progressive Web App) e design moderno com animações fluidas.
 
 ## 🚀 Tecnologias Utilizadas
 
@@ -8,11 +8,36 @@ Site institucional da Câmara de Dirigentes Lojistas de Ipirá, desenvolvido com
 - **React 19.2.0** - Biblioteca JavaScript para interfaces
 - **TypeScript 5** - Tipagem estática
 - **Tailwind CSS 4** - Framework CSS utility-first
+- **Supabase** - Backend as a Service (Banco de Dados, Auth, Storage)
+- **Swiper** - Carrosséis modernos e responsivos
+- **Framer Motion / CSS Animations** - Animações fluidas
 - **React Icons** - Biblioteca de ícones
 
-## 🎨 Cores da CDL
+## 📱 Funcionalidades PWA (Mobile App)
 
-O site utiliza a paleta oficial da CDL:
+O site foi otimizado para funcionar como um aplicativo nativo em celulares:
+
+- **Menu "Super App"**: Navegação inferior estilo app com gaveta deslizante (Bottom Sheet).
+- **Instalação**: Pode ser instalado na tela inicial (Adicionar à Tela de Início).
+- **Sem Barra de Navegador**: Roda em modo tela cheia (standalone).
+- **Performance**: Otimização de carregamento e imagens.
+
+## 🔐 Painel Administrativo
+
+Acesse `/admin/login` para gerenciar o conteúdo do site.
+
+### Funcionalidades do Admin:
+- **Dashboard**: Visão geral do sistema.
+- **Notícias**: Criar, editar e excluir notícias com editor de texto rico.
+- **TV Lojista**: Gerenciar vídeos do YouTube.
+- **Galeria de Fotos**: Upload e gerenciamento de álbuns.
+- **Eventos**: Calendário de eventos da CDL.
+- **Diretoria**: Gerenciar membros e cargos.
+- **Parceiros**: Adicionar logos de empresas parceiras.
+
+## 🎨 Cores e Design
+
+O site utiliza a paleta oficial da CDL com toques modernos (Glassmorphism):
 
 - **Azul Principal**: `#003f7f`
 - **Azul Claro**: `#0066cc`
@@ -23,314 +48,98 @@ O site utiliza a paleta oficial da CDL:
 ## 📋 Componentes da Página Inicial
 
 ### 1. Header
-- Barra superior azul com informações de contato
-- Logos CDL Ipirá e SPC Brasil lado a lado
-- Menu horizontal com dropdowns
-- Campo de busca integrado
-- Menu mobile responsivo
+- Design limpo e minimalista.
+- Apenas logos e busca em dispositivos móveis.
+- Menu completo em desktops.
 
-### 2. Projeto Conduz
-- Banner principal destacando o projeto social
-- Imagem + texto descritivo
-- Call-to-action "Saiba Mais"
+### 2. Hero Carousel (Banner Principal)
+- Carrossel full-width moderno.
+- Animações de texto e imagens.
+- Botões de ação (CTA) com efeitos hover.
 
-### 3. Cards de Serviços
-- Grid com 6 cards principais:
-  - Eventos
-  - Portal Transparência
-  - Revista CDL
-  - Baixe seu Boleto
-  - Cadastre Seu Currículo
-  - Compromisso da CDL
-- Ícones verdes (#00a859)
-- Efeito hover com elevação
+### 3. Impostômetro
+- Contador em tempo real integrado via iframe oficial.
+- Design responsivo que se adapta a qualquer tela.
+- Remoção visual de propagandas externas.
 
-### 4. Parceiros
-- Logos de empresas parceiras
-- Zag Seguros, Solturi Energia Solar, etc.
-- Fundo cinza claro
-
-### 5. Impostômetro
-- Contador em tempo real
-- Animação automática
-- Fundo verde-água (teal)
-- Display com milhões, mil, reais e centavos
-
-### 6. Notícias
-- Grid de 3 notícias recentes
-- Cards com imagem, data, título e resumo
-- Botão "Veja mais notícias"
-- Fundo branco
-
-### 7. Eventos
-- Grid de 3 eventos
-- Fundo azul (#003f7f)
-- Cards em branco com imagens
-- Botão "Veja mais Eventos"
-
-### 8. TV Lojista
-- Grid de 3 vídeos
-- Thumbnails com play button
-- Integração preparada para YouTube
-- Botão "Veja mais TV Lojista"
-
-### 9. Galeria de Fotos
-- Grid de 3 galerias
-- Contador de fotos em cada álbum
-- Efeito zoom nas imagens
-- Fundo cinza claro
-
-### 10. Footer
-- 5 colunas: Logos, Institucional, Imprensa, Filie-se/Benefícios, Produtos
-- Informações completas de contato
-- Links para redes sociais
-- Seção verde (#00a859) com "Outras Informações"
-- Copyright em azul escuro
+### 4. Menu Mobile (App-like)
+- Barra de navegação inferior fixa.
+- Botão central "Menu" com destaque flutuante.
+- Gaveta de menu com categorias e ícones grandes.
 
 ## 🛠️ Como Executar o Projeto
 
 ### Pré-requisitos
 - Node.js 18+ instalado
-- npm ou yarn
+- Conta no Supabase (para o backend)
 
 ### Instalação
 
 1. Navegue até a pasta do projeto:
 ```bash
-cd c:\Users\josev\cdl_ipira
+cd cdl_ipira
 ```
 
-2. Instale as dependências (se necessário):
+2. Instale as dependências:
 ```bash
 npm install
 ```
 
-3. Execute o servidor de desenvolvimento:
+3. Configure as variáveis de ambiente:
+   - Copie `.env.example` para `.env.local`.
+   - Preencha `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`.
+
+4. Execute o servidor de desenvolvimento:
 ```bash
 npm run dev
 ```
 
-4. Abra o navegador em [http://localhost:3000](http://localhost:3000)
+5. Abra o navegador em [http://localhost:3000](http://localhost:3000)
 
-### Outros Comandos
+## 🗄️ Configuração do Banco de Dados (Supabase)
 
-```bash
-# Build para produção
-npm run build
+Os scripts SQL para criar as tabelas estão na pasta `supabase/`:
 
-# Iniciar servidor de produção
-npm start
+1. `01-funcao-updated-at.sql`: Função utilitária.
+2. `02-tabelas-conteudo.sql`: Tabelas principais (noticias, videos, etc).
+3. `03-tabelas-fotos.sql`: Galeria de fotos.
+4. `04-tabelas-empregos-empresas.sql`: Balcão de empregos.
+5. `06-tabela-admin-users.sql`: Usuários do painel admin.
 
-# Executar linter
-npm run lint
+Execute-os no SQL Editor do seu projeto Supabase na ordem acima.
 
-# Corrigir erros de lint automaticamente
-npm run lint:fix
-
-# Verificar tipos TypeScript
-npm run type-check
-
-# Limpar cache
-npm run clean
-```
-
-## 📁 Estrutura de Componentes
+## 📝 Estrutura de Pastas
 
 ```
 app/
-├── components/
-│   ├── Header.tsx           # Cabeçalho com menu e busca
-│   ├── ProjetoConduz.tsx    # Banner principal Projeto Conduz
-│   ├── ServicesCards.tsx    # 6 cards de serviços principais
-│   ├── Partners.tsx         # Logos de parceiros
-│   ├── Impostometro.tsx     # Contador de impostos em tempo real
-│   ├── NewsSection.tsx      # Seção de notícias
-│   ├── EventsSection.tsx    # Seção de eventos
-│   ├── TVLojista.tsx        # Vídeos da TV Lojista
-│   ├── GaleriaFotos.tsx     # Galeria de fotos
-│   └── Footer.tsx           # Rodapé completo
-├── layout.tsx               # Layout principal
-├── page.tsx                 # Página inicial
-└── globals.css              # Estilos globais mínimos
+├── admin/               # Painel Administrativo (rotas protegidas)
+├── api/                 # API Routes (Next.js Backend)
+├── components/          # Componentes React Reutilizáveis
+│   ├── Header.tsx       # Cabeçalho Desktop
+│   ├── MobileBottomNav.tsx # Menu Mobile Tipo App
+│   ├── HeroCarousel.tsx # Banner Rotativo
+│   └── ...
+├── noticias/            # Páginas de Notícias (Público)
+├── produtos/            # Páginas de Produtos
+├── layout.tsx           # Layout Principal
+└── page.tsx             # Página Inicial
 ```
 
-## 🎯 Funcionalidades Implementadas
+## 🔒 Segurança
 
-### Animações e Interatividade
-- ✅ Hover effects em todos os cards
-- ✅ Transições suaves
-- ✅ Contador do Impostômetro em tempo real
-- ✅ Menu mobile funcional
-- ✅ Scroll suave
-
-### Responsividade
-- ✅ Mobile (< 768px)
-- ✅ Tablet (768px - 1024px)
-- ✅ Desktop (> 1024px)
-- ✅ Grids adaptáveis
-- ✅ Menu hamburger
-
-### SEO
-- ✅ Meta tags otimizadas
-- ✅ Estrutura semântica HTML5
-- ✅ Alt texts em imagens
-- ✅ URLs amigáveis
-
-## 🖼️ Personalização de Imagens
-
-Para substituir as imagens placeholder:
-
-1. **Logos** (`Header.tsx`):
-   - CDL Ipirá: linha 29
-   - SPC Brasil: linha 30
-
-2. **Projeto Conduz** (`ProjetoConduz.tsx`):
-   - Imagem principal: linha 11
-   - Logo do projeto: linha 19
-
-3. **Notícias** (`NewsSection.tsx`):
-   - Array `news`: linhas 7-27
-
-4. **Eventos** (`EventsSection.tsx`):
-   - Array `events`: linhas 7-21
-
-5. **TV Lojista** (`TVLojista.tsx`):
-   - Array `videos`: linhas 7-19
-
-6. **Galeria** (`GaleriaFotos.tsx`):
-   - Array `galleries`: linhas 7-21
-
-7. **Footer** (`Footer.tsx`):
-   - Logos: linhas 15-22
-
-## 📝 Alterando Conteúdos
-
-### Informações de Contato
-
-Atualize em 3 locais:
-
-1. **Header** (linha 13): Telefone no topo
-2. **Footer** (linhas 114-135): Seção completa de contato
-3. Links de redes sociais no Footer (linhas 19-29)
-
-### Cores do Site
-
-Edite `app/globals.css`:
-
-```css
-:root {
-  --cdl-blue: #003f7f;        /* Azul principal */
-  --cdl-blue-light: #0066cc;  /* Azul claro */
-  --cdl-green: #00a859;       /* Verde */
-  --cdl-yellow: #ffd000;      /* Amarelo */
-  --cdl-white: #ffffff;       /* Branco */
-}
-```
-
-## 🔄 Adicionando Conteúdo
-
-### Adicionar Notícia
-
-Em `NewsSection.tsx`, adicione no array `news`:
-
-```typescript
-{
-  title: 'Título da Notícia',
-  excerpt: 'Resumo da notícia...',
-  image: '/caminho/para/imagem.jpg',
-  date: '15/11/2024'
-}
-```
-
-### Adicionar Evento
-
-Em `EventsSection.tsx`, adicione no array `events`:
-
-```typescript
-{
-  title: 'Nome do Evento',
-  image: '/caminho/para/imagem.jpg',
-  date: 'Data do evento'
-}
-```
-
-### Adicionar Vídeo
-
-Em `TVLojista.tsx`, adicione no array `videos`:
-
-```typescript
-{
-  title: 'Título do Vídeo',
-  thumbnail: '/caminho/para/thumbnail.jpg',
-  embedId: 'ID_DO_VIDEO_YOUTUBE'
-}
-```
-
-## 📊 Performance
-
-O site está otimizado com:
-
-- ✅ Next.js App Router
-- ✅ Code splitting automático
-- ✅ Lazy loading de componentes
-- ✅ CSS otimizado com Tailwind
-- ✅ Imagens responsivas (preparado para Next Image)
+- **Middleware**: Proteção de rotas `/admin` e `/api/admin`.
+- **Headers de Segurança**: Configurados no `next.config.ts` (XSS, Frame Options, etc).
+- **Sanitização**: HTML sanitizado com `dompurify` para prevenir injeção de scripts.
 
 ## 🌐 Deploy
 
-### Opção 1: Vercel (Recomendado)
+Recomendado usar **Vercel** para o frontend e **Supabase** para o backend.
 
-```bash
-npm install -g vercel
-vercel login
-vercel --prod
-```
-
-### Opção 2: Build Estático
-
-```bash
-npm run build
-npm start
-```
-
-Consulte `DEPLOY.md` para mais opções detalhadas.
-
-## 📱 Redes Sociais
-
-Atualize os links em:
-- **Header**: linha 13 (telefone)
-- **Footer**: linhas 19-29 (ícones sociais)
-
-## 🆘 Suporte
-
-Para dúvidas ou problemas:
-
-1. Verifique a documentação do Next.js: [nextjs.org/docs](https://nextjs.org/docs)
-2. Consulte a documentação do Tailwind: [tailwindcss.com/docs](https://tailwindcss.com/docs)
-3. Entre em contato: contato@cdlipira.com.br
-
-## ✅ Checklist de Personalização
-
-- [ ] Substituir logo CDL Ipirá
-- [ ] Substituir logo SPC Brasil
-- [ ] Atualizar telefone de contato
-- [ ] Atualizar e-mail
-- [ ] Atualizar endereço
-- [ ] Atualizar CNPJ
-- [ ] Adicionar imagens do Projeto Conduz
-- [ ] Adicionar notícias reais
-- [ ] Adicionar eventos reais
-- [ ] Adicionar vídeos reais
-- [ ] Adicionar fotos das galerias
-- [ ] Atualizar links de redes sociais
-- [ ] Testar em dispositivos móveis
-- [ ] Fazer deploy
+1. Instale a Vercel CLI: `npm i -g vercel`
+2. Login: `vercel login`
+3. Deploy: `vercel --prod`
 
 ---
 
-**Desenvolvido com ❤️ para CDL Ipirá**
-
-**Versão**: 2.0.0  
-**Data**: Novembro 2024  
-**Status**: ✅ Pronto para Produção
-# cdl-ipira
+**Desenvolvido para CDL Ipirá**
+**Versão**: 2.5.0 (PWA Edition)
