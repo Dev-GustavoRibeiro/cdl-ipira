@@ -1,0 +1,25 @@
+{
+  "name": "CDL Ipirá",
+  "short_name": "CDL Ipirá",
+  "description": "Aplicativo oficial da CDL Ipirá",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#003f7f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo-cdl.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-cdl.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

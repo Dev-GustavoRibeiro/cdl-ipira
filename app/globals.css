@@ -1,0 +1,265 @@
+@import "tailwindcss";
+
+/* Swiper styles */
+@import 'swiper/css';
+@import 'swiper/css/navigation';
+@import 'swiper/css/pagination';
+@import 'swiper/css/effect-fade';
+@import 'swiper/css/effect-coverflow';
+
+/* Variáveis de cores da CDL */
+:root {
+  --cdl-blue: #003f7f;
+  --cdl-blue-light: #0066cc;
+  --cdl-green: #00a859;
+  --cdl-yellow: #ffd000;
+  --cdl-white: #ffffff;
+}
+
+/* Reset mínimo sem interferir no Tailwind */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Estilos customizados do Swiper */
+.swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.swiper-slide {
+  text-align: center;
+  font-size: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Animações suaves */
+.swiper-slide {
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+
+.swiper-slide-active {
+  opacity: 1;
+  }
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Animações inspiradas no Magic UI */
+@keyframes border-beam {
+  0% {
+    offset-distance: 0%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes shine {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 200% 200%;
+  }
+}
+
+@keyframes blur-fade-in {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-blur-fade-in {
+  animation: blur-fade-in 0.6s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.4s ease-out;
+}
+
+.animate-shine {
+  animation: shine 3s linear infinite;
+}
+
+/* Efeito de spotlight (Magic Card) */
+.magic-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.magic-card::before {
+  content: '';
+  position: absolute;
+  top: var(--mouse-y, 50%);
+  left: var(--mouse-x, 50%);
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(255, 208, 0, 0.1) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.magic-card:hover::before {
+  opacity: 1;
+}
+
+.magic-card > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Responsividade melhorada */
+@media (max-width: 640px) {
+  .swiper-slide {
+    padding: 0 8px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .swiper-slide {
+    padding: 0 12px;
+  }
+}
+
+/* Scrollbar customizada para dropdowns */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #003f7f;
+  border-radius: 10px;
+  }
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #0066cc;
+}
+
+/* Estilos para conteúdo de notícias (prose) */
+.prose {
+  color: #374151;
+}
+
+.prose h2 {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: #003f7f;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  line-height: 1.3;
+}
+
+.prose h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #003f7f;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+
+.prose p {
+  margin-bottom: 1.25rem;
+  line-height: 1.8;
+  text-align: justify;
+}
+
+.prose ul,
+.prose ol {
+  margin-top: 1rem;
+  margin-bottom: 1.25rem;
+  padding-left: 1.75rem;
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose li {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.8;
+}
+
+.prose li::marker {
+  color: #00a859;
+  font-weight: 600;
+}
+
+.prose strong {
+  font-weight: 700;
+  color: #003f7f;
+}
+
+.prose a {
+  color: #0066cc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.2s;
+}
+
+.prose a:hover {
+  color: #003f7f;
+}
+
+@media (max-width: 640px) {
+  .prose h2 {
+    font-size: 1.5rem;
+  }
+  
+  .prose h3 {
+    font-size: 1.25rem;
+  }
+}
