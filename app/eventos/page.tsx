@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FaCalendarAlt, FaMapMarkerAlt, FaClock, FaUsers, FaChevronRight, FaChevronLeft } from 'react-icons/fa';
+import { supabase } from '@/lib/supabase';
+import EventModal from '@/app/components/EventModal';
 
 interface Event {
   id: number;
@@ -17,8 +19,8 @@ interface Event {
   attendees?: number;
   status: 'upcoming' | 'ongoing' | 'past';
   gradient: string;
+  fullDate?: string;
 }
-
 
 const categories = ['Todos', 'Networking', 'Capacitação', 'Feira', 'Palestra', 'Institucional', 'Reunião'];
 const statusFilters = ['Todos', 'Próximos', 'Em Andamento', 'Realizados'];
@@ -29,16 +31,44 @@ export default function EventosPage() {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [selectedStatus, setSelectedStatus] = useState('Todos');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    // TODO: Substituir por chamada de API real
-    // Exemplo: fetch('/api/events').then(res => res.json()).then(setAllEvents)
     const fetchEvents = async () => {
       try {
-        // const response = await fetch('/api/events');
-        // const data = await response.json();
-        // setAllEvents(data);
-        setAllEvents([]); // Array vazio até implementar a API
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .eq('is_active', true)
+          .order('date', { ascending: true }); // Ordenar por data mais próxima
+
+        if (error) throw error;
+
+        if (data) {
+          const formattedEvents = data.map((item: any) => {
+            let dateObj = new Date(item.date);
+            // Ajuste para fuso horário se necessário, ou assumindo que a data vem YYYY-MM-DD
+            if (item.date && item.date.includes('-')) {
+               const [year, month, day] = item.date.split('-').map(Number);
+               dateObj = new Date(year, month - 1, day);
+            }
+            
+            // Formatar DD/MM/YYYY
+            const day = dateObj.getDate().toString().padStart(2, '0');
+            const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+            const year = dateObj.getFullYear();
+            const formattedDate = `${day}/${month}/${year}`;
+            const fullDate = dateObj.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            return {
+              ...item,
+              date: formattedDate,
+              fullDate: fullDate,
+              gradient: item.gradient || 'from-[#003f7f] to-[#0066cc]'
+            };
+          });
+          setAllEvents(formattedEvents);
+        }
       } catch (error) {
         console.error('Erro ao carregar eventos:', error);
         setAllEvents([]);
@@ -49,6 +79,11 @@ export default function EventosPage() {
     fetchEvents();
   }, []);
 
+  const openModal = (event: Event) => {
+    setSelectedEvent(event);
+    setIsModalOpen(true);
+  };
+
   const filteredEvents = allEvents.filter(event => {
     const categoryMatch = selectedCategory === 'Todos' || event.category === selectedCategory;
     const statusMatch = selectedStatus === 'Todos' || 
@@ -58,10 +93,8 @@ export default function EventosPage() {
     return categoryMatch && statusMatch;
   });
 
-  // Separar eventos por status
-  const upcomingEvents = filteredEvents.filter(e => e.status === 'upcoming');
-  const ongoingEvents = filteredEvents.filter(e => e.status === 'ongoing');
-  const pastEvents = filteredEvents.filter(e => e.status === 'past');
+  // Separar eventos por status para a seção de destaque (opcional)
+  const upcomingEvents = allEvents.filter(e => e.status === 'upcoming');
 
   const getStatusBadge = (status: Event['status']) => {
     switch (status) {
@@ -186,14 +219,21 @@ export default function EventosPage() {
                     style={{ animationDelay: `${index * 0.1}s` }}
                   >
                     {/* Imagem do Evento */}
-                    <div className={`relative h-48 xs:h-52 sm:h-56 md:h-64 bg-linear-to-br ${event.gradient} overflow-hidden`}>
-                      <Image
-                        src={event.image}
-                        alt={event.title}
-                        fill
-                        className="object-cover group-hover:scale-110 transition-transform duration-700"
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                      />
+                    <div 
+                      onClick={() => openModal(event)}
+                      className={`relative h-48 xs:h-52 sm:h-56 md:h-64 bg-linear-to-br ${event.gradient} overflow-hidden cursor-pointer`}
+                    >
+                      {event.image ? (
+                        <Image
+                          src={event.image}
+                          alt={event.title}
+                          fill
+                          className="object-cover group-hover:scale-110 transition-transform duration-700"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-black/10"></div>
+                      )}
                       {/* Overlay gradiente */}
                       <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/30 to-transparent"></div>
                       
@@ -226,7 +266,10 @@ export default function EventosPage() {
 
                     {/* Conteúdo */}
                     <div className="p-4 sm:p-5 md:p-6 relative flex flex-col grow bg-white">
-                      <h3 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors line-clamp-2 leading-tight">
+                      <h3 
+                        onClick={() => openModal(event)}
+                        className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors line-clamp-2 leading-tight cursor-pointer"
+                      >
                         {event.title}
                       </h3>
                       
@@ -253,18 +296,21 @@ export default function EventosPage() {
                       </div>
                       
                       <div className="mt-auto pt-3 sm:pt-4 border-t border-gray-100">
-                        {event.status === 'upcoming' ? (
-                          <button className="w-full inline-flex items-center justify-center gap-2 bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-bold hover:shadow-lg transition-all duration-300 hover:scale-105 text-sm sm:text-base group/btn">
-                            Inscrever-se
+                        <button 
+                          onClick={() => openModal(event)}
+                          className={`w-full inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-bold transition-all duration-300 text-sm sm:text-base group/btn ${
+                            event.status === 'upcoming' 
+                              ? 'bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white hover:shadow-lg hover:scale-105'
+                              : 'border-2 border-[#003f7f] text-[#003f7f] hover:bg-[#003f7f] hover:text-white'
+                          }`}
+                        >
+                          {event.status === 'upcoming' ? 'Inscrever-se' : 'Ver Detalhes'}
+                          {event.status === 'upcoming' && (
                             <svg className="w-4 h-4 sm:w-5 sm:h-5 transform group-hover/btn:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
-                          </button>
-                        ) : (
-                          <button className="w-full inline-flex items-center justify-center gap-2 border-2 border-[#003f7f] text-[#003f7f] px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-bold hover:bg-[#003f7f] hover:text-white transition-all duration-300 text-sm sm:text-base">
-                            Ver Detalhes
-                          </button>
-                        )}
+                          )}
+                        </button>
                       </div>
                     </div>
                   </article>
@@ -273,28 +319,12 @@ export default function EventosPage() {
             </div>
           )}
 
-          {/* Paginação */}
-          <div className="mt-8 sm:mt-12 flex items-center justify-center gap-2 sm:gap-3">
-            <button className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button className="px-4 sm:px-5 py-2 rounded-lg bg-[#003f7f] text-white font-bold text-sm sm:text-base shadow-lg">
-              1
-            </button>
-            <button className="px-4 sm:px-5 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all duration-300 font-bold text-sm sm:text-base">
-              2
-            </button>
-            <button className="px-4 sm:px-5 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all duration-300 font-bold text-sm sm:text-base">
-              3
-            </button>
-            <button className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all duration-300 text-sm sm:text-base">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
+          {/* Paginação (Opcional para o futuro) */}
+          {filteredEvents.length > 9 && (
+            <div className="mt-8 sm:mt-12 flex items-center justify-center gap-2 sm:gap-3">
+               {/* Lógica de paginação aqui */}
+            </div>
+          )}
         </div>
       </section>
 
@@ -311,15 +341,6 @@ export default function EventosPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
                 <Link
-                  href="#"
-                  className="inline-flex items-center justify-center gap-2 bg-[#ffd000] text-[#003f7f] px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-bold text-sm sm:text-base hover:bg-[#ffed4e] transition-all duration-300 hover:scale-105 shadow-xl group"
-                >
-                  Ver Calendário Completo
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-                <Link
                   href="/contato"
                   className="inline-flex items-center justify-center gap-2 border-2 border-white text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-bold text-sm sm:text-base hover:bg-white hover:text-[#003f7f] transition-all duration-300"
                 >
@@ -330,7 +351,12 @@ export default function EventosPage() {
           </div>
         </section>
       )}
+
+      <EventModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        event={selectedEvent} 
+      />
     </>
   );
 }
-

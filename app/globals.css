@@ -21,6 +21,26 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Scrollbar Personalizado Global */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f5f500;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cdl-blue);
+  border-radius: 0 10px 10px 0;
+  border: 2px solid #f5f5f5;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cdl-blue-light);
+}
+
 /* Estilos customizados do Swiper */
 .swiper {
   width: 100%;

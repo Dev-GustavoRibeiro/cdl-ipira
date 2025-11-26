@@ -145,18 +145,6 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl p-4 text-xs text-gray-600">
-              <p className="font-bold text-gray-700 mb-2 flex items-center gap-2">
-                <FaShieldAlt className="w-3 h-3 text-[#00a859]" />
-                Credenciais de Acesso
-              </p>
-              <div className="space-y-1 font-mono text-gray-600">
-                <p><span className="font-semibold">Usuário:</span> cdlipiraadmin</p>
-                <p><span className="font-semibold">Senha:</span> @CDL!Ipira@2025</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

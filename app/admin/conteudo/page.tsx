@@ -14,13 +14,6 @@ export default function AdminConteudoPage() {
       color: 'from-[#003f7f] to-[#0066cc]'
     },
     {
-      title: 'Cards de Serviços',
-      description: 'Gerencie os cards de serviços exibidos na página inicial',
-      href: '/admin/conteudo/servicos',
-      icon: <FaTh className="w-8 h-8" />,
-      color: 'from-[#00a859] to-[#00d670]'
-    },
-    {
       title: 'Parceiros',
       description: 'Gerencie os parceiros exibidos no carrossel',
       href: '/admin/conteudo/parceiros',
@@ -70,6 +63,7 @@ export default function AdminConteudoPage() {
     </div>
   );
 }
+
 
 
 

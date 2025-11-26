@@ -6,8 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { 
   FaHome, FaNewspaper, FaCalendarAlt, FaVideo, FaImages, 
-  FaBriefcase, FaStore, FaGavel, FaFileAlt, FaBook, 
-  FaSignOutAlt, FaBars, FaTimes, FaCog, FaUsers
+  FaBriefcase, FaGavel, FaFileAlt, FaBook, 
+  FaSignOutAlt, FaBars, FaTimes, FaCog, FaUsers, FaHistory
 } from 'react-icons/fa';
 
 export default function AdminLayout({
@@ -42,9 +42,18 @@ export default function AdminLayout({
     checkAuth();
   }, [router, pathname]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Limpar cookie no servidor
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    } finally {
+      // Limpar localStorage e redirecionar
     localStorage.removeItem('admin_authenticated');
+      localStorage.removeItem('admin_user');
     router.push('/admin/login');
+    }
   };
 
   const menuItems = [
@@ -55,7 +64,6 @@ export default function AdminLayout({
       href: '/admin/conteudo',
       submenu: [
         { label: 'Hero Carousel', href: '/admin/conteudo/hero-carousel' },
-        { label: 'Cards de Serviços', href: '/admin/conteudo/servicos' },
         { label: 'Parceiros', href: '/admin/conteudo/parceiros' },
       ]
     },
@@ -64,11 +72,11 @@ export default function AdminLayout({
     { icon: <FaVideo />, label: 'TV Lojista', href: '/admin/tv-lojista' },
     { icon: <FaImages />, label: 'Galeria de Fotos', href: '/admin/galeria-fotos' },
     { icon: <FaBriefcase />, label: 'Balcão de Empregos', href: '/admin/balcao-empregos' },
-    { icon: <FaStore />, label: 'Empresas', href: '/admin/empresas' },
     { icon: <FaGavel />, label: 'Orientação Jurídica', href: '/admin/orientacao-juridica' },
     { icon: <FaFileAlt />, label: 'Portal Transparência', href: '/admin/portal-transparencia' },
     { icon: <FaBook />, label: 'Revista CDL', href: '/admin/revista-cdl' },
     { icon: <FaUsers />, label: 'Diretoria', href: '/admin/diretoria' },
+    { icon: <FaHistory />, label: 'Auditoria', href: '/admin/auditoria' },
   ];
 
   // Se estiver na página de login, renderizar apenas o children sem layout

@@ -28,6 +28,11 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  icons: {
+    icon: "/logo-cdl.png",
+    shortcut: "/logo-cdl.png",
+    apple: "/logo-cdl.png",
+  },
 };
 
 export default function RootLayout({

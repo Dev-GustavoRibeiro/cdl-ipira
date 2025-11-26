@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaUser, FaSearch, FaFileAlt, FaTimes } from 'react-icons/fa';
+import JobModal from '@/app/components/JobModal';
 
 interface Job {
   id: number;
@@ -26,16 +27,27 @@ export default function BalcaoEmpregosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Estado para o Modal de Visualização de Vaga
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
 
   useEffect(() => {
-    // TODO: Substituir por chamada de API real
-    // Exemplo: fetch('/api/jobs').then(res => res.json()).then(setJobs)
     const fetchJobs = async () => {
       try {
-        // const response = await fetch('/api/jobs');
-        // const data = await response.json();
-        // setJobs(data);
-        setJobs([]); // Array vazio até implementar a API
+        const response = await fetch('/api/vagas');
+        if (response.ok) {
+          const data = await response.json();
+          const mappedData = data.map((item: any) => ({
+            ...item,
+            date: item.date ? new Date(item.date).toLocaleDateString('pt-BR') : ''
+          }));
+          setJobs(mappedData);
+        } else {
+          console.error('Erro na resposta da API');
+          setJobs([]); 
+        }
       } catch (error) {
         console.error('Erro ao carregar vagas:', error);
         setJobs([]);
@@ -56,7 +68,7 @@ export default function BalcaoEmpregosPage() {
   });
 
   useEffect(() => {
-    if (isModalOpen) {
+    if (isModalOpen || isJobModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
@@ -65,7 +77,7 @@ export default function BalcaoEmpregosPage() {
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [isModalOpen]);
+  }, [isModalOpen, isJobModalOpen]);
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -77,61 +89,51 @@ export default function BalcaoEmpregosPage() {
     setIsSubmitting(false);
   };
 
+  const openJobModal = (job: Job) => {
+    setSelectedJob(job);
+    setIsJobModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setIsSubmitting(true);
     setSubmitStatus('idle');
 
-    const formData = new FormData(e.currentTarget);
-    const jobData = {
-      empresa: formData.get('empresa'),
-      cargo: formData.get('cargo'),
-      descricao: formData.get('descricao'),
-      quantidade: formData.get('quantidade'),
-      localizacao: formData.get('localizacao'),
-      contato: formData.get('contato'),
-      email: formData.get('email'),
-      dataCadastro: new Date().toISOString(),
-    };
+    const formData = new FormData(form);
+    const empresa = formData.get('empresa') as string;
+    const cargo = formData.get('cargo') as string;
+    const descricao = formData.get('descricao') as string;
+    const quantidade = formData.get('quantidade') as string;
+    const localizacao = formData.get('localizacao') as string;
+    const contato = formData.get('contato') as string;
+    const email = formData.get('email') as string;
 
-    try {
-      // Aqui você pode substituir pela URL real da sua API
-      // const response = await fetch('/api/vagas', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(jobData),
-      // });
+    const message = `Olá, gostaria de cadastrar uma nova vaga no Balcão de Empregos da CDL:\n\n` +
+      `🏢 *Empresa:* ${empresa}\n` +
+      `💼 *Cargo:* ${cargo}\n` +
+      `📝 *Descrição:* ${descricao}\n` +
+      `🔢 *Quantidade:* ${quantidade}\n` +
+      `📍 *Localização:* ${localizacao}\n` +
+      `👤 *Contato:* ${contato}\n` +
+      `📧 *Email:* ${email}`;
 
-      // Simulação de envio (remova quando tiver a API real)
-      // jobData será usado quando a API estiver implementada
-      console.log('Dados da vaga:', jobData);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // if (!response.ok) {
-      //   throw new Error('Erro ao cadastrar vaga');
-      // }
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=5575992191260&text=${encodeURIComponent(message)}`;
 
-      // const result = await response.json();
-      
-      setSubmitStatus('success');
-      
-      // Limpar formulário
-      e.currentTarget.reset();
-      
-      // Fechar modal após 2 segundos
-      setTimeout(() => {
-        closeModal();
-        setSubmitStatus('idle');
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Erro ao cadastrar vaga:', error);
-      setSubmitStatus('error');
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Pequeno atraso para UX e evitar bloqueio
+    setTimeout(() => {
+        window.open(whatsappUrl, '_blank');
+        
+        setSubmitStatus('success');
+        form.reset();
+        
+        setTimeout(() => {
+            closeModal();
+            setSubmitStatus('idle');
+        }, 3000);
+        
+        setIsSubmitting(false);
+    }, 500);
   };
 
   return (
@@ -145,7 +147,7 @@ export default function BalcaoEmpregosPage() {
               className="hover:text-[#ffd000] transition-colors flex items-center gap-1 group"
             >
               <svg className="w-3 h-3 sm:w-4 sm:h-4 group-hover:translate-x-[-2px] transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
               </svg>
               <span>Início</span>
             </Link>
@@ -342,7 +344,10 @@ export default function BalcaoEmpregosPage() {
                     >
                       <div className="flex items-start justify-between mb-3 sm:mb-4">
                         <div className="flex-1">
-                          <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-[#003f7f] mb-2">
+                          <h3 
+                            onClick={() => openJobModal(job)}
+                            className="text-lg sm:text-xl md:text-2xl font-bold text-[#003f7f] mb-2 cursor-pointer hover:underline"
+                          >
                             {job.title}
                           </h3>
                           {job.company && (
@@ -382,7 +387,10 @@ export default function BalcaoEmpregosPage() {
                       </div>
 
                       <div className="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-gray-200">
-                        <button className="text-[#00a859] font-bold hover:text-[#0066cc] transition-colors text-sm sm:text-base inline-flex items-center gap-2 group">
+                        <button 
+                          onClick={() => openJobModal(job)}
+                          className="text-[#00a859] font-bold hover:text-[#0066cc] transition-colors text-sm sm:text-base inline-flex items-center gap-2 group"
+                        >
                           Ver detalhes
                           <svg className="w-4 h-4 sm:w-5 sm:h-5 transform group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -468,7 +476,7 @@ export default function BalcaoEmpregosPage() {
             </div>
 
             <p className="text-gray-700 text-sm sm:text-base mb-6 sm:mb-8 text-justify">
-              Preencha o formulário abaixo e nossa equipe entrará em contato para divulgar sua vaga.
+              Preencha os dados abaixo para enviar as informações da sua vaga diretamente para nossa equipe via WhatsApp.
             </p>
 
             {/* Mensagem de Sucesso */}
@@ -478,8 +486,8 @@ export default function BalcaoEmpregosPage() {
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 <div>
-                  <p className="font-bold">Vaga cadastrada com sucesso!</p>
-                  <p className="text-sm text-white/90">Nossa equipe entrará em contato em breve.</p>
+                  <p className="font-bold">Redirecionando para o WhatsApp...</p>
+                  <p className="text-sm text-white/90">Finalize o cadastro enviando a mensagem.</p>
                 </div>
               </div>
             )}
@@ -492,7 +500,7 @@ export default function BalcaoEmpregosPage() {
                 </svg>
                 <div>
                   <p className="font-bold">Erro ao cadastrar vaga</p>
-                  <p className="text-sm text-white/90">Tente novamente ou entre em contato conosco.</p>
+                  <p className="text-sm text-white/90">{errorMessage}</p>
                 </div>
               </div>
             )}
@@ -609,7 +617,7 @@ export default function BalcaoEmpregosPage() {
                     </>
                   ) : (
                     <>
-                      Enviar Cadastro
+                      Enviar via WhatsApp
                       <svg className="w-5 h-5 sm:w-6 sm:h-6 transform group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
@@ -629,7 +637,13 @@ export default function BalcaoEmpregosPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Visualização de Vaga */}
+      <JobModal 
+        isOpen={isJobModalOpen}
+        onClose={() => setIsJobModalOpen(false)}
+        job={selectedJob}
+      />
     </>
   );
 }
-

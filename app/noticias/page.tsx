@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import NewsModal from '@/app/components/NewsModal';
 
 interface NewsItem {
   id: number;
@@ -22,28 +23,34 @@ export default function NoticiasPage() {
   const [allNews, setAllNews] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchNews = async () => {
       try {
-        const response = await fetch('/api/noticias');
-        if (response.ok) {
-          const data = await response.json();
-          // Formatar data para DD/MM/YYYY
+        const { data, error } = await supabase
+          .from('news')
+          .select('*')
+          .eq('is_published', true)
+          .order('date', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
           const formattedNews = data.map((item: any) => {
-            // Se a data vier como YYYY-MM-DD
+            let formattedDate = item.date;
             if (item.date && item.date.includes('-')) {
               const [year, month, day] = item.date.split('-');
-              return {
-                ...item,
-                date: `${day}/${month}/${year}`
-              };
+              formattedDate = `${day}/${month}/${year}`;
             }
-            return item;
+            return {
+              ...item,
+              date: formattedDate
+            };
           });
           setAllNews(formattedNews);
         } else {
-          console.error('Erro na resposta da API');
           setAllNews([]);
         }
       } catch (error) {
@@ -55,6 +62,11 @@ export default function NoticiasPage() {
     };
     fetchNews();
   }, []);
+
+  const openModal = (item: NewsItem) => {
+    setSelectedNews(item);
+    setIsModalOpen(true);
+  };
 
   const filteredNews = selectedCategory === 'Todas' 
     ? allNews 
@@ -141,37 +153,46 @@ export default function NoticiasPage() {
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
                 {/* Seção superior colorida */}
-                <Link href={`/noticias/${item.id}`} className="block">
-                  <div className={`relative h-48 xs:h-52 sm:h-56 md:h-64 bg-linear-to-br ${item.color} overflow-hidden shrink-0`}>
-                    {/* Badge categoria */}
-                    <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10">
-                      <span className="bg-white/90 backdrop-blur-sm text-[#003f7f] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] xs:text-xs font-black shadow-lg flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-[#00a859] rounded-full"></span>
-                        {item.category}
-                      </span>
-                    </div>
+                <div 
+                  onClick={() => openModal(item)}
+                  className={`relative h-48 xs:h-52 sm:h-56 md:h-64 bg-linear-to-br ${item.color || 'from-blue-600 to-blue-800'} overflow-hidden shrink-0 cursor-pointer`}
+                >
+                   {item.image && (
+                      <>
+                        <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
+                      </>
+                   )}
 
-                    {/* Data flutuante */}
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
-                      <div className="bg-white rounded-lg sm:rounded-xl p-1.5 sm:p-2 md:p-3 shadow-lg">
-                        <div className="text-[#003f7f] text-sm xs:text-base sm:text-lg font-bold text-center leading-none">
-                          {item.date.split('/')[0]}
-                        </div>
-                        <div className="text-[#00a859] text-[10px] xs:text-xs font-semibold mt-0.5 sm:mt-1">
-                          {item.date.split('/')[1]}/{item.date.split('/')[2]}
-                        </div>
+                  {/* Badge categoria */}
+                  <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10">
+                    <span className="bg-white/90 backdrop-blur-sm text-[#003f7f] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] xs:text-xs font-black shadow-lg flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-[#00a859] rounded-full"></span>
+                      {item.category}
+                    </span>
+                  </div>
+
+                  {/* Data flutuante */}
+                  <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
+                    <div className="bg-white rounded-lg sm:rounded-xl p-1.5 sm:p-2 md:p-3 shadow-lg">
+                      <div className="text-[#003f7f] text-sm xs:text-base sm:text-lg font-bold text-center leading-none">
+                        {item.date.split('/')[0]}
+                      </div>
+                      <div className="text-[#00a859] text-[10px] xs:text-xs font-semibold mt-0.5 sm:mt-1">
+                        {item.date.split('/')[1]}/{item.date.split('/')[2]}
                       </div>
                     </div>
                   </div>
-                </Link>
+                </div>
 
                 {/* Conteúdo */}
                 <div className="p-4 sm:p-5 md:p-6 relative flex flex-col grow bg-white">
-                  <Link href={`/noticias/${item.id}`}>
-                    <h3 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors line-clamp-2 leading-tight">
-                      {item.title}
-                    </h3>
-                  </Link>
+                  <h3 
+                    onClick={() => openModal(item)}
+                    className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors line-clamp-2 leading-tight cursor-pointer"
+                  >
+                    {item.title}
+                  </h3>
                   
                   <p className="text-xs xs:text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 md:mb-6 leading-relaxed line-clamp-3 grow text-justify">
                     {item.excerpt}
@@ -182,10 +203,10 @@ export default function NoticiasPage() {
                       <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
-                      <span>{item.author}</span>
+                      <span>{item.author || 'CDL Ipirá'}</span>
                     </div>
-                    <Link
-                      href={`/noticias/${item.id}`}
+                    <button
+                      onClick={() => openModal(item)}
                       className="group/btn inline-flex items-center gap-1.5 sm:gap-2 text-[#00a859] font-bold hover:gap-3 transition-all duration-300 text-xs sm:text-sm"
                     >
                       <span className="relative">
@@ -195,7 +216,7 @@ export default function NoticiasPage() {
                       <svg className="w-3 h-3 sm:w-4 sm:h-4 transform group-hover/btn:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </article>
@@ -203,31 +224,20 @@ export default function NoticiasPage() {
             </div>
           )}
 
-          {/* Paginação */}
-          <div className="mt-8 sm:mt-12 flex items-center justify-center gap-2 sm:gap-3">
-            <button className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button className="px-4 sm:px-5 py-2 rounded-lg bg-[#003f7f] text-white font-bold text-sm sm:text-base shadow-lg">
-              1
-            </button>
-            <button className="px-4 sm:px-5 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all duration-300 font-bold text-sm sm:text-base">
-              2
-            </button>
-            <button className="px-4 sm:px-5 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all duration-300 font-bold text-sm sm:text-base">
-              3
-            </button>
-            <button className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all duration-300 text-sm sm:text-base">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
+          {/* Paginação - Placeholder por enquanto já que estamos listando todas */}
+          {filteredNews.length > 9 && (
+            <div className="mt-8 sm:mt-12 flex items-center justify-center gap-2 sm:gap-3">
+              {/* Lógica de paginação real seria implementada aqui se necessário */}
+            </div>
+          )}
         </div>
       </section>
+
+      <NewsModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        news={selectedNews}
+      />
     </>
   );
 }
-

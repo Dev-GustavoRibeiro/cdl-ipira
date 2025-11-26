@@ -4,9 +4,9 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Ignorar rota de login da API e da Interface Admin
-  // Verifica explicitamente o path exato ou se é uma chamada para autenticação
-  if (pathname === '/admin/login' || pathname === '/api/admin/auth') {
+  // 1. Ignorar rota de login/logout da API e da Interface Admin
+  // Verifica explicitamente o path exato ou se é uma chamada para autenticação/logout
+  if (pathname === '/admin/login' || pathname === '/api/admin/auth' || pathname === '/api/admin/logout') {
     return NextResponse.next();
   }
 

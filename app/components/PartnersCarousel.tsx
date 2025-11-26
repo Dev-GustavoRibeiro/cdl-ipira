@@ -3,22 +3,35 @@
 import React from 'react';
 import Image from 'next/image';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Autoplay } from 'swiper/modules';
+import { Autoplay, EffectCoverflow } from 'swiper/modules';
 import 'swiper/css';
+import 'swiper/css/effect-coverflow';
+
+interface Partner {
+  id: number;
+  name: string;
+  logo: string;
+  website?: string;
+}
 
 const PartnersCarousel = () => {
-  const [partners, setPartners] = React.useState<any[]>([]);
+  const [partners, setPartners] = React.useState<Partner[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    // TODO: Substituir por chamada de API real
-    // Exemplo: fetch('/api/partners').then(res => res.json()).then(setPartners)
     const fetchPartners = async () => {
       try {
-        // const response = await fetch('/api/partners');
-        // const data = await response.json();
-        // setPartners(data);
-        setPartners([]); // Array vazio até implementar a API
+        const response = await fetch('/api/parceiros');
+        if (!response.ok) throw new Error('Erro ao buscar parceiros');
+        const data = await response.json();
+        // Mapear dados do banco para o formato esperado pelo componente
+        const formattedPartners = data.map((p: Partner) => ({
+          id: p.id,
+          name: p.name,
+          logo: p.logo,
+          website: p.website
+        }));
+        setPartners(formattedPartners);
       } catch (error) {
         console.error('Erro ao carregar parceiros:', error);
         setPartners([]);
@@ -31,10 +44,10 @@ const PartnersCarousel = () => {
 
   if (isLoading) {
     return (
-      <section className="py-20 sm:py-24 bg-linear-to-br from-white via-gray-50 to-gray-100">
+      <section className="py-12 sm:py-16">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-center min-h-[300px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003f7f]"></div>
+          <div className="flex items-center justify-center min-h-[150px]">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#003f7f]"></div>
           </div>
         </div>
       </section>
@@ -44,147 +57,121 @@ const PartnersCarousel = () => {
   // Renderiza a estrutura mesmo sem parceiros
   if (partners.length === 0) {
     return (
-      <section className="py-20 sm:py-24 bg-linear-to-br from-white via-gray-50 to-gray-100 relative overflow-hidden">
-        {/* Elementos decorativos de fundo */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#ffd000]/5 rounded-full blur-3xl"></div>
-
+      <section className="py-12 sm:py-16 relative overflow-hidden">
         <div className="container mx-auto px-4 relative z-10">
           {/* Header da Seção */}
-          <div className="text-center mb-12 sm:mb-16">
-            <div className="inline-block bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-6 py-3 rounded-full text-sm font-black mb-6 shadow-2xl">
-              🤝 Parcerias Estratégicas
-            </div>
-            
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] mb-4 bg-clip-text">
+          <div className="text-center mb-8 sm:mb-10">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#003f7f] mb-3">
               Nossos Parceiros
             </h2>
-            
-            <div className="w-32 h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-6"></div>
-            
-            <p className="text-gray-700 text-lg sm:text-xl max-w-3xl mx-auto leading-relaxed">
-              Juntos, fortalecemos o comércio de Ipirá
-            </p>
+            <div className="w-20 h-1 bg-[#003f7f] mx-auto"></div>
           </div>
 
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-lg">Nenhum parceiro disponível no momento.</p>
+          <div className="text-center py-8">
+            <p className="text-gray-500">Nenhum parceiro disponível no momento.</p>
           </div>
         </div>
       </section>
     );
   }
 
-  return (
-    <section className="py-20 sm:py-24 bg-linear-to-br from-white via-gray-50 to-gray-100 relative overflow-hidden">
-      {/* Elementos decorativos de fundo */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl"></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#ffd000]/5 rounded-full blur-3xl"></div>
+  // Duplicar parceiros para garantir continuidade visual
+  const duplicatedPartners = [...partners, ...partners, ...partners];
 
+  return (
+    <section className="py-12 sm:py-16 relative overflow-hidden">
       <div className="container mx-auto px-4 relative z-10">
         {/* Header da Seção */}
-        <div className="text-center mb-12 sm:mb-16">
-          <div className="inline-block bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-6 py-3 rounded-full text-sm font-black mb-6 shadow-2xl">
-            🤝 Parcerias Estratégicas
-          </div>
-          
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] mb-4 bg-clip-text">
+        <div className="text-center mb-8 sm:mb-10">
+          <h2 className="text-2xl sm:text-3xl font-bold text-[#003f7f] mb-3">
             Nossos Parceiros
           </h2>
-          
-          <div className="w-32 h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-6"></div>
-          
-          <p className="text-gray-700 text-lg sm:text-xl max-w-3xl mx-auto leading-relaxed">
-            Juntos, fortalecemos o comércio de Ipirá
-          </p>
+          <div className="w-20 h-1 bg-[#003f7f] mx-auto"></div>
         </div>
         
-        {/* Carrossel de Parceiros */}
-        <div className="px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 overflow-visible">
+        {/* Carrossel de Parceiros - Estilo com Destaque Central */}
+        <div className="overflow-hidden py-8">
           <Swiper
-            modules={[Autoplay]}
-            spaceBetween={24}
-            slidesPerView={1.5}
+            modules={[Autoplay, EffectCoverflow]}
+            effect="coverflow"
+            grabCursor={true}
+            centeredSlides={true}
+            slidesPerView={3}
+            speed={600}
+            coverflowEffect={{
+              rotate: 0,
+              stretch: 0,
+              depth: 100,
+              modifier: 2,
+              slideShadows: false,
+            }}
             autoplay={{
-              delay: 3000,
+              delay: 1500,
               disableOnInteraction: false,
+              pauseOnMouseEnter: true,
             }}
             loop={true}
             breakpoints={{
+              320: {
+                slidesPerView: 1.5,
+              },
               480: {
                 slidesPerView: 2,
-                spaceBetween: 32,
               },
               640: {
-                slidesPerView: 2.5,
-                spaceBetween: 40,
+                slidesPerView: 3,
               },
               768: {
                 slidesPerView: 3,
-                spaceBetween: 48,
               },
               1024: {
-                slidesPerView: 4,
-                spaceBetween: 56,
+                slidesPerView: 5,
               },
               1280: {
                 slidesPerView: 5,
-                spaceBetween: 64,
               },
             }}
-            className="partners-carousel-modern py-4"
+            className="partners-coverflow"
           >
-            {partners.map((partner) => (
-              <SwiperSlide key={partner.id} className="h-auto">
-                <div className="group relative bg-white p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-3 flex items-center justify-center h-[120px] sm:h-[140px] md:h-[160px] w-full overflow-hidden border-2 border-transparent hover:border-[#003f7f]/20 magic-card">
-                  {/* Efeito de brilho no hover */}
-                  <div className="absolute inset-0 bg-linear-to-br from-[#003f7f]/0 via-[#00a859]/0 to-[#ffd000]/0 group-hover:from-[#003f7f]/5 group-hover:via-[#00a859]/5 group-hover:to-[#ffd000]/5 transition-all duration-500"></div>
-                  
-                  {/* Logo */}
-                  <div className="relative z-10 w-full h-full flex items-center justify-center">
-                    <Image 
-                      src={partner.logo} 
-                      alt={partner.name}
-                      width={200}
-                      height={100}
-                      className="h-14 sm:h-16 md:h-20 w-auto max-w-full object-contain grayscale group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110 filter drop-shadow-sm group-hover:drop-shadow-md"
-                    />
-                  </div>
-                  
-                  {/* Barra colorida inferior */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
+            {duplicatedPartners.map((partner, index) => (
+              <SwiperSlide key={`${partner.id}-${index}`}>
+                <div className="flex items-center justify-center h-[140px] sm:h-[180px] md:h-[200px] px-4 partner-slide">
+                  <Image 
+                    src={partner.logo} 
+                    alt={partner.name}
+                    width={300}
+                    height={150}
+                    className="h-16 sm:h-24 md:h-28 w-auto max-w-[260px] sm:max-w-[300px] md:max-w-[340px] object-contain transition-all duration-500"
+                  />
                 </div>
               </SwiperSlide>
             ))}
           </Swiper>
         </div>
-
-        {/* Texto de apoio */}
-        <div className="text-center mt-12 sm:mt-16">
-          <p className="text-gray-600 text-sm sm:text-base">
-            Parceiros que confiam e investem no crescimento do comércio de Ipirá
-          </p>
-        </div>
       </div>
 
       <style jsx global>{`
-        .partners-carousel-modern {
-          padding-left: 0 !important;
-          padding-right: 0 !important;
-          overflow: visible !important;
+        .partners-coverflow .swiper-slide {
+          transition: all 0.2s ease;
+          opacity: 0.4;
+          filter: grayscale(100%);
         }
-        .partners-carousel-modern .swiper-wrapper {
-          padding-left: 0;
-          padding-right: 0;
+        
+        .partners-coverflow .swiper-slide-active {
+          opacity: 1;
+          filter: grayscale(0%);
+          transform: scale(1.3) !important;
+          z-index: 10;
         }
-        .partners-carousel-modern .swiper-slide {
+        
+        .partners-coverflow .swiper-slide-prev,
+        .partners-coverflow .swiper-slide-next {
+          opacity: 0.6;
+          filter: grayscale(50%);
+        }
+        
+        .partners-coverflow .swiper-slide img {
           transition: all 0.3s ease;
-          width: auto !important;
-        }
-        .partners-carousel-modern .swiper-slide > div {
-          margin: 0 auto;
         }
       `}</style>
     </section>
@@ -192,4 +179,3 @@ const PartnersCarousel = () => {
 };
 
 export default PartnersCarousel;
-
