@@ -77,16 +77,16 @@ export default function DiretoriaPage() {
       </div>
 
       {/* Header da Página */}
-      <section className="py-8 sm:py-12 md:py-16 bg-gradient-to-br from-white via-gray-50 to-gray-100">
+      <section className="py-8 sm:py-12 md:py-16 bg-linear-to-br from-white via-gray-50 to-gray-100">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
-            <div className="inline-block bg-gradient-to-r from-[#003f7f] to-[#0066cc] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-2xl">
+            <div className="inline-block bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-2xl">
               👥 Nossa Liderança
             </div>
             <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] mb-3 sm:mb-4 leading-tight">
               Diretoria
             </h1>
-            <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-gradient-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-4 sm:mb-6"></div>
+            <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-4 sm:mb-6"></div>
             <p className="text-gray-700 text-base sm:text-lg md:text-xl max-w-3xl mx-auto px-4 text-justify">
               Conheça os profissionais que lideram a CDL Ipirá e trabalham pelo fortalecimento do comércio local
             </p>
@@ -110,11 +110,11 @@ export default function DiretoriaPage() {
             <section className="py-8 sm:py-12 md:py-16 bg-white">
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="max-w-5xl mx-auto animate-blur-fade-in">
-                  <div className="bg-gradient-to-br from-[#003f7f] via-[#0052a3] to-[#0066cc] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden">
+                  <div className="bg-linear-to-br from-[#003f7f] via-[#0052a3] to-[#0066cc] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
                       {/* Foto do Presidente */}
                       <div className="relative h-[350px] xs:h-[400px] sm:h-[450px] md:h-[500px] lg:h-full lg:min-h-[500px] order-2 lg:order-1">
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#003f7f] to-[#0066cc]">
+                        <div className="absolute inset-0 bg-linear-to-br from-[#003f7f] to-[#0066cc]">
                           {presidente.photo_url ? (
                             <Image
                               src={presidente.photo_url}
@@ -131,7 +131,7 @@ export default function DiretoriaPage() {
                           )}
                         </div>
                         {/* Overlay gradiente */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#003f7f]/80 via-transparent to-transparent"></div>
+                        <div className="absolute inset-0 bg-linear-to-t from-[#003f7f]/80 via-transparent to-transparent"></div>
                         {/* Badge Presidente */}
                         <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10">
                           <div className="bg-[#ffd000] text-[#003f7f] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-black text-xs sm:text-sm shadow-xl">
@@ -178,13 +178,13 @@ export default function DiretoriaPage() {
           )}
 
           {/* Diretores */}
-          <section className="py-8 sm:py-12 md:py-16 lg:py-20 bg-gradient-to-br from-gray-50 via-white to-gray-50">
+          <section className="py-8 sm:py-12 md:py-16 lg:py-20 bg-linear-to-br from-gray-50 via-white to-gray-50">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
                 <h2 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl font-black text-[#003f7f] mb-3 sm:mb-4">
                   Diretores
                 </h2>
-                <div className="w-20 sm:w-24 h-1.5 sm:h-2 bg-gradient-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto"></div>
+                <div className="w-20 sm:w-24 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto"></div>
               </div>
 
               {diretores.length === 0 ? (
@@ -201,7 +201,7 @@ export default function DiretoriaPage() {
                     >
                       {/* Foto do Diretor */}
                       <div className="relative h-56 xs:h-64 sm:h-72 md:h-80 overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#003f7f] to-[#0066cc]">
+                        <div className="absolute inset-0 bg-linear-to-br from-[#003f7f] to-[#0066cc]">
                           {diretor.photo_url ? (
                             <Image
                               src={diretor.photo_url}
@@ -217,7 +217,7 @@ export default function DiretoriaPage() {
                           )}
                         </div>
                         {/* Overlay gradiente */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#003f7f]/90 via-[#003f7f]/50 to-transparent"></div>
+                        <div className="absolute inset-0 bg-linear-to-t from-[#003f7f]/90 via-[#003f7f]/50 to-transparent"></div>
 
                         {/* Badge Cargo */}
                         <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10">
@@ -268,7 +268,7 @@ export default function DiretoriaPage() {
                       </div>
 
                       {/* Barra colorida inferior */}
-                      <div className="h-1.5 sm:h-2 bg-gradient-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]"></div>
+                      <div className="h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]"></div>
                     </div>
                   ))}
                 </div>
@@ -281,13 +281,13 @@ export default function DiretoriaPage() {
             <section className="py-8 sm:py-12 md:py-16 lg:py-20 bg-white">
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
-                  <div className="inline-block bg-gradient-to-r from-[#00a859] to-[#00d670] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-2xl">
+                  <div className="inline-block bg-linear-to-r from-[#00a859] to-[#00d670] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-2xl">
                     💼 Nossa Equipe
                   </div>
                   <h2 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl font-black text-[#003f7f] mb-3 sm:mb-4">
                     Colaboradores
                   </h2>
-                  <div className="w-20 sm:w-24 h-1.5 sm:h-2 bg-gradient-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-3 sm:mb-4"></div>
+                  <div className="w-20 sm:w-24 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-3 sm:mb-4"></div>
                   <p className="text-gray-700 text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4 text-justify">
                     Profissionais dedicados que trabalham diariamente para oferecer o melhor atendimento e serviços aos associados
                   </p>
@@ -301,7 +301,7 @@ export default function DiretoriaPage() {
                       style={{ animationDelay: `${index * 0.1}s` }}
                     >
                       {/* Foto do Colaborador */}
-                      <div className="relative h-52 xs:h-56 sm:h-64 overflow-hidden bg-gradient-to-br from-[#00a859] to-[#00d670]">
+                      <div className="relative h-52 xs:h-56 sm:h-64 overflow-hidden bg-linear-to-br from-[#00a859] to-[#00d670]">
                         {colaborador.photo_url ? (
                           <Image
                             src={colaborador.photo_url}
@@ -316,7 +316,7 @@ export default function DiretoriaPage() {
                           </div>
                         )}
                         {/* Overlay gradiente */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#00a859]/80 via-[#00a859]/40 to-transparent"></div>
+                        <div className="absolute inset-0 bg-linear-to-t from-[#00a859]/80 via-[#00a859]/40 to-transparent"></div>
 
                         {/* Badge Cargo */}
                         <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10">
@@ -367,7 +367,7 @@ export default function DiretoriaPage() {
                       </div>
 
                       {/* Barra colorida inferior */}
-                      <div className="h-1 sm:h-1.5 bg-gradient-to-r from-[#00a859] to-[#00d670]"></div>
+                      <div className="h-1 sm:h-1.5 bg-linear-to-r from-[#00a859] to-[#00d670]"></div>
                     </div>
                   ))}
                 </div>
@@ -378,11 +378,11 @@ export default function DiretoriaPage() {
       )}
 
       {/* Seção de Informação Adicional */}
-      <section className="py-8 sm:py-12 md:py-16 bg-gradient-to-br from-gray-50 to-white">
+      <section className="py-8 sm:py-12 md:py-16 bg-linear-to-br from-gray-50 to-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto text-center animate-blur-fade-in">
             <div className="bg-white rounded-xl sm:rounded-2xl p-6 sm:p-8 md:p-10 lg:p-12 shadow-xl border border-gray-200">
-              <div className="inline-block bg-gradient-to-r from-[#003f7f] to-[#0066cc] text-white px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6">
+              <div className="inline-block bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6">
                 📅 Mandato 2024-2027
               </div>
               <h2 className="text-xl xs:text-2xl sm:text-3xl font-black text-[#003f7f] mb-3 sm:mb-4">

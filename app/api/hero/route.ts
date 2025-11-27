@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { auditServer } from '@/lib/audit-server';
+import { validateAndSanitize, scanForThreats, getClientIP, logSecurityEvent } from '@/lib/security';
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('hero_slides')
-      .select('*')
+      .select('id, title, subtitle, description, button_text, button_link, gradient, accent_color, image, pattern, order_index, is_active')
       .eq('is_active', true)
       .order('order_index', { ascending: true });
 
@@ -20,22 +21,55 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIP(request);
+  
   try {
     const body = await request.json();
-    const { data, error } = await supabase
+    
+    // Verificar ameaças
+    const { safe, threats } = scanForThreats(body, request);
+    if (!safe) {
+      logSecurityEvent({
+        type: 'suspicious_activity',
+        ip,
+        path: '/api/hero',
+        details: { threats, method: 'POST' }
+      });
+      return NextResponse.json({ error: 'Dados inválidos detectados' }, { status: 400 });
+    }
+    
+    // Validar e sanitizar
+    const { valid, errors, sanitized } = validateAndSanitize(body, {
+      title: { type: 'string', required: true, maxLength: 100 },
+      subtitle: { type: 'string', required: false, maxLength: 200 },
+      description: { type: 'string', required: false, maxLength: 500 },
+      buttonText: { type: 'string', required: false, maxLength: 50 },
+      buttonLink: { type: 'string', required: false, maxLength: 500 },
+      gradient: { type: 'string', required: false, maxLength: 200 },
+      accentColor: { type: 'string', required: false, maxLength: 50 },
+      image: { type: 'url', required: false },
+      pattern: { type: 'string', required: false, maxLength: 50 },
+      order: { type: 'number', required: false, min: 0, max: 9999 }
+    });
+    
+    if (!valid) {
+      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+    }
+    
+    const { data, error } = await supabaseAdmin
       .from('hero_slides')
       .insert([
         {
-          title: body.title,
-          subtitle: body.subtitle,
-          description: body.description,
-          button_text: body.buttonText,
-          button_link: body.buttonLink,
-          gradient: body.gradient,
-          accent_color: body.accentColor,
-          image: body.image,
-          pattern: body.pattern,
-          order_index: body.order,
+          title: sanitized.title,
+          subtitle: sanitized.subtitle || null,
+          description: sanitized.description || null,
+          button_text: sanitized.buttonText || null,
+          button_link: sanitized.buttonLink || null,
+          gradient: sanitized.gradient || null,
+          accent_color: sanitized.accentColor || null,
+          image: sanitized.image || null,
+          pattern: sanitized.pattern || null,
+          order_index: sanitized.order || 0,
           is_active: true
         }
       ])
@@ -47,7 +81,7 @@ export async function POST(request: NextRequest) {
     await auditServer.create(
       'hero_slides',
       data[0].id.toString(),
-      body.title,
+      sanitized.title as string,
       undefined,
       request
     );
@@ -60,23 +94,61 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const ip = getClientIP(request);
+  
   try {
     const body = await request.json();
+    
+    // Verificar ameaças
+    const { safe, threats } = scanForThreats(body, request);
+    if (!safe) {
+      logSecurityEvent({
+        type: 'suspicious_activity',
+        ip,
+        path: '/api/hero',
+        details: { threats, method: 'PUT' }
+      });
+      return NextResponse.json({ error: 'Dados inválidos detectados' }, { status: 400 });
+    }
+    
+    // Validar ID
+    if (!body.id || typeof body.id !== 'number' || body.id < 1) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    }
+    
     const { id, ...updates } = body;
 
-    const { data, error } = await supabase
+    // Validar e sanitizar
+    const { valid, errors, sanitized } = validateAndSanitize(updates, {
+      title: { type: 'string', required: false, maxLength: 100 },
+      subtitle: { type: 'string', required: false, maxLength: 200 },
+      description: { type: 'string', required: false, maxLength: 500 },
+      buttonText: { type: 'string', required: false, maxLength: 50 },
+      buttonLink: { type: 'string', required: false, maxLength: 500 },
+      gradient: { type: 'string', required: false, maxLength: 200 },
+      accentColor: { type: 'string', required: false, maxLength: 50 },
+      image: { type: 'url', required: false },
+      pattern: { type: 'string', required: false, maxLength: 50 },
+      order: { type: 'number', required: false, min: 0, max: 9999 }
+    });
+    
+    if (!valid) {
+      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+    }
+
+    const { data, error } = await supabaseAdmin
       .from('hero_slides')
       .update({
-        title: updates.title,
-        subtitle: updates.subtitle,
-        description: updates.description,
-        button_text: updates.buttonText,
-        button_link: updates.buttonLink,
-        gradient: updates.gradient,
-        accent_color: updates.accentColor,
-        image: updates.image,
-        pattern: updates.pattern,
-        order_index: updates.order,
+        ...(sanitized.title && { title: sanitized.title }),
+        ...(sanitized.subtitle !== undefined && { subtitle: sanitized.subtitle || null }),
+        ...(sanitized.description !== undefined && { description: sanitized.description || null }),
+        ...(sanitized.buttonText !== undefined && { button_text: sanitized.buttonText || null }),
+        ...(sanitized.buttonLink !== undefined && { button_link: sanitized.buttonLink || null }),
+        ...(sanitized.gradient !== undefined && { gradient: sanitized.gradient || null }),
+        ...(sanitized.accentColor !== undefined && { accent_color: sanitized.accentColor || null }),
+        ...(sanitized.image !== undefined && { image: sanitized.image || null }),
+        ...(sanitized.pattern !== undefined && { pattern: sanitized.pattern || null }),
+        ...(sanitized.order !== undefined && { order_index: sanitized.order }),
       })
       .eq('id', id)
       .select();
@@ -87,7 +159,7 @@ export async function PUT(request: NextRequest) {
     await auditServer.update(
       'hero_slides',
       id.toString(),
-      updates.title,
+      sanitized.title as string || 'Slide',
       undefined,
       request
     );
@@ -100,25 +172,33 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const ip = getClientIP(request);
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
 
-  if (!id) {
-    return NextResponse.json({ error: 'ID não fornecido' }, { status: 400 });
+  // Validar ID
+  if (!id || !/^\d+$/.test(id)) {
+    logSecurityEvent({
+      type: 'invalid_input',
+      ip,
+      path: '/api/hero',
+      details: { reason: 'ID inválido', id }
+    });
+    return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
   }
 
   try {
     // Buscar dados antes de excluir para o log
-    const { data: slideData } = await supabase
+    const { data: slideData } = await supabaseAdmin
       .from('hero_slides')
       .select('title')
-      .eq('id', id)
+      .eq('id', parseInt(id))
       .single();
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('hero_slides')
       .delete()
-      .eq('id', id);
+      .eq('id', parseInt(id));
 
     if (error) throw error;
 

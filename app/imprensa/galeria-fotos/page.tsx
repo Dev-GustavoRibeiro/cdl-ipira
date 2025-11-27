@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { FaTimes, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaMapMarkerAlt, FaImages, FaSpinner, FaSearch, FaDownload } from 'react-icons/fa';
+import { FaTimes, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaMapMarkerAlt, FaImages, FaSpinner, FaSearch } from 'react-icons/fa';
 import { supabase } from '@/lib/supabase';
 
 interface AlbumPhoto {
@@ -49,7 +49,7 @@ const GaleriaFotosPage = () => {
     setIsLoading(true);
     try {
       // Primeiro tenta buscar com is_active, se falhar busca sem filtro
-      let albumsData: any[] = [];
+      let albumsData: Album[] = [];
       
       const { data, error } = await supabase
         .from('albums')
@@ -170,9 +170,9 @@ const GaleriaFotosPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-[#003f7f] via-[#0066cc] to-[#003f7f] py-20 relative overflow-hidden">
+      <section className="bg-linear-to-br from-[#003f7f] via-[#0066cc] to-[#003f7f] py-20 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
@@ -250,7 +250,7 @@ const GaleriaFotosPage = () => {
                   className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 cursor-pointer group"
                   onClick={() => openModal(album)}
                 >
-                  <div className="relative h-64 overflow-hidden bg-gradient-to-br from-[#003f7f] to-[#0052a3]">
+                  <div className="relative h-64 overflow-hidden bg-linear-to-br from-[#003f7f] to-[#0052a3]">
                     {album.cover_url ? (
                       <Image
                         src={album.cover_url}
@@ -263,7 +263,7 @@ const GaleriaFotosPage = () => {
                         <FaImages className="w-20 h-20 text-white/30" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <div className="absolute bottom-4 left-4 right-4 text-white">
                         <div className="flex items-center gap-2 mb-2">
                           <FaImages className="w-4 h-4" />

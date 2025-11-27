@@ -9,17 +9,17 @@ const ServicesCards = () => {
     {
       icon: <FaCalendarAlt className="text-5xl text-[#00a859]" />,
       title: 'Eventos',
-      link: '/eventos'
+      link: '/imprensa/eventos'
     },
     {
       icon: <FaEye className="text-5xl text-[#00a859]" />,
       title: 'Portal Transparência',
-      link: '/portal-transparencia'
+      link: '/institucional/portal-transparencia'
     },
     {
       icon: <FaBook className="text-5xl text-[#00a859]" />,
       title: 'Revista CDL',
-      link: '/revista-cdl'
+      link: '/imprensa/revista-cdl'
     },
     {
       icon: <FaUserCircle className="text-5xl text-[#00a859]" />,
@@ -29,12 +29,12 @@ const ServicesCards = () => {
     {
       icon: <FaUsers className="text-5xl text-[#00a859]" />,
       title: 'Cadastre Seu Currículo',
-      link: '/balcao-empregos'
+      link: '/produtos/balcao-empregos'
     },
     {
       icon: <FaFileAlt className="text-5xl text-[#00a859]" />,
       title: 'Compromisso da CDL',
-      link: '/compromisso-cdl'
+      link: '/institucional/compromisso-cdl'
     }
   ];
 

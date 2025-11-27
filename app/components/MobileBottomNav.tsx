@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -8,9 +8,6 @@ import {
   FaNewspaper, 
   FaBars, 
   FaTimes, 
-  FaBuilding, 
-  FaBox, 
-  FaGift, 
   FaUserPlus,
   FaShieldAlt, 
   FaEnvelope,
@@ -42,6 +39,7 @@ const MobileBottomNav = () => {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState('institucional');
+  const prevPathname = useRef(pathname);
 
   // Bloquear scroll quando menu estiver aberto
   useEffect(() => {
@@ -55,10 +53,15 @@ const MobileBottomNav = () => {
     };
   }, [isMenuOpen]);
 
-  // Fechar menu ao mudar de rota
+  // Fechar menu ao mudar de rota - usando queueMicrotask para evitar cascading renders
   useEffect(() => {
-    setIsMenuOpen(false);
-  }, [pathname]);
+    if (prevPathname.current !== pathname) {
+      prevPathname.current = pathname;
+      if (isMenuOpen) {
+        queueMicrotask(() => setIsMenuOpen(false));
+      }
+    }
+  }, [pathname, isMenuOpen]);
 
   const isActive = (path: string) => pathname === path;
 
@@ -112,7 +115,7 @@ const MobileBottomNav = () => {
     <>
       {/* Overlay Escuro */}
       <div 
-        className={`fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] md:hidden transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-black/70 backdrop-blur-sm z-60 md:hidden transition-opacity duration-300 ${
           isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`} 
         onClick={() => setIsMenuOpen(false)} 
@@ -120,7 +123,7 @@ const MobileBottomNav = () => {
 
       {/* Bottom Sheet (Menu Principal) */}
       <div 
-        className={`fixed inset-x-0 bottom-0 bg-gray-50 rounded-t-[2rem] z-[70] md:hidden flex flex-col max-h-[85vh] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transition-transform duration-300 cubic-bezier(0.32, 0.72, 0, 1) ${
+        className={`fixed inset-x-0 bottom-0 bg-gray-50 rounded-t-4xl z-70 md:hidden flex flex-col max-h-[85vh] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transition-transform duration-300 cubic-bezier(0.32, 0.72, 0, 1) ${
           isMenuOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
@@ -171,7 +174,7 @@ const MobileBottomNav = () => {
               >
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-sm transition-transform active:scale-90 group-hover:scale-105 ${
                   item.highlight 
-                    ? 'bg-gradient-to-br from-[#003f7f] to-[#0066cc] text-white shadow-blue-900/20' 
+                    ? 'bg-linear-to-br from-[#003f7f] to-[#0066cc] text-white shadow-blue-900/20' 
                     : 'bg-white text-[#003f7f] border border-gray-100'
                 }`}>
                   <item.icon />
@@ -188,7 +191,7 @@ const MobileBottomNav = () => {
             href="https://app.higestor.com.br/inscricao/empresa/cdl-ipira" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="mt-8 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-[#ffd000] to-[#ffed4e] text-[#003f7f] shadow-lg shadow-yellow-500/20 mb-safe"
+            className="mt-8 flex items-center justify-between p-4 rounded-2xl bg-linear-to-r from-[#ffd000] to-[#ffed4e] text-[#003f7f] shadow-lg shadow-yellow-500/20 mb-safe"
           >
             <div className="flex items-center gap-4">
               <div className="p-2 bg-white/30 rounded-xl backdrop-blur-sm">
@@ -219,7 +222,7 @@ const MobileBottomNav = () => {
           />
           
           <NavButton 
-            href="/noticias" 
+            href="/imprensa/noticias" 
             icon={FaNewspaper} 
             label="Notícias" 
             isActive={isActive('/noticias')} 
@@ -258,7 +261,7 @@ const MobileBottomNav = () => {
   );
 };
 
-const NavButton = ({ href, icon: Icon, label, isActive }: any) => (
+const NavButton = ({ href, icon: Icon, label, isActive }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; isActive: boolean }) => (
   <Link 
     href={href} 
     className={`flex flex-col items-center gap-1 p-2 rounded-xl w-16 transition-colors ${

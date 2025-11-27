@@ -212,8 +212,13 @@ const allNews = [
   },
 ];
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const news = allNews.find(n => n.id === parseInt(params.id));
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const resolvedParams = await params;
+  const news = allNews.find(n => n.id === parseInt(resolvedParams.id));
   
   if (!news) {
     return {
@@ -227,8 +232,9 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   };
 }
 
-export default function NoticiaDetailPage({ params }: { params: { id: string } }) {
-  const news = allNews.find(n => n.id === parseInt(params.id));
+export default async function NoticiaDetailPage({ params }: PageProps) {
+  const resolvedParams = await params;
+  const news = allNews.find(n => n.id === parseInt(resolvedParams.id));
 
   if (!news) {
     notFound();
@@ -256,7 +262,7 @@ export default function NoticiaDetailPage({ params }: { params: { id: string } }
             </Link>
             <span className="text-white/40">/</span>
             <Link 
-              href="/noticias" 
+              href="/imprensa/noticias" 
               className="hover:text-[#ffd000] transition-colors"
             >
               Notícias
@@ -367,7 +373,7 @@ export default function NoticiaDetailPage({ params }: { params: { id: string } }
             {/* Botão Voltar */}
             <div className="mb-8 sm:mb-12">
               <Link
-                href="/noticias"
+                href="/imprensa/noticias"
                 className="inline-flex items-center gap-2 text-[#003f7f] font-bold hover:text-[#0066cc] transition-colors group text-sm sm:text-base"
               >
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 group-hover:-translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
@@ -392,7 +398,7 @@ export default function NoticiaDetailPage({ params }: { params: { id: string } }
                 {relatedNews.map((item, index) => (
                   <Link
                     key={item.id}
-                    href={`/noticias/${item.id}`}
+                    href={`/imprensa/noticias/${item.id}`}
                     className="group bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 flex flex-col h-full animate-scale-in"
                     style={{ animationDelay: `${index * 0.1}s` }}
                   >

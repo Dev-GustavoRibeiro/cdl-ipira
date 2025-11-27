@@ -8,8 +8,23 @@ import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
 
+interface Event {
+  id: number;
+  title: string;
+  description: string;
+  date: string;
+  month: string;
+  year: string;
+  fullDate: string;
+  location: string;
+  category: string;
+  participants: string;
+  image?: string;
+  gradient: string;
+}
+
 const EventsCarousel = () => {
-  const [events, setEvents] = React.useState<any[]>([]);
+  const [events, setEvents] = React.useState<Event[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -132,12 +147,14 @@ const EventsCarousel = () => {
                   {/* Imagem do Evento */}
                   <div className="relative h-64 sm:h-72 md:h-80 overflow-hidden shrink-0">
                     <div className={`absolute inset-0 bg-linear-to-br ${event.gradient} opacity-90`}></div>
-                    <Image 
-                      src={event.image} 
-                      alt={event.title}
-                      fill
-                      className="object-cover transform group-hover:scale-110 transition-transform duration-700"
-                    />
+                    {event.image && (
+                      <Image 
+                        src={event.image} 
+                        alt={event.title}
+                        fill
+                        className="object-cover transform group-hover:scale-110 transition-transform duration-700"
+                      />
+                    )}
                     
                     {/* Overlay gradient */}
                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/30 to-transparent"></div>

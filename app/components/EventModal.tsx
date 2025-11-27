@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FaTimes, FaCalendar, FaClock, FaMapMarkerAlt, FaTag, FaUsers, FaCheckCircle } from 'react-icons/fa';
+import Image from 'next/image';
+import { FaTimes, FaCalendar, FaClock, FaMapMarkerAlt, FaTag, FaUsers } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
-import { supabase } from '@/lib/supabase';
 import RegistrationModal from './RegistrationModal';
 
 interface EventModalProps {
@@ -44,7 +44,7 @@ export default function EventModal({ isOpen, onClose, event }: EventModalProps) 
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+      <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
         <div 
           className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
           onClick={onClose}
@@ -62,10 +62,11 @@ export default function EventModal({ isOpen, onClose, event }: EventModalProps) 
           {/* Header com Imagem (se houver) ou Gradiente */}
           <div className={`relative h-64 sm:h-80 md:h-96 shrink-0 ${!event.image ? `bg-linear-to-br ${event.gradient || 'from-[#003f7f] to-[#0066cc]'}` : ''}`}>
             {event.image ? (
-              <img 
+              <Image 
                 src={event.image} 
                 alt={event.title} 
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center p-8">
@@ -76,7 +77,7 @@ export default function EventModal({ isOpen, onClose, event }: EventModalProps) 
             )}
             
             {/* Overlay Gradient se tiver imagem */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none"></div>
+            <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent pointer-events-none"></div>
 
              {/* Badge Categoria */}
              <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-10">

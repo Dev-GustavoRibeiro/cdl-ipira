@@ -30,7 +30,7 @@ export default function HeroCarousel() {
         if (response.ok) {
           const data = await response.json();
           // Se vier da API (snake_case), converter para camelCase
-          const formattedSlides = data.map((s: any) => ({
+          const formattedSlides = data.map((s: { id: number; title: string; subtitle: string; description: string; button_text?: string; buttonText?: string; button_link?: string; buttonLink?: string; gradient: string; accent_color?: string; accentColor?: string; image?: string; pattern?: string; order_index?: number; order?: number }) => ({
             id: s.id,
             title: s.title,
             subtitle: s.subtitle,

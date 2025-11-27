@@ -73,7 +73,7 @@ const NewsCarousel = () => {
               <div className="w-32 h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full"></div>
             </div>
             <Link
-              href="/noticias"
+              href="/imprensa/noticias"
               className="hidden md:flex items-center gap-2 bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-8 py-4 rounded-full font-bold hover:shadow-2xl transition-all duration-300 hover:scale-105 group"
             >
               Ver Todas
@@ -109,7 +109,7 @@ const NewsCarousel = () => {
             <div className="w-32 h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full"></div>
           </div>
           <Link
-            href="/noticias"
+            href="/imprensa/noticias"
             className="hidden md:flex items-center gap-2 bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-8 py-4 rounded-full font-bold hover:shadow-2xl transition-all duration-300 hover:scale-105 group"
           >
             Ver Todas
@@ -232,7 +232,7 @@ const NewsCarousel = () => {
 
         <div className="text-center mt-12 md:hidden">
           <Link
-            href="/noticias"
+            href="/imprensa/noticias"
             className="inline-flex items-center gap-2 bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-8 py-4 rounded-full font-bold shadow-xl hover:shadow-2xl transition-all"
           >
             Ver Todas as Notícias

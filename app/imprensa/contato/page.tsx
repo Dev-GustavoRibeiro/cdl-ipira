@@ -37,7 +37,7 @@ const ContatoPage = () => {
         assunto: '',
         mensagem: ''
       });
-    } catch (error) {
+    } catch {
       setSubmitStatus('error');
     } finally {
       setIsSubmitting(false);
@@ -85,7 +85,7 @@ const ContatoPage = () => {
               <div className="space-y-6">
                 {/* Telefone */}
                 <a
-                  href="tel:557532541599"
+                  href="tel:5575999145061"
                   className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex items-start gap-4 border-2 border-transparent hover:border-[#003f7f]"
                 >
                   <div className="bg-[#003f7f] text-white p-4 rounded-xl group-hover:scale-110 transition-transform">
@@ -96,13 +96,13 @@ const ContatoPage = () => {
                       Telefone
                     </h3>
                     <p className="text-gray-600 text-sm mb-1">Ligue para nós</p>
-                    <p className="text-xl font-semibold text-[#003f7f]">(75) 3254-1599</p>
+                    <p className="text-xl font-semibold text-[#003f7f]">(75) 99914-5061</p>
                   </div>
                 </a>
 
                 {/* WhatsApp */}
                 <a
-                  href="https://wa.me/5575999145061"
+                  href="https://wa.me/557532541599"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex items-start gap-4 border-2 border-transparent hover:border-[#00a859]"
@@ -115,7 +115,7 @@ const ContatoPage = () => {
                       WhatsApp
                     </h3>
                     <p className="text-gray-600 text-sm mb-1">Fale conosco pelo WhatsApp</p>
-                    <p className="text-xl font-semibold text-[#00a859]">(75) 99914-5061</p>
+                    <p className="text-xl font-semibold text-[#00a859]">(75) 3254-1599</p>
                   </div>
                 </a>
 
@@ -282,7 +282,7 @@ const ContatoPage = () => {
                 {/* Status de Envio */}
                 {submitStatus === 'success' && (
                   <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 flex items-center gap-3">
-                    <FaCheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                    <FaCheckCircle className="w-5 h-5 text-green-600 shrink-0" />
                     <p className="text-green-800 font-semibold">
                       Mensagem enviada com sucesso! Entraremos em contato em breve.
                     </p>
@@ -291,7 +291,7 @@ const ContatoPage = () => {
 
                 {submitStatus === 'error' && (
                   <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-center gap-3">
-                    <FaTimesCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <FaTimesCircle className="w-5 h-5 text-red-600 shrink-0" />
                     <p className="text-red-800 font-semibold">
                       Erro ao enviar mensagem. Tente novamente ou entre em contato por telefone.
                     </p>
@@ -335,7 +335,7 @@ const ContatoPage = () => {
           <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
             <div className="aspect-video bg-gray-200 relative">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.1234567890123!2d-39.73745678901234!3d-12.12345678901234!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTLCsDA3JzI0LjQiUyAzOcKwNDQnMTQuOSJX!5e0!3m2!1spt-BR!2sbr!4v1234567890123!5m2!1spt-BR!2sbr"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d243.7698049399102!2d-39.73938862155856!3d-12.158816444321067!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x714db85e6de07eb%3A0xec56058059003bed!2sCDL%20-%20C%C3%A2mara%20de%20Dirigentes%20Lojistas%20de%20Ipir%C3%A1!5e0!3m2!1spt-BR!2sbr!4v1764212197479!5m2!1spt-BR!2sbr"
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}

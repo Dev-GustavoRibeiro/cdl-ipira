@@ -53,16 +53,16 @@ const Footer = () => {
               Institucional
             </h3>
             <ul className="space-y-2.5">
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/institucional/historia" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> História
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/institucional/diretoria" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> Diretoria
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
-                <span className="text-[#ffd000]">→</span> Colaboradores
+              <li><a href="/institucional/compromisso-cdl" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+                <span className="text-[#ffd000]">→</span> Compromisso CDL
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/institucional/missao-visao-valores" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> Missão e Valores
               </a></li>
             </ul>
@@ -74,47 +74,38 @@ const Footer = () => {
               Produtos
             </h3>
             <ul className="space-y-2.5">
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/produtos/spc-brasil" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> SPC Brasil
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
-                <span className="text-[#ffd000]">→</span> CDL Celular
+              <li><a href="/produtos/cdl-midia" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+                <span className="text-[#ffd000]">→</span> CDL Mídia
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/produtos/certificado-digital" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> Certificado Digital
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
-                <span className="text-[#ffd000]">→</span> CDL Energia
-              </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
-                <span className="text-[#ffd000]">→</span> CDL Odonto
-              </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
-                <span className="text-[#ffd000]">→</span> Cartão de Crédito
+              <li><a href="/produtos/balcao-empregos" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+                <span className="text-[#ffd000]">→</span> Balcão de Empregos
               </a></li>
             </ul>
           </div>
 
-          {/* Associe-se */}
+          {/* Benefícios */}
           <div>
             <h3 className="text-lg font-bold mb-4 border-b-2 border-[#ffd000] pb-2">
-              Associe-se
+              Benefícios
             </h3>
             <ul className="space-y-2.5">
               <li><a href="https://app.higestor.com.br/inscricao/empresa/cdl-ipira" target="_blank" rel="noopener noreferrer" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> Filie-se Agora
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
-                <span className="text-[#ffd000]">→</span> Convênios
+              <li><a href="/beneficios/empresas" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+                <span className="text-[#ffd000]">→</span> Empresas Associadas
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
-                <span className="text-[#ffd000]">→</span> Benefícios
-              </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/beneficios/orientacao-juridica" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> Orientação Jurídica
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
-                <span className="text-[#ffd000]">→</span> Cartão Convênio
+              <li><a href="/beneficios/projeto-conduz" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+                <span className="text-[#ffd000]">→</span> Projeto Conduz
               </a></li>
             </ul>
           </div>
@@ -125,17 +116,20 @@ const Footer = () => {
               Imprensa
             </h3>
             <ul className="space-y-2.5">
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/imprensa/noticias" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> Notícias
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/imprensa/tv-lojista" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> TV Lojista
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/imprensa/galeria-fotos" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> Galeria de Fotos
               </a></li>
-              <li><a href="#" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+              <li><a href="/imprensa/eventos" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
                 <span className="text-[#ffd000]">→</span> Eventos
+              </a></li>
+              <li><a href="/imprensa/revista-cdl" className="hover:text-[#ffd000] transition-colors flex items-center gap-2">
+                <span className="text-[#ffd000]">→</span> Revista CDL
               </a></li>
             </ul>
           </div>
@@ -155,15 +149,15 @@ const Footer = () => {
             
             <div className="bg-white/10 rounded-lg p-4 hover:bg-white/15 transition-all">
               <p className="font-bold mb-3 text-[#ffd000] text-sm uppercase">WhatsApp</p>
-              <a href="https://wa.me/5575999145061" target="_blank" rel="noopener noreferrer" className="hover:text-[#ffd000] flex items-center gap-2 transition-colors">
-                <FaWhatsapp size={18} /> (75) 99914-5061
+              <a href="https://wa.me/557532541599" target="_blank" rel="noopener noreferrer" className="hover:text-[#ffd000] flex items-center gap-2 transition-colors">
+                <FaWhatsapp size={18} /> (75) 3254-1599
               </a>
             </div>
             
             <div className="bg-white/10 rounded-lg p-4 hover:bg-white/15 transition-all">
               <p className="font-bold mb-3 text-[#ffd000] text-sm uppercase">Telefone</p>
-              <a href="tel:557532541599" className="hover:text-[#ffd000] flex items-center gap-2 transition-colors">
-                <FaPhone size={16} /> (75) 3254-1599
+              <a href="tel:557599914-5061" className="hover:text-[#ffd000] flex items-center gap-2 transition-colors">
+                <FaPhone size={16} /> (75) 99914-5061
               </a>
             </div>
             

@@ -53,6 +53,10 @@ export default function RevistaCDLPage() {
   const latestMagazine = magazines[0];
   const otherMagazines = filteredMagazines.filter(m => m.id !== latestMagazine?.id);
 
+  // Suprimir warning de variável não usada
+  void selectedMagazine;
+  void setSelectedMagazine;
+
   return (
     <>
       {/* Breadcrumb Navigation */}
@@ -66,22 +70,26 @@ export default function RevistaCDLPage() {
               <span>Início</span>
             </Link>
             <span className="text-white/40">/</span>
+            <Link href="/imprensa/noticias" className="hover:text-[#ffd000] transition-colors">
+              <span>Imprensa</span>
+            </Link>
+            <span className="text-white/40">/</span>
             <span className="text-white font-semibold">Revista CDL</span>
           </nav>
         </div>
       </div>
 
       {/* Hero Section */}
-      <section className="py-8 sm:py-12 md:py-16 bg-gradient-to-br from-white via-gray-50 to-gray-100">
+      <section className="py-8 sm:py-12 md:py-16 bg-linear-to-br from-white via-gray-50 to-gray-100">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
-            <div className="inline-block bg-gradient-to-r from-[#ffd000] to-[#ffed4e] text-[#003f7f] px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-2xl">
+            <div className="inline-block bg-linear-to-r from-[#ffd000] to-[#ffed4e] text-[#003f7f] px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-2xl">
               📖 Revista CDL
             </div>
             <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] mb-3 sm:mb-4 leading-tight">
               Revista CDL
             </h1>
-            <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-gradient-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-4 sm:mb-6"></div>
+            <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-4 sm:mb-6"></div>
             <p className="text-gray-700 text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4 text-justify">
               Acesse as edições da Revista CDL Ipirá com notícias, artigos, entrevistas e informações sobre o comércio local e regional.
             </p>
@@ -110,7 +118,7 @@ export default function RevistaCDLPage() {
         <>
           {/* Edição em Destaque */}
           {latestMagazine && !searchTerm && (
-            <section className="py-8 sm:py-12 bg-gradient-to-r from-[#003f7f] to-[#0052a3]">
+            <section className="py-8 sm:py-12 bg-linear-to-r from-[#003f7f] to-[#0052a3]">
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="text-center mb-6">
                   <span className="inline-block bg-[#ffd000] text-[#003f7f] px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wide">
@@ -120,7 +128,7 @@ export default function RevistaCDLPage() {
                 <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
                   <div className="flex flex-col md:flex-row">
                     {/* Capa */}
-                    <div className="md:w-1/3 relative h-64 md:h-auto bg-gradient-to-br from-[#003f7f] to-[#0052a3]">
+                    <div className="md:w-1/3 relative h-64 md:h-auto bg-linear-to-br from-[#003f7f] to-[#0052a3]">
                       {latestMagazine.cover_url ? (
                         <Image
                           src={latestMagazine.cover_url}
@@ -189,7 +197,7 @@ export default function RevistaCDLPage() {
                   <h2 className="text-2xl sm:text-3xl font-black text-[#003f7f]">
                     {searchTerm ? 'Resultados da Busca' : 'Todas as Edições'}
                   </h2>
-                  <div className="w-16 h-1.5 bg-gradient-to-r from-[#003f7f] to-[#00a859] rounded-full mt-2"></div>
+                  <div className="w-16 h-1.5 bg-linear-to-r from-[#003f7f] to-[#00a859] rounded-full mt-2"></div>
                 </div>
                 <div className="relative max-w-sm w-full">
                   <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -220,7 +228,7 @@ export default function RevistaCDLPage() {
                       style={{ animationDelay: `${index * 0.1}s` }}
                     >
                       {/* Capa */}
-                      <div className="relative h-56 sm:h-64 bg-gradient-to-br from-[#003f7f] to-[#0052a3] flex items-center justify-center overflow-hidden">
+                      <div className="relative h-56 sm:h-64 bg-linear-to-br from-[#003f7f] to-[#0052a3] flex items-center justify-center overflow-hidden">
                         {magazine.cover_url ? (
                           <Image
                             src={magazine.cover_url}
@@ -281,7 +289,7 @@ export default function RevistaCDLPage() {
       )}
 
       {/* CTA */}
-      <section className="py-12 sm:py-16 bg-gradient-to-br from-gray-50 to-white">
+      <section className="py-12 sm:py-16 bg-linear-to-br from-gray-50 to-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl sm:text-3xl font-black text-[#003f7f] mb-4">
             Quer aparecer na Revista CDL?
@@ -290,7 +298,7 @@ export default function RevistaCDLPage() {
             Divulgue sua empresa e seus produtos para toda a comunidade lojista de Ipirá e região. Entre em contato com a CDL e saiba como participar das próximas edições.
           </p>
           <Link
-            href="/contato"
+            href="/imprensa/contato"
             className="inline-flex items-center gap-2 bg-[#00a859] text-white px-8 py-4 rounded-xl font-bold hover:bg-[#00d670] transition-all duration-300 shadow-lg hover:shadow-xl"
           >
             Fale Conosco
@@ -300,3 +308,4 @@ export default function RevistaCDLPage() {
     </>
   );
 }
+

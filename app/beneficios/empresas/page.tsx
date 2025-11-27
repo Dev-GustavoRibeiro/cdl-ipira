@@ -24,12 +24,12 @@ export default function EmpresasPage() {
         const response = await fetch('/api/parceiros');
         if (response.ok) {
           const data = await response.json();
-          const formattedParceiros = data.map((p: any) => ({
+          const formattedParceiros = data.map((p: { id: number; name: string; logo: string; website?: string; order_index?: number; order?: number }) => ({
             id: p.id,
             name: p.name,
             logo: p.logo,
             website: p.website,
-            order: p.order_index || p.order
+            order: p.order_index || p.order || 0
           }));
           setParceiros(formattedParceiros);
         }
@@ -93,7 +93,7 @@ export default function EmpresasPage() {
       </section>
 
       {/* Busca */}
-      <section className="py-6 sm:py-8 bg-white border-b border-gray-200 sticky top-[73px] sm:top-[81px] z-40 backdrop-blur-sm bg-white/95">
+      <section className="py-6 sm:py-8 border-b border-gray-200 sticky top-[73px] sm:top-[81px] z-40 backdrop-blur-sm bg-white/95">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-md mx-auto">
             <div className="relative">

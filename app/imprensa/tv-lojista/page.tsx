@@ -35,7 +35,7 @@ export default function TVLojistaPage() {
         const response = await fetch('/api/videos');
         if (response.ok) {
             const data = await response.json();
-            const formattedData = data.map((v: any) => ({
+            const formattedData = data.map((v: { id: number; title: string; description: string; thumbnail?: string; youtube_id?: string; video_url?: string; date: string; category: string; duration?: string }) => ({
                 ...v,
                 // Usa thumbnail do banco ou gera do youtube
                 thumbnail: v.thumbnail || (v.youtube_id ? getYoutubeThumbnail(v.youtube_id) : '/placeholder-video.jpg'),
@@ -88,7 +88,7 @@ export default function TVLojistaPage() {
             </Link>
             <span className="text-white/40">/</span>
             <Link 
-              href="/noticias" 
+              href="/imprensa/noticias" 
               className="hover:text-[#ffd000] transition-colors"
             >
               Imprensa

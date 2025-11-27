@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import ConditionalLayout from "./components/ConditionalLayout";
@@ -8,18 +8,20 @@ const inter = Inter({
   display: "swap",
 });
 
+// Viewport deve ser exportado separadamente (Next.js 14+)
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#003f7f",
+};
+
 export const metadata: Metadata = {
   title: "CDL Ipirá - Câmara de Dirigentes Lojistas",
   description: "CDL Ipirá - Representando e fortalecendo o comércio de Ipirá. Serviços, consultas SPC, certificado digital e muito mais.",
   keywords: "CDL Ipirá, comércio, lojistas, SPC, certificado digital, Ipirá, Bahia",
   manifest: "/manifest.json",
-  themeColor: "#003f7f",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false, // Sensação mais nativa de app
-  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

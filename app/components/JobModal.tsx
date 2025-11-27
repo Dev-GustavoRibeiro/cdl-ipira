@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { FaTimes, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCheckCircle } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
 
@@ -37,7 +37,7 @@ export default function JobModal({ isOpen, onClose, job }: JobModalProps) {
   if (!mounted || !isOpen || !job) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
         onClick={onClose}

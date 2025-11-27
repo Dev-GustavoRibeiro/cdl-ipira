@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { FaTimes, FaCalendar, FaUser, FaTag } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
 
@@ -36,7 +37,7 @@ export default function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
   if (!mounted || !isOpen || !news) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
@@ -54,10 +55,11 @@ export default function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
         {/* Header com Imagem (se houver) ou Gradiente */}
         <div className={`relative h-64 sm:h-80 md:h-96 shrink-0 ${!news.image ? `bg-linear-to-br ${news.color || 'from-blue-600 to-blue-800'}` : ''}`}>
           {news.image ? (
-            <img 
+            <Image 
               src={news.image} 
               alt={news.title} 
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center p-8">
@@ -68,7 +70,7 @@ export default function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
           )}
           
           {/* Overlay Gradient se tiver imagem para texto ficar legível se decidirmos por texto em cima */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none"></div>
+          <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent pointer-events-none"></div>
 
            {/* Badge Categoria */}
            <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6">

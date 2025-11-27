@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import NewsModal from '@/app/components/NewsModal';
 
@@ -38,7 +39,7 @@ export default function NoticiasPage() {
         if (error) throw error;
 
         if (data) {
-          const formattedNews = data.map((item: any) => {
+          const formattedNews = data.map((item: { id: number; title: string; excerpt: string; content: string; image: string; date: string; category: string; color: string; author: string }) => {
             let formattedDate = item.date;
             if (item.date && item.date.includes('-')) {
               const [year, month, day] = item.date.split('-');
@@ -88,6 +89,10 @@ export default function NoticiasPage() {
               <span>Início</span>
             </Link>
             <span className="text-white/40">/</span>
+            <Link href="/imprensa/noticias" className="hover:text-[#ffd000] transition-colors">
+              Imprensa
+            </Link>
+            <span className="text-white/40">/</span>
             <span className="text-white font-semibold">Notícias</span>
           </nav>
         </div>
@@ -112,7 +117,7 @@ export default function NoticiasPage() {
       </section>
 
       {/* Filtros de Categoria */}
-      <section className="py-4 sm:py-6 bg-white border-b border-gray-200 sticky top-[73px] sm:top-[81px] z-40 backdrop-blur-sm bg-white/95">
+      <section className="py-4 sm:py-6 border-b border-gray-200 sticky top-[73px] sm:top-[81px] z-40 backdrop-blur-sm bg-white/95">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-center">
             {categories.map((category) => (
@@ -159,7 +164,7 @@ export default function NoticiasPage() {
                 >
                    {item.image && (
                       <>
-                        <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                        <Image src={item.image} alt={item.title} fill className="object-cover transition-transform duration-700 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
                       </>
                    )}
@@ -241,3 +246,4 @@ export default function NoticiasPage() {
     </>
   );
 }
+

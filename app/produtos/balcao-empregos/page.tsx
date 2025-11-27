@@ -27,7 +27,6 @@ export default function BalcaoEmpregosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
   
   // Estado para o Modal de Visualização de Vaga
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -39,8 +38,12 @@ export default function BalcaoEmpregosPage() {
         const response = await fetch('/api/vagas');
         if (response.ok) {
           const data = await response.json();
-          const mappedData = data.map((item: any) => ({
+          // Mapear dados do Supabase para o formato da interface se necessário
+          // A interface espera: id, title, company, quantity, description, location, date, category
+          // O banco retorna: id, title, company, quantity, description, location, date, category
+          const mappedData = data.map((item: { id: number; title: string; company: string; quantity: number; description: string; location?: string; date?: string; category?: string }) => ({
             ...item,
+            // Formatar data se necessário
             date: item.date ? new Date(item.date).toLocaleDateString('pt-BR') : ''
           }));
           setJobs(mappedData);
@@ -118,15 +121,17 @@ export default function BalcaoEmpregosPage() {
       `👤 *Contato:* ${contato}\n` +
       `📧 *Email:* ${email}`;
 
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=5575992191260&text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=557532541599&text=${encodeURIComponent(message)}`;
 
-    // Pequeno atraso para UX e evitar bloqueio
+    // Pequeno atraso para UX
     setTimeout(() => {
+        // Abrir WhatsApp em nova aba
         window.open(whatsappUrl, '_blank');
         
         setSubmitStatus('success');
         form.reset();
         
+        // Fechar modal após 3 segundos
         setTimeout(() => {
             closeModal();
             setSubmitStatus('idle');
@@ -147,7 +152,7 @@ export default function BalcaoEmpregosPage() {
               className="hover:text-[#ffd000] transition-colors flex items-center gap-1 group"
             >
               <svg className="w-3 h-3 sm:w-4 sm:h-4 group-hover:translate-x-[-2px] transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
               </svg>
               <span>Início</span>
             </Link>
@@ -500,7 +505,7 @@ export default function BalcaoEmpregosPage() {
                 </svg>
                 <div>
                   <p className="font-bold">Erro ao cadastrar vaga</p>
-                  <p className="text-sm text-white/90">{errorMessage}</p>
+                  <p className="text-sm text-white/90">Tente novamente ou entre em contato conosco.</p>
                 </div>
               </div>
             )}

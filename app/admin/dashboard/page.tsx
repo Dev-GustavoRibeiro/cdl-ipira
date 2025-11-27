@@ -59,14 +59,6 @@ export default function AdminDashboardPage() {
     loadDashboardData();
   }, []);
 
-  const quickActions = [
-    { label: 'Criar Nova Notícia', href: '/admin/noticias/novo', icon: <FaNewspaper /> },
-    { label: 'Adicionar Evento', href: '/admin/eventos/novo', icon: <FaCalendarAlt /> },
-    { label: 'Upload de Vídeo', href: '/admin/tv-lojista/novo', icon: <FaVideo /> },
-    { label: 'Gerenciar Banners', href: '/admin/conteudo/hero-carousel', icon: <FaImages /> },
-    { label: 'Gerenciar Parceiros', href: '/admin/conteudo/parceiros', icon: <FaStore /> },
-    { label: 'Cadastrar Vaga', href: '/admin/balcao-empregos/novo', icon: <FaBriefcase /> },
-  ];
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -108,27 +100,6 @@ export default function AdminDashboardPage() {
             </Link>
           ))
         )}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white rounded-xl shadow-md p-5 sm:p-6">
-        <h2 className="text-xl sm:text-2xl font-black text-[#003f7f] mb-4 sm:mb-6">
-          Ações Rápidas
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {quickActions.map((action, index) => (
-            <Link
-              key={index}
-              href={action.href}
-              className="flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-[#003f7f] hover:text-white rounded-lg transition-all duration-300 group"
-            >
-              <div className="text-[#003f7f] group-hover:text-white transition-colors">
-                {action.icon}
-              </div>
-              <span className="font-semibold text-sm sm:text-base">{action.label}</span>
-            </Link>
-          ))}
-        </div>
       </div>
     </div>
   );
