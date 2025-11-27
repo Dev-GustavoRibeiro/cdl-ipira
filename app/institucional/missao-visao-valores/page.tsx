@@ -303,7 +303,7 @@ export default function MissaoVisaoValoresPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
             {/* Missão */}
             <div className="group relative">
-              <div className="absolute -inset-1 bg-linear-to-r from-[#003f7f] to-[#0066cc] rounded-3xl sm:rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-500"></div>
+              <div className="absolute -inset-1 bg-linear-to-r from-[#003f7f] to-[#0066cc] rounded-3xl sm:rounded-4xl blur opacity-25 group-hover:opacity-40 transition duration-500"></div>
               <div className="relative bg-white rounded-2xl sm:rounded-3xl p-8 sm:p-10 md:p-12 shadow-xl h-full">
                 {/* Header com ícone */}
                 <div className="flex items-start gap-5 mb-8">
@@ -343,7 +343,7 @@ export default function MissaoVisaoValoresPage() {
 
             {/* Visão */}
             <div className="group relative">
-              <div className="absolute -inset-1 bg-linear-to-r from-[#00a859] to-[#00d670] rounded-3xl sm:rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-500"></div>
+              <div className="absolute -inset-1 bg-linear-to-r from-[#00a859] to-[#00d670] rounded-3xl sm:rounded-4xl blur opacity-25 group-hover:opacity-40 transition duration-500"></div>
               <div className="relative bg-white rounded-2xl sm:rounded-3xl p-8 sm:p-10 md:p-12 shadow-xl h-full">
                 {/* Header com ícone */}
                 <div className="flex items-start gap-5 mb-8">

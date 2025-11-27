@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { cookies } from 'next/headers';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getClientIP, logSecurityEvent, sanitizeString, generateCSRFToken } from '@/lib/security';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Armazenar tentativas de login falhas para detectar ataques de força bruta
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutos
+
+// Duração da sessão: 4 horas (em milissegundos e segundos)
+const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
+const SESSION_DURATION_SECONDS = 4 * 60 * 60;
 
 // Função auxiliar para registrar auditoria diretamente no banco
 async function logAudit(
@@ -23,7 +23,7 @@ async function logAudit(
   details: Record<string, unknown> = {}
 ) {
   try {
-    await supabase.from('audit_log').insert({
+    await supabaseAdmin.from('audit_log').insert({
       action,
       table_name: 'auth',
       user_name: userName,
@@ -70,8 +70,17 @@ function clearAttempts(ip: string): void {
   loginAttempts.delete(ip);
 }
 
+/**
+ * Gera um token de sessão criptograficamente seguro
+ * 32 bytes = 64 caracteres hexadecimais
+ */
+function generateSessionToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
+  const userAgent = request.headers.get('user-agent') || undefined;
 
   // Verificar se IP está bloqueado
   const { blocked, remainingTime } = isIPBlocked(ip);
@@ -126,9 +135,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar usuário no banco de dados
-    const { data: user, error: userError } = await supabase
+    const { data: user, error: userError } = await supabaseAdmin
       .from('admin_users')
-      .select('id, username, name, email, password_hash, role, is_active')
+      .select('id, username, full_name, email, password_hash, is_active')
       .eq('username', username)
       .eq('is_active', true)
       .single();
@@ -169,14 +178,58 @@ export async function POST(request: NextRequest) {
     // Login bem-sucedido - limpar tentativas
     clearAttempts(ip);
 
+    // =========================================
+    // CRIAÇÃO DE SESSÃO SEGURA COM TOKEN
+    // =========================================
+    
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+
+    // Limitar número de sessões ativas por admin (remove as antigas)
+    const { data: existingSessions } = await supabaseAdmin
+      .from('admin_sessions')
+      .select('id, created_at')
+      .eq('admin_id', user.id)
+      .order('created_at', { ascending: true });
+
+    if (existingSessions && existingSessions.length >= 3) {
+      const sessionsToRemove = existingSessions.slice(0, existingSessions.length - 2);
+      if (sessionsToRemove.length > 0) {
+        const idsToRemove = sessionsToRemove.map(s => s.id);
+        await supabaseAdmin
+          .from('admin_sessions')
+          .delete()
+          .in('id', idsToRemove);
+      }
+    }
+
+    // Inserir nova sessão no banco
+    const { error: sessionError } = await supabaseAdmin
+      .from('admin_sessions')
+      .insert({
+        token: sessionToken,
+        admin_id: user.id,
+        ip_address: ip,
+        user_agent: userAgent,
+        expires_at: expiresAt.toISOString(),
+      });
+
+    if (sessionError) {
+      console.error('Erro ao criar sessão:', sessionError);
+      return NextResponse.json(
+        { error: 'Erro ao criar sessão. Verifique se a tabela admin_sessions existe.' },
+        { status: 500 }
+      );
+    }
+
     // Atualizar último login
-    await supabase
+    await supabaseAdmin
       .from('admin_users')
       .update({ last_login: new Date().toISOString() })
       .eq('id', user.id);
 
     // Registrar login bem-sucedido na auditoria
-    await logAudit('LOGIN', user.name || username, ip, true, { userId: user.id });
+    await logAudit('LOGIN', user.full_name || username, ip, true, { userId: user.id });
 
     // Gerar token CSRF
     const csrfToken = generateCSRFToken();
@@ -184,12 +237,12 @@ export async function POST(request: NextRequest) {
     // Criar cookies de sessão
     const cookieStore = await cookies();
     
-    // Cookie de sessão
-    cookieStore.set('admin_session', user.id.toString(), {
+    // Cookie de sessão com token seguro
+    cookieStore.set('admin_session', sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 60 * 60 * 8, // 8 horas (reduzido de 24)
+      maxAge: SESSION_DURATION_SECONDS,
       path: '/',
     });
     
@@ -198,7 +251,7 @@ export async function POST(request: NextRequest) {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 60 * 60 * 8, // 8 horas
+      maxAge: SESSION_DURATION_SECONDS,
       path: '/',
     });
 
@@ -206,15 +259,14 @@ export async function POST(request: NextRequest) {
     const safeUser = {
       id: user.id,
       username: user.username,
-      name: user.name,
+      name: user.full_name,
       email: user.email,
-      role: user.role
     };
 
     return NextResponse.json({
       success: true,
       user: safeUser,
-      csrfToken, // Enviar também no body para uso imediato
+      csrfToken,
     });
   } catch (error) {
     console.error('Erro na autenticação:', error);

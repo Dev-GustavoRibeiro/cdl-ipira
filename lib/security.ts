@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { supabaseAdmin } from './supabase-admin';
 
 // ==================== RATE LIMITING ====================
 
@@ -337,8 +338,9 @@ export async function validateFile(
   }
 
   // Verificar extensão
+  // Nota: SVG removido por segurança - pode conter scripts maliciosos
   const extension = file.name.split('.').pop()?.toLowerCase();
-  const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'svg'];
+  const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'];
   if (!extension || !validExtensions.includes(extension)) {
     return { valid: false, error: 'Extensão de arquivo não permitida' };
   }
@@ -401,28 +403,61 @@ export async function verifyCSRFToken(request: NextRequest): Promise<boolean> {
 
 // ==================== VALIDAÇÃO DE SESSÃO ====================
 
+// Tamanho esperado do token de sessão (32 bytes = 64 caracteres hex)
+export const SESSION_TOKEN_LENGTH = 64;
+
 /**
- * Valida a sessão do administrador
+ * Valida a sessão do administrador contra a tabela admin_sessions.
+ * 
+ * Aceita apenas tokens de sessão válidos (64 caracteres hexadecimais).
+ * Não aceita mais IDs numéricos (modo legacy removido).
  */
 export async function validateAdminSession(request: NextRequest): Promise<{
   valid: boolean;
   userId?: string;
+  adminId?: number;
   error?: string;
 }> {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get('admin_session');
+  // Ler token do cookie da requisição (funciona no middleware)
+  const sessionCookie = request.cookies.get('admin_session');
   
   if (!sessionCookie?.value) {
     return { valid: false, error: 'Sessão não encontrada' };
   }
   
-  // Validar formato do ID (deve ser um número)
-  const userId = sessionCookie.value;
-  if (!/^\d+$/.test(userId)) {
-    return { valid: false, error: 'Sessão inválida' };
+  const token = sessionCookie.value;
+  
+  // Validar formato: deve ser exatamente 64 caracteres hexadecimais
+  if (token.length !== SESSION_TOKEN_LENGTH || !/^[a-f0-9]+$/.test(token)) {
+    return { valid: false, error: 'Formato de sessão inválido' };
   }
   
-  return { valid: true, userId };
+  // Validar token contra o banco
+  try {
+    const now = new Date().toISOString();
+    
+    // Buscar sessão no banco, verificando se não está expirada
+    const { data, error } = await supabaseAdmin
+      .from('admin_sessions')
+      .select('admin_id, expires_at')
+      .eq('token', token)
+      .gt('expires_at', now)
+      .single();
+    
+    if (error || !data) {
+      // Sessão não encontrada ou expirada
+      return { valid: false, error: 'Sessão expirada ou inválida' };
+    }
+    
+    return { 
+      valid: true, 
+      userId: String(data.admin_id),
+      adminId: data.admin_id
+    };
+  } catch (err) {
+    console.error('[Security] Erro ao validar sessão:', err);
+    return { valid: false, error: 'Erro ao validar sessão' };
+  }
 }
 
 // ==================== HEADERS DE SEGURANÇA ====================
