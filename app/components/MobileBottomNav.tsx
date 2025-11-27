@@ -75,14 +75,14 @@ const MobileBottomNav = () => {
   const allItems = [
     // Destaques/Rápidos
     { href: '/produtos/spc-brasil', label: 'SPC Brasil', icon: FaShieldAlt, category: 'produtos', highlight: true },
-    { href: '/noticias', label: 'Notícias', icon: FaNewspaper, category: 'imprensa', highlight: true },
-    { href: '/contato', label: 'Contato', icon: FaEnvelope, category: 'imprensa', highlight: true },
+    { href: '/imprensa/noticias', label: 'Notícias', icon: FaNewspaper, category: 'imprensa', highlight: true },
+    { href: '/imprensa/contato', label: 'Contato', icon: FaEnvelope, category: 'imprensa', highlight: true },
     { href: '/beneficios/cartao-convenio', label: 'Cartão', icon: FaCreditCard, category: 'beneficios', highlight: true },
 
     // Institucional
-    { href: '/historia', label: 'História', icon: FaHistory, category: 'institucional' },
-    { href: '/diretoria', label: 'Diretoria', icon: FaUsers, category: 'institucional' },
-    { href: '/missao-visao-valores', label: 'Missão/Visão', icon: FaBullseye, category: 'institucional' },
+    { href: '/institucional/historia', label: 'História', icon: FaHistory, category: 'institucional' },
+    { href: '/institucional/diretoria', label: 'Diretoria', icon: FaUsers, category: 'institucional' },
+    { href: '/institucional/missao-visao-valores', label: 'Missão/Visão', icon: FaBullseye, category: 'institucional' },
 
     // Produtos
     { href: '/produtos/cdl-celular', label: 'CDL Celular', icon: FaMobileAlt, category: 'produtos' },
@@ -104,9 +104,9 @@ const MobileBottomNav = () => {
     { href: '/beneficios/nucleo-informacoes', label: 'Informações', icon: FaInfoCircle, category: 'beneficios' },
 
     // Imprensa
-    { href: '/tv-lojista', label: 'TV Lojista', icon: FaVideo, category: 'imprensa' },
-    { href: '/galeria-fotos', label: 'Fotos', icon: FaImages, category: 'imprensa' },
-    { href: '/eventos', label: 'Eventos', icon: FaCalendarAlt, category: 'imprensa' },
+    { href: '/imprensa/tv-lojista', label: 'TV Lojista', icon: FaVideo, category: 'imprensa' },
+    { href: '/imprensa/galeria-fotos', label: 'Fotos', icon: FaImages, category: 'imprensa' },
+    { href: '/imprensa/eventos', label: 'Eventos', icon: FaCalendarAlt, category: 'imprensa' },
   ];
 
   const filteredItems = allItems.filter(item => item.category === activeCategory);
@@ -225,7 +225,7 @@ const MobileBottomNav = () => {
             href="/imprensa/noticias" 
             icon={FaNewspaper} 
             label="Notícias" 
-            isActive={isActive('/noticias')} 
+            isActive={pathname.includes('/imprensa/noticias')} 
           />
 
           {/* Botão Central de Menu (Floating Action Button Style) */}
@@ -250,10 +250,10 @@ const MobileBottomNav = () => {
           />
 
           <NavButton 
-            href="/contato" 
+            href="/imprensa/contato" 
             icon={FaEnvelope} 
             label="Contato" 
-            isActive={isActive('/contato')} 
+            isActive={pathname.includes('/imprensa/contato')} 
           />
         </div>
       </div>

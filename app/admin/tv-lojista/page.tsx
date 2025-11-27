@@ -3,11 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaVideo, FaSpinner, FaSave, FaImage } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
-import { getYoutubeId } from '@/lib/youtube';
-import { auditLog } from '@/lib/audit';
 
 interface Video {
   id: number;
@@ -48,12 +45,10 @@ export default function AdminTVLojistaPage() {
   async function fetchVideos() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('videos')
-        .select('*')
-        .order('date', { ascending: false });
+      const response = await fetch('/api/admin/videos');
+      const data = await response.json();
 
-      if (error) throw error;
+      if (!response.ok) throw new Error(data.error || 'Erro ao buscar vídeos');
 
       if (data) {
         const formatted = data.map((v: any) => ({
@@ -80,19 +75,13 @@ export default function AdminTVLojistaPage() {
   async function handleDelete(id: number) {
     if (!confirm('Tem certeza que deseja excluir este vídeo?')) return;
 
-    // Buscar dados antes de excluir para o log
-    const videoToDelete = videos.find(v => v.id === id);
-
     try {
-      const { error } = await supabase
-        .from('videos')
-        .delete()
-        .eq('id', id);
+      const response = await fetch(`/api/admin/videos?id=${id}`, {
+        method: 'DELETE'
+      });
 
-      if (error) throw error;
-
-      // Registrar auditoria
-      auditLog.delete('videos', id.toString(), videoToDelete?.title);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao excluir vídeo');
 
       toast.success('Vídeo excluído com sucesso');
       fetchVideos();
@@ -132,51 +121,24 @@ export default function AdminTVLojistaPage() {
     setIsSaving(true);
 
     try {
-      // Extract youtube ID
-      let youtubeId = null;
-      if (formData.video_url) {
-          youtubeId = getYoutubeId(formData.video_url);
-      }
-
       const payload = {
+        ...(editingId && { id: editingId }),
         title: formData.title,
         description: formData.description,
         video_url: formData.video_url,
-        youtube_id: youtubeId,
         thumbnail: formData.thumbnail,
         category: formData.category,
-        duration: formData.duration || '00:00',
-        date: editingId ? undefined : new Date().toISOString().split('T')[0], // Don't update date on edit, only on create
-        is_active: true
+        duration: formData.duration || '00:00'
       };
 
-      let error;
-      let newId: number | null = null;
+      const response = await fetch('/api/admin/videos', {
+        method: editingId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      if (editingId) {
-        const { error: updateError } = await supabase
-          .from('videos')
-          .update(payload)
-          .eq('id', editingId);
-        error = updateError;
-      } else {
-        const { data, error: insertError } = await supabase
-          .from('videos')
-          .insert([payload])
-          .select('id')
-          .single();
-        error = insertError;
-        newId = data?.id;
-      }
-
-      if (error) throw error;
-
-      // Registrar auditoria
-      if (editingId) {
-        auditLog.update('videos', editingId.toString(), formData.title);
-      } else if (newId) {
-        auditLog.create('videos', newId.toString(), formData.title);
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar vídeo');
 
       toast.success(editingId ? 'Vídeo atualizado!' : 'Vídeo criado!');
       setIsModalOpen(false);

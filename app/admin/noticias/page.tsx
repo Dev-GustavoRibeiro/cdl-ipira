@@ -2,11 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaImage, FaSave, FaCloudUploadAlt } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
+import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaCloudUploadAlt } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/app/components/Modal';
-import { auditLog } from '@/lib/audit';
 
 interface Noticia {
   id: number;
@@ -57,12 +55,10 @@ export default function AdminNoticiasPage() {
   async function fetchNoticias() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('news')
-        .select('*')
-        .order('date', { ascending: false });
+      const response = await fetch('/api/admin/noticias');
+      const data = await response.json();
 
-      if (error) throw error;
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar notícias');
 
       if (data) {
         const mappedNoticias = data.map((item: any) => ({
@@ -90,19 +86,13 @@ export default function AdminNoticiasPage() {
   async function handleDelete(id: number) {
     if (!confirm('Tem certeza que deseja excluir esta notícia?')) return;
 
-    // Buscar dados antes de excluir para o log
-    const noticiaToDelete = noticias.find(n => n.id === id);
-
     try {
-      const { error } = await supabase
-        .from('news')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      // Registrar auditoria
-      auditLog.delete('news', id.toString(), noticiaToDelete?.title);
+      const response = await fetch(`/api/admin/noticias?id=${id}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao excluir notícia');
 
       toast.success('Notícia excluída com sucesso');
       fetchNoticias();
@@ -145,24 +135,22 @@ export default function AdminNoticiasPage() {
     }
 
     const file = e.target.files[0];
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
     setIsUploading(true);
 
     try {
-      const { error: uploadError } = await supabase.storage
-        .from('news')
-        .upload(filePath, file);
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      uploadFormData.append('bucket', 'news');
 
-      if (uploadError) {
-        throw uploadError;
-      }
+      const response = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: uploadFormData
+      });
 
-      const { data } = supabase.storage.from('news').getPublicUrl(filePath);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao enviar imagem');
       
-      setFormData({ ...formData, image: data.publicUrl });
+      setFormData({ ...formData, image: data.url });
       toast.success('Imagem enviada com sucesso!');
     } catch (error) {
       console.error('Erro ao enviar imagem:', error);
@@ -177,7 +165,6 @@ export default function AdminNoticiasPage() {
     setIsSaving(true);
 
     try {
-      const color = CATEGORY_COLORS[formData.category] || 'from-gray-600 to-gray-800';
       const payload = {
         title: formData.title,
         excerpt: formData.excerpt,
@@ -186,37 +173,26 @@ export default function AdminNoticiasPage() {
         date: formData.date,
         image: formData.image,
         author: formData.author,
-        color: color,
-        is_published: true 
       };
 
-      let error;
-      let newId: number | null = null;
+      let response;
 
       if (editingId) {
-        const { error: updateError } = await supabase
-          .from('news')
-          .update(payload)
-          .eq('id', editingId);
-        error = updateError;
+        response = await fetch('/api/admin/noticias', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...payload }),
+        });
       } else {
-        const { data, error: insertError } = await supabase
-          .from('news')
-          .insert([payload])
-          .select('id')
-          .single();
-        error = insertError;
-        newId = data?.id;
+        response = await fetch('/api/admin/noticias', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
       }
 
-      if (error) throw error;
-
-      // Registrar auditoria
-      if (editingId) {
-        auditLog.update('news', editingId.toString(), formData.title);
-      } else if (newId) {
-        auditLog.create('news', newId.toString(), formData.title);
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar notícia');
 
       toast.success(editingId ? 'Notícia atualizada!' : 'Notícia criada!');
       setIsModalOpen(false);

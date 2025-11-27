@@ -3,13 +3,36 @@
 import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { FaPhone, FaSearch, FaChevronRight, FaBuilding, FaNewspaper, FaBox, FaGift, FaHistory, FaUsers, FaBullseye, FaFileAlt, FaVideo, FaImages, FaCalendarAlt, FaEnvelope, FaShieldAlt, FaMobileAlt, FaCertificate, FaBolt, FaHeartbeat, FaTooth, FaCreditCard, FaStore, FaBroadcastTower, FaBriefcase, FaGraduationCap, FaHandshake, FaBalanceScale, FaStoreAlt, FaInfoCircle, FaMusic } from 'react-icons/fa';
+import { useRouter } from 'next/navigation';
+import { FaPhone, FaSearch, FaChevronRight, FaBuilding, FaNewspaper, FaBox, FaGift, FaHistory, FaUsers, FaBullseye, FaFileAlt, FaVideo, FaImages, FaCalendarAlt, FaEnvelope, FaShieldAlt, FaMobileAlt, FaCertificate, FaBolt, FaHeartbeat, FaTooth, FaCreditCard, FaStore, FaBroadcastTower, FaBriefcase, FaGraduationCap, FaHandshake, FaBalanceScale, FaStoreAlt, FaInfoCircle, FaMusic, FaTimes } from 'react-icons/fa';
 
 const Header = () => {
+  const router = useRouter();
   const [isInstitucionalOpen, setIsInstitucionalOpen] = useState(false);
   const [isImprensaOpen, setIsImprensaOpen] = useState(false);
   const [isProdutosOpen, setIsProdutosOpen] = useState(false);
   const [isBeneficiosOpen, setIsBeneficiosOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Função para realizar a pesquisa
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (searchTerm.trim().length >= 2) {
+      router.push(`/pesquisa?q=${encodeURIComponent(searchTerm.trim())}`);
+      setSearchTerm('');
+      setIsMobileSearchOpen(false);
+    }
+  };
+
+  // Função para abrir busca mobile
+  const toggleMobileSearch = () => {
+    setIsMobileSearchOpen(!isMobileSearchOpen);
+    if (!isMobileSearchOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    }
+  };
   
   // Refs para os dropdowns (para melhor controle)
   const institucionalRef = useRef<HTMLDivElement>(null);
@@ -431,19 +454,25 @@ const Header = () => {
             </nav>
 
             {/* Campo de Busca - Desktop */}
-            <div className="hidden xl:flex items-center gap-2 bg-gray-100 rounded-full px-3 lg:px-4 py-1.5 lg:py-2 flex-1 max-w-md ml-4">
+            <form onSubmit={handleSearch} className="hidden xl:flex items-center gap-2 bg-gray-100 rounded-full px-3 lg:px-4 py-1.5 lg:py-2 flex-1 max-w-md ml-4">
               <input 
                 type="text" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Pesquise em cdlipira.com.br"
                 className="bg-transparent outline-none flex-1 text-xs lg:text-sm"
               />
-              <button className="bg-[#003f7f] text-white px-3 lg:px-4 py-1.5 lg:py-2 rounded-full text-xs lg:text-sm hover:bg-[#0066cc] transition-colors font-medium whitespace-nowrap">
+              <button 
+                type="submit"
+                className="bg-[#003f7f] text-white px-3 lg:px-4 py-1.5 lg:py-2 rounded-full text-xs lg:text-sm hover:bg-[#0066cc] transition-colors font-medium whitespace-nowrap"
+              >
                 Pesquisar
               </button>
-            </div>
+            </form>
 
             {/* Botão de Busca Mobile/Tablet */}
             <button 
+              onClick={toggleMobileSearch}
               className="xl:hidden text-[#003f7f] text-lg sm:text-xl p-2 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Pesquisar"
             >
@@ -451,6 +480,40 @@ const Header = () => {
             </button>
           </div>
         </div>
+
+        {/* Barra de Pesquisa Mobile */}
+        {isMobileSearchOpen && (
+          <div className="xl:hidden border-t border-gray-200 bg-white px-3 sm:px-4 py-3 animate-slide-down">
+            <form onSubmit={handleSearch} className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="O que você está procurando?"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-100 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#003f7f]/30 transition-all"
+                  autoFocus
+                />
+              </div>
+              <button
+                type="submit"
+                className="bg-[#003f7f] text-white px-4 py-2.5 rounded-full text-sm font-medium hover:bg-[#0066cc] transition-colors whitespace-nowrap"
+              >
+                Buscar
+              </button>
+              <button
+                type="button"
+                onClick={toggleMobileSearch}
+                className="text-gray-500 hover:text-gray-700 p-2 transition-colors"
+                aria-label="Fechar pesquisa"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </form>
+          </div>
+        )}
       </header>
     </>
   );

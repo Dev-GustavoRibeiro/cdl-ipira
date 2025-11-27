@@ -3,11 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaImage, FaSave, FaCloudUploadAlt, FaUsers } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import Modal from '@/app/components/Modal';
 import RegistrationListModal from '@/app/admin/components/RegistrationListModal';
-import { auditLog } from '@/lib/audit';
 
 interface Evento {
   id: number;
@@ -70,12 +68,10 @@ export default function AdminEventosPage() {
   async function fetchEventos() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .order('date', { ascending: false });
+      const response = await fetch('/api/admin/eventos');
+      const data = await response.json();
 
-      if (error) throw error;
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar eventos');
 
       if (data) {
         const mappedEventos = data.map((item: any) => ({
@@ -104,19 +100,13 @@ export default function AdminEventosPage() {
   async function handleDelete(id: number) {
     if (!confirm('Tem certeza que deseja excluir este evento?')) return;
 
-    // Buscar dados antes de excluir para o log
-    const eventoToDelete = eventos.find(e => e.id === id);
-
     try {
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', id);
+      const response = await fetch(`/api/admin/eventos?id=${id}`, {
+        method: 'DELETE'
+      });
 
-      if (error) throw error;
-
-      // Registrar auditoria
-      auditLog.delete('events', id.toString(), eventoToDelete?.title);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao excluir evento');
 
       toast.success('Evento excluído com sucesso');
       fetchEventos();
@@ -168,24 +158,22 @@ export default function AdminEventosPage() {
     }
 
     const file = e.target.files[0];
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
     setIsUploading(true);
 
     try {
-      const { error: uploadError } = await supabase.storage
-        .from('events')
-        .upload(filePath, file);
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      uploadFormData.append('bucket', 'events');
 
-      if (uploadError) {
-        throw uploadError;
-      }
+      const response = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: uploadFormData
+      });
 
-      const { data } = supabase.storage.from('events').getPublicUrl(filePath);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao enviar imagem');
       
-      setFormData({ ...formData, image: data.publicUrl });
+      setFormData({ ...formData, image: data.url });
       toast.success('Imagem enviada com sucesso!');
     } catch (error) {
       console.error('Erro ao enviar imagem:', error);
@@ -201,6 +189,7 @@ export default function AdminEventosPage() {
 
     try {
       const payload = {
+        ...(editingId && { id: editingId }),
         title: formData.title,
         description: formData.description,
         date: formData.date,
@@ -209,37 +198,17 @@ export default function AdminEventosPage() {
         category: formData.category,
         status: formData.status,
         image: formData.image,
-        gradient: formData.gradient,
-        is_active: true
+        gradient: formData.gradient
       };
 
-      let error;
-      let newId: number | null = null;
+      const response = await fetch('/api/admin/eventos', {
+        method: editingId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      if (editingId) {
-        const { error: updateError } = await supabase
-          .from('events')
-          .update(payload)
-          .eq('id', editingId);
-        error = updateError;
-      } else {
-        const { data, error: insertError } = await supabase
-          .from('events')
-          .insert([payload])
-          .select('id')
-          .single();
-        error = insertError;
-        newId = data?.id;
-      }
-
-      if (error) throw error;
-
-      // Registrar auditoria
-      if (editingId) {
-        auditLog.update('events', editingId.toString(), formData.title);
-      } else if (newId) {
-        auditLog.create('events', newId.toString(), formData.title);
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar evento');
 
       toast.success(editingId ? 'Evento atualizado!' : 'Evento criado!');
       setIsModalOpen(false);
