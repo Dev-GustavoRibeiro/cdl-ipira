@@ -31,3 +31,4 @@ CREATE POLICY "jobs_delete_policy" ON jobs
 FOR DELETE USING (true);
 
 
+

@@ -335,11 +335,9 @@ html.custom-saturation body {
   filter: saturate(var(--saturation));
 }
 
-/* Zoom personalizado */
-html.custom-zoom body {
-  transform: scale(var(--page-zoom));
-  transform-origin: top left;
-  width: calc(100% / var(--page-zoom));
+/* Zoom personalizado - Ajustado para não quebrar responsividade */
+html.custom-zoom {
+  font-size: calc(16px * var(--page-zoom)) !important;
 }
 
 /* ========================================

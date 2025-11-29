@@ -15,3 +15,4 @@ CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id ON event_registratio
 CREATE INDEX IF NOT EXISTS idx_event_registrations_email ON event_registrations(email);
 
 
+

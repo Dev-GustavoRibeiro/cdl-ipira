@@ -36,3 +36,4 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS contact_email TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS contact_phone TEXT;
 
 
+

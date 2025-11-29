@@ -33,3 +33,4 @@ USING (auth.role() = 'authenticated')
 WITH CHECK (auth.role() = 'authenticated');
 
 
+
