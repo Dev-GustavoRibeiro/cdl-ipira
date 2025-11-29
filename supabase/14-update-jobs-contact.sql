@@ -27,3 +27,4 @@ ON jobs FOR ALL
 USING (auth.role() = 'authenticated')
 WITH CHECK (auth.role() = 'authenticated');
 
+

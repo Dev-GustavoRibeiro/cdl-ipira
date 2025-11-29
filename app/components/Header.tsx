@@ -17,10 +17,15 @@ const Header = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Função para realizar a pesquisa
-  const handleSearch = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (searchTerm.trim().length >= 2) {
-      router.push(`/pesquisa?q=${encodeURIComponent(searchTerm.trim())}`);
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const formValue = formData.get('search') as string || '';
+    // Usa o valor do FormData ou do state como fallback
+    const query = (formValue || searchTerm).trim();
+    
+    if (query.length >= 2) {
+      router.push(`/pesquisa?q=${encodeURIComponent(query)}`);
       setSearchTerm('');
       setIsMobileSearchOpen(false);
     }
@@ -456,7 +461,8 @@ const Header = () => {
             {/* Campo de Busca - Desktop */}
             <form onSubmit={handleSearch} className="hidden xl:flex items-center gap-2 bg-gray-100 rounded-full px-3 lg:px-4 py-1.5 lg:py-2 flex-1 max-w-md ml-4">
               <input 
-                type="text" 
+                type="text"
+                name="search"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Pesquise em cdlipira.com.br"
@@ -490,6 +496,7 @@ const Header = () => {
                 <input
                   ref={searchInputRef}
                   type="text"
+                  name="search"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="O que você está procurando?"

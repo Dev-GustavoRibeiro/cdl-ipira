@@ -72,3 +72,4 @@ CREATE POLICY "Resumes Delete Policy"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'resumes');
 
+

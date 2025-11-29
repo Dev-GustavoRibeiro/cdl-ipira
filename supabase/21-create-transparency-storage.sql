@@ -40,3 +40,4 @@ CREATE POLICY "Permitir exclusao transparencia"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'transparency-documents');
 
+

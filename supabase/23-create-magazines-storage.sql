@@ -31,3 +31,4 @@ CREATE POLICY "Delete magazines"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'magazines');
 
+

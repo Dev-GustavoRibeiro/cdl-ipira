@@ -4,6 +4,9 @@ import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Footer from './Footer';
 import MobileBottomNav from './MobileBottomNav';
+import AccessibilityWidget from './AccessibilityWidget';
+import InstallAppPrompt from './InstallAppPrompt';
+import CookieConsent from './CookieConsent';
 
 export default function ConditionalLayout({
   children,
@@ -27,6 +30,9 @@ export default function ConditionalLayout({
       </main>
       <Footer />
       <MobileBottomNav />
+      <AccessibilityWidget />
+      <InstallAppPrompt />
+      <CookieConsent />
     </>
   );
 }

@@ -22,3 +22,4 @@ CREATE POLICY "Allow Deletes"
 ON storage.objects FOR DELETE
 USING ( bucket_id = 'news' );
 
+

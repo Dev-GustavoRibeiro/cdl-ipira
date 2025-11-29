@@ -188,3 +188,4 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
   );
 }
 
+

@@ -20,3 +20,4 @@ CREATE TABLE IF NOT EXISTS legal_requests (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+

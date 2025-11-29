@@ -49,3 +49,4 @@ FOR DELETE USING (true);
 CREATE INDEX IF NOT EXISTS idx_magazines_date ON magazines(date DESC);
 CREATE INDEX IF NOT EXISTS idx_magazines_is_active ON magazines(is_active);
 
+

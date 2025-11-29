@@ -14,3 +14,4 @@ CREATE TABLE IF NOT EXISTS event_registrations (
 CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id ON event_registrations(event_id);
 CREATE INDEX IF NOT EXISTS idx_event_registrations_email ON event_registrations(email);
 
+

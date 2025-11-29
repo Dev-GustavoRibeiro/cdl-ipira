@@ -21,3 +21,4 @@ CREATE POLICY "Público pode criar vagas"
 ON jobs FOR INSERT
 WITH CHECK (true);
 
+
