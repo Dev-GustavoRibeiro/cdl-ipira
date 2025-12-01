@@ -214,7 +214,7 @@ export default function EmpresasPage() {
               Faça parte desta rede de empresas que movimentam a economia de Ipirá. Entre em contato conosco e descubra as vantagens de ser um associado CDL.
             </p>
             <Link
-              href="/contato"
+              href="/imprensa/contato"
               className="inline-flex items-center justify-center gap-2 bg-[#ffd000] text-[#003f7f] px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold hover:bg-[#ffed4e] transition-all duration-300 hover:scale-105 shadow-xl text-sm sm:text-base group"
             >
               Entre em Contato

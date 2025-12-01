@@ -378,7 +378,7 @@ const SPCBrasilPage = () => {
                 Acessar SPC Brasil
               </a>
               <a
-                href="/contato"
+                href="/imprensa/contato"
                 className="bg-white/10 backdrop-blur-sm text-white border-2 border-white px-8 py-4 rounded-full font-bold hover:bg-white hover:text-[#003f7f] transition-all duration-300"
               >
                 Falar com Especialista

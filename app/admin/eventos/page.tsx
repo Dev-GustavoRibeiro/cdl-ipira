@@ -347,7 +347,7 @@ export default function AdminEventosPage() {
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/eventos`}
+                            href={`/imprensa/eventos`}
                             target="_blank"
                             className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
                             title="Visualizar"

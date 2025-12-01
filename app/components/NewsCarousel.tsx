@@ -194,7 +194,7 @@ const NewsCarousel = () => {
                   </p>
                   
                   <Link
-                    href={`/noticias/${item.id}`}
+                    href={`/imprensa/noticias/${item.id}`}
                     className="group/btn inline-flex items-center gap-2 sm:gap-3 text-[#00a859] font-bold hover:gap-4 sm:hover:gap-5 transition-all duration-300 text-sm sm:text-base mt-auto"
                   >
                     <span className="relative">

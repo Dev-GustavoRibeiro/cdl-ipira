@@ -351,7 +351,7 @@ const CDLMidiaPage = () => {
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <a
-                href="/contato"
+                href="/imprensa/contato"
                 className="bg-[#ffd000] text-[#003f7f] px-8 py-4 rounded-full font-bold hover:bg-white hover:scale-105 transition-all duration-300 shadow-2xl flex items-center gap-3"
               >
                 <span>Quero Participar</span>

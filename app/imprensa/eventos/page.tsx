@@ -356,7 +356,7 @@ export default function EventosPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
                 <Link
-                  href="/contato"
+                  href="/imprensa/contato"
                   className="inline-flex items-center justify-center gap-2 border-2 border-white text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-bold text-sm sm:text-base hover:bg-white hover:text-[#003f7f] transition-all duration-300"
                 >
                   Entre em Contato
