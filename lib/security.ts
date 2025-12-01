@@ -185,9 +185,16 @@ export function isValidEmail(email: string): boolean {
 }
 
 /**
- * Valida se é uma URL válida
+ * Valida se é uma URL válida (absoluta ou relativa)
  */
 export function isValidUrl(url: string): boolean {
+  // Aceitar strings vazias
+  if (!url || url.trim() === '') return true;
+  
+  // Aceitar URLs relativas (começam com /)
+  if (url.startsWith('/')) return true;
+  
+  // Validar URLs absolutas
   try {
     const parsed = new URL(url);
     return ['http:', 'https:'].includes(parsed.protocol);
@@ -532,7 +539,8 @@ const SUSPICIOUS_PATTERNS = [
   // SQL Injection
   /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|EXEC)\b)/i,
   /(\b(OR|AND)\s+\d+\s*=\s*\d+)/i,
-  /(--|#|\/\*|\*\/)/,
+  // Removido # pois é usado em cores hexadecimais (#003f7f), mantido -- e comentários /* */
+  /(--|\/\*|\*\/)/,
   
   // XSS
   /<script\b[^>]*>/i,
@@ -543,8 +551,8 @@ const SUSPICIOUS_PATTERNS = [
   /\.\.\//,
   /\.\.%2f/i,
   
-  // Command Injection
-  /[;&|`$]/,
+  // Command Injection (removido & pois é comum em URLs)
+  /[|`$]/,
 ];
 
 /**

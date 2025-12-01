@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { FaTimes, FaExclamationTriangle, FaCheckCircle, FaEdit, FaTrash, FaInfoCircle } from 'react-icons/fa';
 
 type DialogType = 'delete' | 'success' | 'edit' | 'warning' | 'info';
@@ -68,44 +68,27 @@ export default function ConfirmDialog({
   isLoading = false,
   showCancel = true,
 }: ConfirmDialogProps) {
-  const modalRef = useRef<HTMLDivElement>(null);
   const config = typeConfig[type];
   const Icon = config.icon;
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) {
-        onClose();
-      }
-    };
-
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
     }
 
     return () => {
-      document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose, isLoading]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node) && !isLoading) {
-      onClose();
-    }
-  };
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-      onClick={handleBackdropClick}
       style={{ animation: 'fadeIn 0.2s ease-out' }}
     >
       <div
-        ref={modalRef}
         className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
         style={{ animation: 'scaleIn 0.2s ease-out' }}
       >
@@ -202,6 +185,8 @@ export default function ConfirmDialog({
     </div>
   );
 }
+
+
 
 
 

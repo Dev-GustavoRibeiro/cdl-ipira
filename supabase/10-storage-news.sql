@@ -24,3 +24,5 @@ USING ( bucket_id = 'news' );
 
 
 
+
+

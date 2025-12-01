@@ -33,7 +33,7 @@ Acesse `/admin/login` para gerenciar o conteúdo do site.
 - **Galeria de Fotos**: Upload e gerenciamento de álbuns.
 - **Eventos**: Calendário de eventos da CDL.
 - **Diretoria**: Gerenciar membros e cargos.
-- **Parceiros**: Adicionar logos de empresas parceiras.
+- **Associados**: Adicionar logos de empresas associadas.
 
 ## 🎨 Cores e Design
 

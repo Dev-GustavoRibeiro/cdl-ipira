@@ -15,8 +15,8 @@ export async function GET() {
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error('Erro ao buscar parceiros:', error);
-    return NextResponse.json({ error: 'Erro ao buscar parceiros' }, { status: 500 });
+    console.error('Erro ao buscar associados:', error);
+    return NextResponse.json({ error: 'Erro ao buscar associados' }, { status: 500 });
   }
 }
 

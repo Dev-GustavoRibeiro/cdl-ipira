@@ -38,6 +38,14 @@ const nextConfig: NextConfig = {
   // Desabilitar header X-Powered-By para não expor tecnologia usada
   poweredByHeader: false,
   
+  // Permitir acesso de outros dispositivos na rede local durante desenvolvimento
+  // Inclui IPs das interfaces de rede deste computador
+  allowedDevOrigins: [
+    'http://192.168.56.1',
+    'http://192.168.1.108',
+    'http://localhost',
+  ],
+  
   images: {
     // Domínios permitidos para imagens
     remotePatterns: [

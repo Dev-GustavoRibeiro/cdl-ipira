@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from('hero_slides')
-      .select('id, title, subtitle, description, button_text, button_link, gradient, accent_color, image, pattern, order_index, is_active')
+      .select('id, title, subtitle, description, button_text, button_link, gradient, accent_color, image, image_position, image_fit, pattern, order_index, is_active')
       .eq('is_active', true)
       .order('order_index', { ascending: true });
 
@@ -48,11 +48,14 @@ export async function POST(request: NextRequest) {
       gradient: { type: 'string', required: false, maxLength: 200 },
       accentColor: { type: 'string', required: false, maxLength: 50 },
       image: { type: 'url', required: false },
+      imagePosition: { type: 'string', required: false, maxLength: 50 },
+      imageFit: { type: 'string', required: false, maxLength: 20 },
       pattern: { type: 'string', required: false, maxLength: 50 },
       order: { type: 'number', required: false, min: 0, max: 9999 }
     });
     
     if (!valid) {
+      console.error('[POST /api/hero] Erro de validação:', errors);
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
     }
     
@@ -65,9 +68,11 @@ export async function POST(request: NextRequest) {
           description: sanitized.description || null,
           button_text: sanitized.buttonText || null,
           button_link: sanitized.buttonLink || null,
-          gradient: sanitized.gradient || null,
-          accent_color: sanitized.accentColor || null,
+          gradient: sanitized.gradient ?? '',
+          accent_color: sanitized.accentColor ?? '',
           image: sanitized.image || null,
+          image_position: sanitized.imagePosition || 'center',
+          image_fit: sanitized.imageFit || 'cover',
           pattern: sanitized.pattern || null,
           order_index: sanitized.order || 0,
           is_active: true
@@ -128,6 +133,8 @@ export async function PUT(request: NextRequest) {
       gradient: { type: 'string', required: false, maxLength: 200 },
       accentColor: { type: 'string', required: false, maxLength: 50 },
       image: { type: 'url', required: false },
+      imagePosition: { type: 'string', required: false, maxLength: 50 },
+      imageFit: { type: 'string', required: false, maxLength: 20 },
       pattern: { type: 'string', required: false, maxLength: 50 },
       order: { type: 'number', required: false, min: 0, max: 9999 }
     });
@@ -144,9 +151,11 @@ export async function PUT(request: NextRequest) {
         ...(sanitized.description !== undefined && { description: sanitized.description || null }),
         ...(sanitized.buttonText !== undefined && { button_text: sanitized.buttonText || null }),
         ...(sanitized.buttonLink !== undefined && { button_link: sanitized.buttonLink || null }),
-        ...(sanitized.gradient !== undefined && { gradient: sanitized.gradient || null }),
-        ...(sanitized.accentColor !== undefined && { accent_color: sanitized.accentColor || null }),
+        ...(sanitized.gradient !== undefined && { gradient: sanitized.gradient ?? '' }),
+        ...(sanitized.accentColor !== undefined && { accent_color: sanitized.accentColor ?? '' }),
         ...(sanitized.image !== undefined && { image: sanitized.image || null }),
+        ...(sanitized.imagePosition !== undefined && { image_position: sanitized.imagePosition || 'center' }),
+        ...(sanitized.imageFit !== undefined && { image_fit: sanitized.imageFit || 'cover' }),
         ...(sanitized.pattern !== undefined && { pattern: sanitized.pattern || null }),
         ...(sanitized.order !== undefined && { order_index: sanitized.order }),
       })

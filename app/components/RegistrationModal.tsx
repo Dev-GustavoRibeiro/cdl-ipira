@@ -82,8 +82,7 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
       <div 
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" 
-        onClick={onClose}
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
       ></div>
       
       <div className="bg-white w-full max-w-md overflow-y-auto rounded-2xl shadow-2xl relative z-10 flex flex-col animate-scale-in">
@@ -187,6 +186,8 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
     document.body
   );
 }
+
+
 
 
 

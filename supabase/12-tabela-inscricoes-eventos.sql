@@ -16,3 +16,5 @@ CREATE INDEX IF NOT EXISTS idx_event_registrations_email ON event_registrations(
 
 
 
+
+

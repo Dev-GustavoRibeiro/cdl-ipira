@@ -14,8 +14,8 @@ export default function AdminConteudoPage() {
       color: 'from-[#003f7f] to-[#0066cc]'
     },
     {
-      title: 'Parceiros',
-      description: 'Gerencie os parceiros exibidos no carrossel',
+      title: 'Associados',
+      description: 'Gerencie os associados exibidos no carrossel',
       href: '/admin/conteudo/parceiros',
       icon: <FaHandshake className="w-8 h-8" />,
       color: 'from-[#ffd000] to-[#ffed4e]'

@@ -14,6 +14,8 @@ interface Slide {
   gradient: string;
   accentColor: string;
   image: string;
+  imagePosition: string;
+  imageFit: string;
   pattern: string;
   order: number;
 }
@@ -30,7 +32,7 @@ export default function HeroCarousel() {
         if (response.ok) {
           const data = await response.json();
           // Se vier da API (snake_case), converter para camelCase
-          const formattedSlides = data.map((s: { id: number; title: string; subtitle: string; description: string; button_text?: string; buttonText?: string; button_link?: string; buttonLink?: string; gradient: string; accent_color?: string; accentColor?: string; image?: string; pattern?: string; order_index?: number; order?: number }) => ({
+          const formattedSlides = data.map((s: { id: number; title: string; subtitle: string; description: string; button_text?: string; buttonText?: string; button_link?: string; buttonLink?: string; gradient: string; accent_color?: string; accentColor?: string; image?: string; image_position?: string; imagePosition?: string; image_fit?: string; imageFit?: string; pattern?: string; order_index?: number; order?: number }) => ({
             id: s.id,
             title: s.title,
             subtitle: s.subtitle,
@@ -40,6 +42,8 @@ export default function HeroCarousel() {
             gradient: s.gradient,
             accentColor: s.accent_color || s.accentColor,
             image: s.image,
+            imagePosition: s.image_position || s.imagePosition || 'center',
+            imageFit: s.image_fit || s.imageFit || 'cover',
             pattern: s.pattern,
             order: s.order_index || s.order
           }));
@@ -84,29 +88,51 @@ export default function HeroCarousel() {
             index === currentSlide ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
           }`}
         >
-          {/* Background com Gradiente */}
-          <div className={`absolute inset-0 bg-linear-to-br ${slide.gradient} opacity-90 z-10`}></div>
-          
-          {/* Imagem de Fundo (opcional) */}
-          {slide.image && (
+          {/* Imagem de Fundo - Agora bem visível */}
+          {slide.image ? (
             <Image
               src={slide.image}
               alt={slide.title}
               fill
-              className="object-cover mix-blend-overlay opacity-20"
+              className={`object-${slide.imageFit || 'cover'}`}
+              style={{ objectPosition: slide.imagePosition || 'center' }}
               priority={index === 0}
             />
+          ) : (
+            /* Fallback: Gradiente como fundo quando não há imagem */
+            <div className={`absolute inset-0 ${slide.gradient ? `bg-linear-to-br ${slide.gradient}` : 'bg-gray-800'}`}></div>
+          )}
+          
+          {/* Overlay com gradiente suave que cobre toda a área */}
+          {slide.gradient ? (
+            <>
+              {/* Gradiente colorido com fade suave da esquerda para direita */}
+              <div 
+                className={`absolute inset-0 z-10 bg-linear-to-r ${slide.gradient}`}
+                style={{ 
+                  maskImage: 'linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%)',
+                  WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%)'
+                }}
+              ></div>
+              {/* Overlay escuro sutil para melhorar legibilidade */}
+              <div className="absolute inset-0 bg-black/20 z-10"></div>
+            </>
+          ) : (
+            /* Sem gradiente: apenas overlay escuro */
+            <div className="absolute inset-0 bg-black/50 z-10"></div>
           )}
 
           {/* Padrão Geométrico (opcional) */}
-          <div className="absolute inset-0 opacity-10 z-10" 
-               style={{ backgroundImage: `url('/patterns/${slide.pattern}.svg')` }}>
-          </div>
+          {slide.pattern && (
+            <div className="absolute inset-0 opacity-5 z-10" 
+                 style={{ backgroundImage: `url('/patterns/${slide.pattern}.svg')` }}>
+            </div>
+          )}
 
           {/* Conteúdo */}
           <div className="relative z-20 container mx-auto h-full flex items-center px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl text-white animate-slide-up">
-              <div className={`inline-block px-4 py-1 rounded-full text-xs sm:text-sm font-bold mb-4 ${slide.accentColor} text-[#003f7f]`}>
+              <div className={`inline-block px-4 py-1 rounded-full text-xs sm:text-sm font-bold mb-4 ${slide.accentColor || 'bg-white/20'} ${slide.accentColor ? 'text-[#003f7f]' : 'text-white'}`}>
                 {slide.subtitle}
               </div>
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-black mb-6 leading-tight">
@@ -117,7 +143,7 @@ export default function HeroCarousel() {
               </p>
               <Link
                 href={slide.buttonLink}
-                className={`inline-flex items-center gap-2 ${slide.accentColor} text-[#003f7f] px-8 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-lg hover:shadow-xl`}
+                className={`inline-flex items-center gap-2 ${slide.accentColor || 'bg-white'} ${slide.accentColor ? 'text-[#003f7f]' : 'text-gray-900'} px-8 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-lg hover:shadow-xl`}
               >
                 {slide.buttonText}
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,6 +203,8 @@ const initialSlides: Slide[] = [
     gradient: 'from-[#003f7f] via-[#0052a3] to-[#0066cc]',
     accentColor: 'bg-[#ffd000]',
     image: '/projeto-conduz.jpg',
+    imagePosition: 'center',
+    imageFit: 'cover',
     pattern: 'music',
     order: 1
   },
@@ -190,6 +218,8 @@ const initialSlides: Slide[] = [
     gradient: 'from-[#00a859] via-[#00c46a] to-[#00d670]',
     accentColor: 'bg-[#ffd000]',
     image: '/associados.jpg',
+    imagePosition: 'center',
+    imageFit: 'cover',
     pattern: 'business',
     order: 2
   }

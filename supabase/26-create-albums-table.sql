@@ -66,3 +66,5 @@ CREATE POLICY "album_photos_delete_policy" ON album_photos
 
 
 
+
+

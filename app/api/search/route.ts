@@ -82,10 +82,10 @@ const staticPages = [
   },
   {
     type: 'page',
-    title: 'Empresas Parceiras',
-    description: 'Conheça as empresas parceiras e conveniadas à CDL Ipirá.',
+    title: 'Empresas Associadas',
+    description: 'Conheça as empresas associadas e conveniadas à CDL Ipirá.',
     url: '/beneficios/empresas',
-    keywords: ['empresas', 'parceiros', 'convênios', 'descontos', 'benefícios']
+    keywords: ['empresas', 'associados', 'convênios', 'descontos', 'benefícios']
   },
   {
     type: 'page',
@@ -388,6 +388,8 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
+
 
 
 

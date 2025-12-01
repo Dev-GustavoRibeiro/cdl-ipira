@@ -22,7 +22,7 @@ const PartnersCarousel = () => {
     const fetchPartners = async () => {
       try {
         const response = await fetch('/api/parceiros');
-        if (!response.ok) throw new Error('Erro ao buscar parceiros');
+        if (!response.ok) throw new Error('Erro ao buscar associados');
         const data = await response.json();
         // Mapear dados do banco para o formato esperado pelo componente
         const formattedPartners = data.map((p: Partner) => ({
@@ -33,7 +33,7 @@ const PartnersCarousel = () => {
         }));
         setPartners(formattedPartners);
       } catch (error) {
-        console.error('Erro ao carregar parceiros:', error);
+        console.error('Erro ao carregar associados:', error);
         setPartners([]);
       } finally {
         setIsLoading(false);
@@ -54,7 +54,7 @@ const PartnersCarousel = () => {
     );
   }
 
-  // Renderiza a estrutura mesmo sem parceiros
+  // Renderiza a estrutura mesmo sem associados
   if (partners.length === 0) {
     return (
       <section className="py-12 sm:py-16 relative overflow-hidden">
@@ -62,20 +62,20 @@ const PartnersCarousel = () => {
           {/* Header da Seção */}
           <div className="text-center mb-8 sm:mb-10">
             <h2 className="text-2xl sm:text-3xl font-bold text-[#003f7f] mb-3">
-              Nossos Parceiros
+              Nossos Associados
             </h2>
             <div className="w-20 h-1 bg-[#003f7f] mx-auto"></div>
           </div>
 
           <div className="text-center py-8">
-            <p className="text-gray-500">Nenhum parceiro disponível no momento.</p>
+            <p className="text-gray-500">Nenhum associado disponível no momento.</p>
           </div>
         </div>
       </section>
     );
   }
 
-  // Duplicar parceiros para garantir continuidade visual
+  // Duplicar associados para garantir continuidade visual
   const duplicatedPartners = [...partners, ...partners, ...partners];
 
   return (
@@ -84,12 +84,12 @@ const PartnersCarousel = () => {
         {/* Header da Seção */}
         <div className="text-center mb-8 sm:mb-10">
           <h2 className="text-2xl sm:text-3xl font-bold text-[#003f7f] mb-3">
-            Nossos Parceiros
+            Nossos Associados
           </h2>
           <div className="w-20 h-1 bg-[#003f7f] mx-auto"></div>
         </div>
         
-        {/* Carrossel de Parceiros - Estilo com Destaque Central */}
+        {/* Carrossel de Associados - Estilo com Destaque Central */}
         <div className="overflow-hidden py-8">
           <Swiper
             modules={[Autoplay, EffectCoverflow]}
@@ -135,13 +135,13 @@ const PartnersCarousel = () => {
           >
             {duplicatedPartners.map((partner, index) => (
               <SwiperSlide key={`${partner.id}-${index}`}>
-                <div className="flex items-center justify-center h-[140px] sm:h-[180px] md:h-[200px] px-4 partner-slide">
+                <div className="flex items-center justify-center h-[180px] sm:h-[220px] md:h-[260px] px-4 partner-slide">
                   <Image 
                     src={partner.logo} 
                     alt={partner.name}
-                    width={300}
-                    height={150}
-                    className="h-16 sm:h-24 md:h-28 w-auto max-w-[260px] sm:max-w-[300px] md:max-w-[340px] object-contain transition-all duration-500"
+                    width={400}
+                    height={200}
+                    className="h-24 sm:h-32 md:h-40 w-auto max-w-[300px] sm:max-w-[360px] md:max-w-[420px] object-contain transition-all duration-500"
                   />
                 </div>
               </SwiperSlide>

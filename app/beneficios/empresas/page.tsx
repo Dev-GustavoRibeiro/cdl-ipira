@@ -34,7 +34,7 @@ export default function EmpresasPage() {
           setParceiros(formattedParceiros);
         }
       } catch (error) {
-        console.error('Erro ao carregar parceiros:', error);
+        console.error('Erro ao carregar associados:', error);
       } finally {
         setIsLoading(false);
       }
@@ -69,7 +69,7 @@ export default function EmpresasPage() {
               Benefícios
             </Link>
             <span className="text-white/40">/</span>
-            <span className="text-white font-semibold">Empresas Parceiras</span>
+            <span className="text-white font-semibold">Empresas Associadas</span>
           </nav>
         </div>
       </div>
@@ -79,10 +79,10 @@ export default function EmpresasPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
             <div className="inline-block bg-linear-to-r from-[#00a859] to-[#00d670] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-2xl">
-              🤝 Parceiros CDL
+              🤝 Associados CDL
             </div>
             <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] mb-3 sm:mb-4 leading-tight">
-              Nossos Parceiros
+              Nossos Associados
             </h1>
             <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-4 sm:mb-6"></div>
             <p className="text-gray-700 text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4 text-justify">
@@ -100,7 +100,7 @@ export default function EmpresasPage() {
               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
               <input
                 type="text"
-                placeholder="Buscar parceiro..."
+                placeholder="Buscar associado..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-11 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent text-sm sm:text-base"
@@ -110,19 +110,19 @@ export default function EmpresasPage() {
         </div>
       </section>
 
-      {/* Grid de Parceiros */}
+      {/* Grid de Associados */}
       <section className="py-8 sm:py-12 md:py-16 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           {isLoading ? (
             <div className="text-center py-12 sm:py-16">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003f7f] mx-auto mb-4"></div>
-              <p className="text-gray-600 text-lg sm:text-xl">Carregando parceiros...</p>
+              <p className="text-gray-600 text-lg sm:text-xl">Carregando associados...</p>
             </div>
           ) : filteredParceiros.length === 0 ? (
             <div className="text-center py-12 sm:py-16 bg-gray-50 rounded-xl">
               <FaStore className="w-16 h-16 sm:w-20 sm:h-20 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-600 text-lg sm:text-xl">
-                {searchTerm ? 'Nenhum parceiro encontrado com esse nome.' : 'Nenhum parceiro cadastrado ainda.'}
+                {searchTerm ? 'Nenhum associado encontrado com esse nome.' : 'Nenhum associado cadastrado ainda.'}
               </p>
             </div>
           ) : (
@@ -163,7 +163,7 @@ export default function EmpresasPage() {
                         <FaExternalLinkAlt className="w-2.5 h-2.5" />
                       </a>
                     ) : (
-                      <span className="text-xs text-gray-400">Parceiro CDL</span>
+                      <span className="text-xs text-gray-400">Associado CDL</span>
                     )}
                   </div>
                 </article>
@@ -179,7 +179,7 @@ export default function EmpresasPage() {
                   {parceiros.length}+
                 </div>
                 <div className="text-sm sm:text-base text-gray-600 font-semibold">
-                  Empresas Parceiras
+                  Empresas Associadas
                 </div>
               </div>
               <div>
@@ -208,10 +208,10 @@ export default function EmpresasPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center animate-blur-fade-in">
             <h2 className="text-2xl xs:text-3xl sm:text-4xl font-black mb-4 sm:mb-6">
-              Seja Nosso Parceiro
+              Seja Nosso Associado
             </h2>
             <p className="text-white/90 text-sm sm:text-base mb-6 sm:mb-8 text-justify">
-              Faça parte desta rede de empresas que movimentam a economia de Ipirá. Entre em contato conosco e descubra as vantagens de ser um parceiro CDL.
+              Faça parte desta rede de empresas que movimentam a economia de Ipirá. Entre em contato conosco e descubra as vantagens de ser um associado CDL.
             </p>
             <Link
               href="/contato"

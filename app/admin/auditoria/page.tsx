@@ -35,7 +35,7 @@ const TABLE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   'events': { label: 'Eventos', icon: <FaCalendarAlt /> },
   'videos': { label: 'Vídeos', icon: <FaVideo /> },
   'hero_slides': { label: 'Banners', icon: <FaImages /> },
-  'partners': { label: 'Parceiros', icon: <FaStore /> },
+  'partners': { label: 'Associados', icon: <FaStore /> },
   'jobs': { label: 'Vagas', icon: <FaBriefcase /> },
   'admin_users': { label: 'Usuários', icon: <FaUser /> },
   'auth': { label: 'Autenticação', icon: <FaSignInAlt /> },
@@ -203,7 +203,7 @@ export default function AuditoriaPage() {
                 <option value="events">Eventos</option>
                 <option value="videos">Vídeos</option>
                 <option value="hero_slides">Banners</option>
-                <option value="partners">Parceiros</option>
+                <option value="partners">Associados</option>
                 <option value="jobs">Vagas</option>
                 <option value="auth">Autenticação</option>
               </select>

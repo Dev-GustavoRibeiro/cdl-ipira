@@ -15,7 +15,7 @@ export default function AdminDashboardPage() {
     { label: 'Eventos', value: '0', icon: <FaCalendarAlt />, color: 'from-[#00a859] to-[#00d670]', href: '/admin/eventos' },
     { label: 'Vídeos', value: '0', icon: <FaVideo />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/tv-lojista' },
     { label: 'Banners (Slides)', value: '0', icon: <FaImages />, color: 'from-[#003f7f] to-[#0066cc]', href: '/admin/conteudo/hero-carousel' },
-    { label: 'Parceiros', value: '0', icon: <FaStore />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/conteudo/parceiros' },
+    { label: 'Associados', value: '0', icon: <FaStore />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/conteudo/parceiros' },
     { label: 'Vagas', value: '0', icon: <FaBriefcase />, color: 'from-[#00a859] to-[#00d670]', href: '/admin/balcao-empregos' },
   ]);
 
@@ -45,7 +45,7 @@ export default function AdminDashboardPage() {
           { label: 'Eventos', value: (eventsCount || 0).toString(), icon: <FaCalendarAlt />, color: 'from-[#00a859] to-[#00d670]', href: '/admin/eventos' },
           { label: 'Vídeos', value: (videosCount || 0).toString(), icon: <FaVideo />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/tv-lojista' },
           { label: 'Banners (Slides)', value: (heroCount || 0).toString(), icon: <FaImages />, color: 'from-[#003f7f] to-[#0066cc]', href: '/admin/conteudo/hero-carousel' },
-          { label: 'Parceiros', value: (partnersCount || 0).toString(), icon: <FaStore />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/conteudo/parceiros' },
+          { label: 'Associados', value: (partnersCount || 0).toString(), icon: <FaStore />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/conteudo/parceiros' },
           { label: 'Vagas', value: (jobsCount || 0).toString(), icon: <FaBriefcase />, color: 'from-[#00a859] to-[#00d670]', href: '/admin/balcao-empregos' },
         ]);
 

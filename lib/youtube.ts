@@ -8,7 +8,8 @@ export function getYoutubeId(url: string): string | null {
 }
 
 export function getYoutubeThumbnail(videoId: string): string {
-  return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  // Usa hqdefault.jpg pois maxresdefault.jpg não existe em todos os vídeos
+  return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 }
 
 

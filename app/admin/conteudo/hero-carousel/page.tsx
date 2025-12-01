@@ -17,6 +17,8 @@ interface Slide {
   gradient: string;
   accentColor: string;
   image: string;
+  imagePosition: string;
+  imageFit: string;
   pattern: string;
   order: number;
 }
@@ -34,9 +36,11 @@ export default function AdminHeroCarouselPage() {
     description: '',
     buttonText: '',
     buttonLink: '',
-    gradient: 'from-[#003f7f] via-[#0052a3] to-[#0066cc]',
-    accentColor: 'bg-[#ffd000]',
+    gradient: '',
+    accentColor: '',
     image: '',
+    imagePosition: 'center',
+    imageFit: 'cover',
     pattern: 'music',
     order: 1
   });
@@ -69,6 +73,8 @@ export default function AdminHeroCarouselPage() {
           gradient: item.gradient,
           accentColor: item.accent_color,
           image: item.image,
+          imagePosition: item.image_position || 'center',
+          imageFit: item.image_fit || 'cover',
           pattern: item.pattern,
           order: item.order_index
         }));
@@ -99,9 +105,11 @@ export default function AdminHeroCarouselPage() {
       description: '',
       buttonText: '',
       buttonLink: '',
-      gradient: 'from-[#003f7f] via-[#0052a3] to-[#0066cc]',
-      accentColor: 'bg-[#ffd000]',
+      gradient: '',
+      accentColor: '',
       image: '',
+      imagePosition: 'center',
+      imageFit: 'cover',
       pattern: 'music',
       order: slides.length + 1
     });
@@ -122,6 +130,8 @@ export default function AdminHeroCarouselPage() {
         gradient: formData.gradient,
         accentColor: formData.accentColor,
         image: formData.image,
+        imagePosition: formData.imagePosition,
+        imageFit: formData.imageFit,
         pattern: formData.pattern,
         order: formData.order
       };
@@ -179,7 +189,7 @@ export default function AdminHeroCarouselPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('bucket', 'hero');
+      formData.append('bucket', 'heroes');
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -312,9 +322,42 @@ export default function AdminHeroCarouselPage() {
                 onChange={(e) => handleChange('gradient', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
               >
-                <option value="from-[#003f7f] via-[#0052a3] to-[#0066cc]">Azul</option>
-                <option value="from-[#00a859] via-[#00c46a] to-[#00d670]">Verde</option>
-                <option value="from-[#ffd000] via-[#ffda33] to-[#ffed4e]">Amarelo</option>
+                <option value="">Nenhum (transparente)</option>
+                <optgroup label="Cores CDL">
+                  <option value="from-[#003f7f] via-[#0052a3] to-[#0066cc]">Azul CDL</option>
+                  <option value="from-[#00a859] via-[#00c46a] to-[#00d670]">Verde CDL</option>
+                  <option value="from-[#ffd000] via-[#ffda33] to-[#ffed4e]">Amarelo CDL</option>
+                </optgroup>
+                <optgroup label="Tons de Azul">
+                  <option value="from-blue-600 via-blue-700 to-blue-800">Azul Escuro</option>
+                  <option value="from-blue-400 via-blue-500 to-blue-600">Azul Médio</option>
+                  <option value="from-sky-400 via-sky-500 to-sky-600">Azul Céu</option>
+                  <option value="from-cyan-400 via-cyan-500 to-cyan-600">Ciano</option>
+                  <option value="from-indigo-500 via-indigo-600 to-indigo-700">Índigo</option>
+                </optgroup>
+                <optgroup label="Tons de Verde">
+                  <option value="from-green-500 via-green-600 to-green-700">Verde</option>
+                  <option value="from-emerald-400 via-emerald-500 to-emerald-600">Esmeralda</option>
+                  <option value="from-teal-400 via-teal-500 to-teal-600">Teal</option>
+                </optgroup>
+                <optgroup label="Tons Quentes">
+                  <option value="from-orange-400 via-orange-500 to-orange-600">Laranja</option>
+                  <option value="from-amber-400 via-amber-500 to-amber-600">Âmbar</option>
+                  <option value="from-red-500 via-red-600 to-red-700">Vermelho</option>
+                  <option value="from-rose-400 via-rose-500 to-rose-600">Rosa</option>
+                  <option value="from-pink-400 via-pink-500 to-pink-600">Pink</option>
+                </optgroup>
+                <optgroup label="Tons Neutros">
+                  <option value="from-gray-600 via-gray-700 to-gray-800">Cinza Escuro</option>
+                  <option value="from-slate-600 via-slate-700 to-slate-800">Ardósia</option>
+                  <option value="from-zinc-600 via-zinc-700 to-zinc-800">Zinco</option>
+                </optgroup>
+                <optgroup label="Multicoloridos">
+                  <option value="from-purple-500 via-pink-500 to-red-500">Roxo → Rosa → Vermelho</option>
+                  <option value="from-blue-500 via-purple-500 to-pink-500">Azul → Roxo → Rosa</option>
+                  <option value="from-green-400 via-cyan-500 to-blue-500">Verde → Ciano → Azul</option>
+                  <option value="from-yellow-400 via-orange-500 to-red-500">Amarelo → Laranja → Vermelho</option>
+                </optgroup>
               </select>
             </div>
 
@@ -325,9 +368,33 @@ export default function AdminHeroCarouselPage() {
                 onChange={(e) => handleChange('accentColor', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
               >
-                <option value="bg-[#ffd000]">Amarelo</option>
-                <option value="bg-[#003f7f]">Azul</option>
-                <option value="bg-[#00a859]">Verde</option>
+                <option value="">Nenhum (transparente)</option>
+                <optgroup label="Cores CDL">
+                  <option value="bg-[#ffd000]">Amarelo CDL</option>
+                  <option value="bg-[#003f7f]">Azul CDL</option>
+                  <option value="bg-[#00a859]">Verde CDL</option>
+                </optgroup>
+                <optgroup label="Cores Sólidas">
+                  <option value="bg-blue-600">Azul</option>
+                  <option value="bg-sky-500">Azul Céu</option>
+                  <option value="bg-cyan-500">Ciano</option>
+                  <option value="bg-indigo-600">Índigo</option>
+                  <option value="bg-purple-600">Roxo</option>
+                  <option value="bg-pink-500">Pink</option>
+                  <option value="bg-rose-500">Rosa</option>
+                  <option value="bg-red-600">Vermelho</option>
+                  <option value="bg-orange-500">Laranja</option>
+                  <option value="bg-amber-500">Âmbar</option>
+                  <option value="bg-yellow-500">Amarelo</option>
+                  <option value="bg-lime-500">Lima</option>
+                  <option value="bg-green-600">Verde</option>
+                  <option value="bg-emerald-500">Esmeralda</option>
+                  <option value="bg-teal-500">Teal</option>
+                  <option value="bg-gray-700">Cinza Escuro</option>
+                  <option value="bg-slate-700">Ardósia</option>
+                  <option value="bg-white">Branco</option>
+                  <option value="bg-black">Preto</option>
+                </optgroup>
               </select>
             </div>
 
@@ -359,6 +426,47 @@ export default function AdminHeroCarouselPage() {
                 </button>
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Posição da Imagem</label>
+              <select
+                value={formData.imagePosition}
+                onChange={(e) => handleChange('imagePosition', e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
+              >
+                <optgroup label="Centro">
+                  <option value="center">Centro</option>
+                </optgroup>
+                <optgroup label="Cima / Baixo">
+                  <option value="top">Topo</option>
+                  <option value="bottom">Base</option>
+                </optgroup>
+                <optgroup label="Esquerda / Direita">
+                  <option value="left">Esquerda</option>
+                  <option value="right">Direita</option>
+                </optgroup>
+                <optgroup label="Cantos">
+                  <option value="left top">Canto Superior Esquerdo</option>
+                  <option value="right top">Canto Superior Direito</option>
+                  <option value="left bottom">Canto Inferior Esquerdo</option>
+                  <option value="right bottom">Canto Inferior Direito</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Ajuste da Imagem</label>
+              <select
+                value={formData.imageFit}
+                onChange={(e) => handleChange('imageFit', e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
+              >
+                <option value="cover">Preencher (corta se necessário)</option>
+                <option value="contain">Conter (mostra tudo, pode ter bordas)</option>
+                <option value="fill">Esticar (distorce para preencher)</option>
+                <option value="none">Original (tamanho real)</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
@@ -388,8 +496,8 @@ export default function AdminHeroCarouselPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {slides.map((slide) => (
             <div key={slide.id} className="bg-white rounded-xl shadow-md overflow-hidden">
-              <div className={`h-32 bg-linear-to-r ${slide.gradient} p-6 flex items-center justify-between`}>
-                <div className="text-white">
+              <div className={`h-32 p-6 flex items-center justify-between ${slide.gradient ? `bg-linear-to-r ${slide.gradient}` : 'bg-gray-500'}`}>
+                <div className={slide.gradient ? 'text-white' : 'text-white'}>
                   <h3 className="text-xl font-black mb-1">{slide.title}</h3>
                   <p className="text-sm opacity-90">{slide.subtitle}</p>
                 </div>

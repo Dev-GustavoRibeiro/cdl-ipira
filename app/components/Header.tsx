@@ -120,9 +120,9 @@ const Header = () => {
                 <Image 
                   src="/logo-cdl.png" 
                   alt="CDL Ipirá" 
-                  width={280}
-                  height={112}
-                  className="h-12 sm:h-16 md:h-20 lg:h-24 xl:h-28 w-auto object-contain cursor-pointer"
+                  width={350}
+                  height={140}
+                  className="h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32 w-auto object-contain cursor-pointer"
                   priority
                 />
               </Link>
@@ -135,9 +135,9 @@ const Header = () => {
                 <Image 
                   src="/spc-brasil-logo.png" 
                   alt="SPC Brasil" 
-                  width={280}
-                  height={112}
-                  className="h-12 sm:h-16 md:h-20 lg:h-24 xl:h-28 w-auto object-contain cursor-pointer"
+                  width={350}
+                  height={140}
+                  className="h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32 w-auto object-contain cursor-pointer"
                   priority
                 />
               </a>

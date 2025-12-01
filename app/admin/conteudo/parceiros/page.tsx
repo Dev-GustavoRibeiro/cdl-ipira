@@ -57,8 +57,8 @@ export default function AdminParceirosPage() {
         setPartners(mappedPartners);
       }
     } catch (error) {
-      console.error('Erro ao carregar parceiros:', error);
-      toast.error('Erro ao carregar parceiros');
+      console.error('Erro ao carregar associados:', error);
+      toast.error('Erro ao carregar associados');
     } finally {
       setIsLoading(false);
     }
@@ -107,31 +107,31 @@ export default function AdminParceirosPage() {
 
       if (!response.ok) throw new Error('Erro ao salvar');
 
-      toast.success(isAdding ? 'Parceiro criado!' : 'Parceiro atualizado!');
+      toast.success(isAdding ? 'Associado criado!' : 'Associado atualizado!');
       fetchPartners();
       setIsModalOpen(false);
       setEditingId(null);
       setIsAdding(false);
     } catch (error) {
-      console.error('Erro ao salvar parceiro:', error);
-      toast.error('Erro ao salvar parceiro');
+      console.error('Erro ao salvar associado:', error);
+      toast.error('Erro ao salvar associado');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este parceiro?')) return;
+    if (!confirm('Tem certeza que deseja excluir este associado?')) return;
 
     try {
       const response = await fetch(`/api/parceiros?id=${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Erro ao excluir');
       
-      toast.success('Parceiro excluído!');
+      toast.success('Associado excluído!');
       fetchPartners();
     } catch (error) {
-      console.error('Erro ao excluir parceiro:', error);
-      toast.error('Erro ao excluir parceiro');
+      console.error('Erro ao excluir associado:', error);
+      toast.error('Erro ao excluir associado');
     }
   };
 
@@ -187,10 +187,10 @@ export default function AdminParceirosPage() {
           </Link>
           <div>
             <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] mb-2">
-              Parceiros
+              Associados
             </h1>
             <p className="text-gray-600 text-sm sm:text-base">
-              Gerencie os parceiros exibidos no carrossel
+              Gerencie os associados exibidos no carrossel
             </p>
           </div>
         </div>
@@ -199,14 +199,14 @@ export default function AdminParceirosPage() {
           className="inline-flex items-center gap-2 bg-[#ffd000] text-[#003f7f] px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#ffed4e] transition-all duration-300 shadow-lg"
         >
           <FaPlus />
-          Novo Parceiro
+          Novo Associado
         </button>
       </div>
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={isAdding ? 'Adicionar Novo Parceiro' : 'Editar Parceiro'}
+        title={isAdding ? 'Adicionar Novo Associado' : 'Editar Associado'}
       >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
             <div>
@@ -216,7 +216,7 @@ export default function AdminParceirosPage() {
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
-                placeholder="Nome do parceiro"
+                placeholder="Nome do associado"
               />
             </div>
 
@@ -295,7 +295,7 @@ export default function AdminParceirosPage() {
           </div>
       </Modal>
 
-      {/* Lista de Parceiros */}
+      {/* Lista de Associados */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <FaSpinner className="animate-spin text-[#003f7f] text-3xl" />

@@ -64,7 +64,7 @@ export default function AdminLayout({
       href: '/admin/conteudo',
       submenu: [
         { label: 'Hero Carousel', href: '/admin/conteudo/hero-carousel' },
-        { label: 'Parceiros', href: '/admin/conteudo/parceiros' },
+        { label: 'Associados', href: '/admin/conteudo/parceiros' },
       ]
     },
     { icon: <FaNewspaper />, label: 'Notícias', href: '/admin/noticias' },
