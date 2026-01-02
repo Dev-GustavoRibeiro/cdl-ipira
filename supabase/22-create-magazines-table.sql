@@ -53,3 +53,8 @@ CREATE INDEX IF NOT EXISTS idx_magazines_is_active ON magazines(is_active);
 
 
 
+
+
+
+
+

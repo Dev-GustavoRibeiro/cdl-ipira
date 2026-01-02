@@ -38,15 +38,26 @@ const nextConfig: NextConfig = {
   // Desabilitar header X-Powered-By para não expor tecnologia usada
   poweredByHeader: false,
   
+  // Desabilitar React Strict Mode para evitar double-mounting em desenvolvimento
+  // NOTA: Em produção, isso não tem efeito. Considere reativar para debugging.
+  reactStrictMode: false,
+  
+  // Configuração do Turbopack (Next.js 16+)
+  turbopack: {},
+  
   // Permitir acesso de outros dispositivos na rede local durante desenvolvimento
-  // Inclui IPs das interfaces de rede deste computador
+  // NOTA: Este warning pode aparecer mesmo com configuração correta (bug do Turbopack)
+  // Para evitar reloads, use uma única aba ou acesse via localhost
   allowedDevOrigins: [
-    'http://192.168.56.1',
-    'http://192.168.1.108',
-    'http://localhost',
+    'http://192.168.56.1:3000',
+    'http://192.168.1.108:3000',
+    'http://192.168.88.238:3000',
+    'http://localhost:3000',
   ],
   
   images: {
+    // Qualidades permitidas para imagens
+    qualities: [75, 100],
     // Domínios permitidos para imagens
     remotePatterns: [
       {

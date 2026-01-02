@@ -4,6 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination, Navigation } from 'swiper/modules';
+import EventModal from './EventModal';
 import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
@@ -12,30 +13,73 @@ interface Event {
   id: number;
   title: string;
   description: string;
-  date: string;
-  month: string;
-  year: string;
-  fullDate: string;
+  date: string; // Database date string YYYY-MM-DD
+  time: string;
   location: string;
   category: string;
-  participants: string;
+  participants: string; // String for display in card
+  attendees: number; // Number for modal
   image?: string;
   gradient: string;
+  month: string; // Derived for display
+  day: string;   // Derived for display
+  year: string;  // Derived for display
+  fullDate: string; // Derived for display
+  status: 'upcoming' | 'ongoing' | 'past';
 }
 
 const EventsCarousel = () => {
   const [events, setEvents] = React.useState<Event[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [selectedEvent, setSelectedEvent] = React.useState<Event | null>(null);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
 
   React.useEffect(() => {
-    // TODO: Substituir por chamada de API real
-    // Exemplo: fetch('/api/events?limit=5').then(res => res.json()).then(setEvents)
     const fetchEvents = async () => {
       try {
-        // const response = await fetch('/api/events?limit=5');
-        // const data = await response.json();
-        // setEvents(data);
-        setEvents([]); // Array vazio até implementar a API
+        const response = await fetch('/api/eventos');
+        if (response.ok) {
+          const data = await response.json();
+
+          const gradients = [
+            'from-[#003f7f] to-[#0066cc]', // Blue
+            'from-[#00a859] to-[#00d674]', // Green
+            'from-[#e6b800] to-[#ffd000]', // Yellow
+            'from-[#cc0000] to-[#ff3333]', // Red
+            'from-[#4b0082] to-[#8a2be2]', // Purple
+          ];
+
+          const mappedEvents = data.map((item: any, index: number) => {
+            const dateObj = new Date(item.date);
+            const day = dateObj.getDate().toString().padStart(2, '0');
+            const monthShort = dateObj.toLocaleString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase();
+            const year = dateObj.getFullYear().toString();
+            const fullDate = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+            return {
+              id: item.id,
+              title: item.title,
+              description: item.description,
+              date: day, // Display day for the calendar icon
+              time: item.time || '19:00', // Default time if missing
+              location: item.location || 'CDL Ipirá',
+              category: item.category || 'Evento',
+              participants: 'Aberto ao público',
+              attendees: item.attendees || 100,
+              image: item.image,
+              gradient: gradients[index % gradients.length],
+              month: monthShort,
+              day: day,
+              year: year,
+              fullDate: fullDate,
+              status: 'upcoming'
+            };
+          });
+
+          setEvents(mappedEvents);
+        } else {
+          setEvents([]);
+        }
       } catch (error) {
         console.error('Erro ao carregar eventos:', error);
         setEvents([]);
@@ -45,6 +89,11 @@ const EventsCarousel = () => {
     };
     fetchEvents();
   }, []);
+
+  const openModal = (event: Event) => {
+    setSelectedEvent(event);
+    setIsModalOpen(true);
+  };
 
   if (isLoading) {
     return (
@@ -61,7 +110,7 @@ const EventsCarousel = () => {
   // Renderiza a estrutura mesmo sem eventos
   if (events.length === 0) {
     return (
-      <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden">
+      <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-visible">
         {/* Elementos decorativos de fundo */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl"></div>
@@ -86,7 +135,7 @@ const EventsCarousel = () => {
   }
 
   return (
-    <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden">
+    <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-visible">
       {/* Elementos decorativos de fundo */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl"></div>
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl"></div>
@@ -123,9 +172,9 @@ const EventsCarousel = () => {
                 dynamicBullets: false,
               }}
               navigation={{
-              nextEl: '.events-button-next',
-              prevEl: '.events-button-prev',
-            }}
+                nextEl: '.events-button-next',
+                prevEl: '.events-button-prev',
+              }}
               loop={true}
               breakpoints={{
                 768: {
@@ -139,114 +188,117 @@ const EventsCarousel = () => {
                   centeredSlides: true,
                 },
               }}
-              className="events-modern-carousel pb-20!"
+              className="events-modern-carousel pb-20! !overflow-visible"
             >
-            {events.map((event) => (
-              <SwiperSlide key={event.id}>
-                <article className="group bg-white rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl hover:shadow-3xl transition-all duration-500 h-full flex flex-col min-h-[650px]">
-                  {/* Imagem do Evento */}
-                  <div className="relative h-64 sm:h-72 md:h-80 overflow-hidden shrink-0">
-                    <div className={`absolute inset-0 bg-linear-to-br ${event.gradient} opacity-90`}></div>
-                    {event.image && (
-                      <Image 
-                        src={event.image} 
-                        alt={event.title}
-                        fill
-                        className="object-cover transform group-hover:scale-110 transition-transform duration-700"
-                      />
-                    )}
-                    
-                    {/* Overlay gradient */}
-                    <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/30 to-transparent"></div>
-                    
-                    {/* Calendário 3D - estilo correto */}
-                    <div className="absolute top-6 right-6 z-10">
-                      <div className="bg-white rounded-2xl shadow-2xl transform group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500 overflow-hidden">
-                        <div className="bg-[#003f7f] text-white text-center py-3 px-5 rounded-t-2xl font-bold text-sm uppercase">
-                          {event.month}
-                        </div>
-                        <div className="px-5 py-4 text-center bg-white rounded-b-2xl">
-                          <div className="text-5xl font-black text-[#003f7f] leading-none">{event.date}</div>
-                          <div className="text-xs font-semibold text-gray-600 mt-1">{event.year}</div>
-                        </div>
-                      </div>
-                    </div>
+              {events.map((event) => (
+                <SwiperSlide key={event.id}>
+                  <article
+                    onClick={() => openModal(event)}
+                    className="group bg-white rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl hover:shadow-3xl transition-all duration-500 h-full flex flex-col min-h-[650px] cursor-pointer"
+                  >
+                    {/* Imagem do Evento */}
+                    <div className="relative h-64 sm:h-72 md:h-80 overflow-hidden shrink-0">
+                      <div className={`absolute inset-0 bg-linear-to-br ${event.gradient} opacity-90`}></div>
+                      {event.image && (
+                        <Image
+                          src={event.image}
+                          alt={event.title}
+                          fill
+                          className="object-cover transform group-hover:scale-110 transition-transform duration-700"
+                        />
+                      )}
 
-                    {/* Categoria Badge - amarelo com texto azul */}
-                    <div className="absolute top-6 left-6 z-10">
-                      <span className="bg-[#ffd000] text-[#003f7f] px-4 py-2 rounded-full text-xs font-black shadow-lg">
-                        {event.category}
-                      </span>
-                    </div>
-                  </div>
+                      {/* Overlay gradient */}
+                      <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/30 to-transparent"></div>
 
-                  {/* Conteúdo do Card */}
-                  <div className="p-4 sm:p-6 md:p-8 flex flex-col grow min-h-[350px]">
-                    {/* Título */}
-                    <h3 className="text-xl sm:text-2xl md:text-2xl font-black text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors leading-tight line-clamp-2">
-                      {event.title}
-                    </h3>
-                    
-                    {/* Data Completa */}
-                    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-[#00a859]" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-semibold">{event.fullDate}</span>
-                    </div>
-
-                    {/* Descrição */}
-                    <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 leading-relaxed line-clamp-3 grow">
-                      {event.description}
-                    </p>
-
-                    {/* Informações Extras */}
-                    <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 border-t border-gray-100 pt-4 sm:pt-6">
-                      <div className="flex items-start gap-2 sm:gap-3">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-linear-to-br from-[#003f7f] to-[#0066cc] rounded-full flex items-center justify-center shrink-0">
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-gray-500 font-semibold mb-1">LOCAL</div>
-                          <div className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2">{event.location}</div>
+                      {/* Calendário 3D - estilo correto */}
+                      <div className="absolute top-6 right-6 z-10">
+                        <div className="bg-white rounded-2xl shadow-2xl transform group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500 overflow-hidden">
+                          <div className="bg-[#003f7f] text-white text-center py-3 px-5 rounded-t-2xl font-bold text-sm uppercase">
+                            {event.month}
+                          </div>
+                          <div className="px-5 py-4 text-center bg-white rounded-b-2xl">
+                            <div className="text-5xl font-black text-[#003f7f] leading-none">{event.day}</div>
+                            <div className="text-xs font-semibold text-gray-600 mt-1">{event.year}</div>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-start gap-2 sm:gap-3">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-linear-to-br from-[#00a859] to-[#00d670] rounded-full flex items-center justify-center shrink-0">
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-gray-500 font-semibold mb-1">PÚBLICO</div>
-                          <div className="text-xs sm:text-sm font-bold text-gray-800">{event.participants}</div>
-                        </div>
+                      {/* Categoria Badge - amarelo com texto azul */}
+                      <div className="absolute top-6 left-6 z-10">
+                        <span className="bg-[#ffd000] text-[#003f7f] px-4 py-2 rounded-full text-xs font-black shadow-lg">
+                          {event.category}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Botão igual ao Hero */}
-                    <button className="group/btn relative bg-white border-2 border-[#003f7f] text-[#003f7f] px-4 sm:px-6 md:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base overflow-hidden shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-2xl w-full mt-auto">
-                      <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3">
-                        Saiba Mais
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5 transform group-hover/btn:translate-x-2 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    {/* Conteúdo do Card */}
+                    <div className="p-4 sm:p-6 md:p-8 flex flex-col grow min-h-[350px]">
+                      {/* Título */}
+                      <h3 className="text-xl sm:text-2xl md:text-2xl font-black text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors leading-tight line-clamp-2">
+                        {event.title}
+                      </h3>
+
+                      {/* Data Completa */}
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-[#00a859]" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                         </svg>
-                      </span>
-                      <div className="absolute inset-0 bg-linear-to-r from-[#003f7f] to-[#0066cc] transform scale-x-0 group-hover/btn:scale-x-100 transition-transform origin-left"></div>
-                    </button>
-                  </div>
+                        <span className="font-semibold">{event.fullDate}</span>
+                      </div>
 
-                  {/* Barra colorida inferior animada */}
-                  <div className={`h-2 bg-linear-to-r ${event.gradient} animate-shine`} style={{backgroundSize: '200% 100%'}}></div>
-                </article>
-              </SwiperSlide>
-            ))}
+                      {/* Descrição */}
+                      <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 leading-relaxed line-clamp-3 grow">
+                        {event.description}
+                      </p>
+
+                      {/* Informações Extras */}
+                      <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 border-t border-gray-100 pt-4 sm:pt-6">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-linear-to-br from-[#003f7f] to-[#0066cc] rounded-full flex items-center justify-center shrink-0">
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-gray-500 font-semibold mb-1">LOCAL</div>
+                            <div className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2">{event.location}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-linear-to-br from-[#00a859] to-[#00d670] rounded-full flex items-center justify-center shrink-0">
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-gray-500 font-semibold mb-1">PÚBLICO</div>
+                            <div className="text-xs sm:text-sm font-bold text-gray-800">{event.participants}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botão igual ao Hero */}
+                      <button className="group/btn relative bg-white border-2 border-[#003f7f] text-[#003f7f] px-4 sm:px-6 md:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base overflow-hidden shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-2xl w-full mt-auto">
+                        <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3">
+                          Saiba Mais
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5 transform group-hover/btn:translate-x-2 transition-transform" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </span>
+                        <div className="absolute inset-0 bg-linear-to-r from-[#003f7f] to-[#0066cc] transform scale-x-0 group-hover/btn:scale-x-100 transition-transform origin-left"></div>
+                      </button>
+                    </div>
+
+                    {/* Barra colorida inferior animada */}
+                    <div className={`h-2 bg-linear-to-r ${event.gradient} animate-shine`} style={{ backgroundSize: '200% 100%' }}></div>
+                  </article>
+                </SwiperSlide>
+              ))}
             </Swiper>
           </div>
-          
+
           {/* Navegação customizada com cor azul */}
           <div className="events-button-prev absolute left-2 sm:left-4 md:left-6 lg:left-8 top-1/2 -translate-y-1/2 z-20 cursor-pointer group">
             <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-[#003f7f]/30 backdrop-blur-xl rounded-full flex items-center justify-center hover:bg-[#003f7f]/50 transition-all duration-300 shadow-2xl group-hover:scale-110">
@@ -255,7 +307,7 @@ const EventsCarousel = () => {
               </svg>
             </div>
           </div>
-          
+
           <div className="events-button-next absolute right-2 sm:right-4 md:right-6 lg:right-8 top-1/2 -translate-y-1/2 z-20 cursor-pointer group">
             <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-[#003f7f]/30 backdrop-blur-xl rounded-full flex items-center justify-center hover:bg-[#003f7f]/50 transition-all duration-300 shadow-2xl group-hover:scale-110">
               <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 text-[#003f7f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -278,6 +330,12 @@ const EventsCarousel = () => {
           </button>
         </div>
       </div>
+
+      <EventModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        event={selectedEvent}
+      />
 
       <style jsx global>{`
         .events-modern-carousel {
@@ -326,7 +384,7 @@ const EventsCarousel = () => {
           transform: scale(1.05);
         }
         
-        /* Botão com efeito de preenchimento */}
+        /* Botão com efeito de preenchimento */
         .group\/btn:hover span {
           color: white;
         }

@@ -17,6 +17,7 @@ interface Registration {
   id: number;
   name: string;
   email: string;
+  cpf?: string;
   phone: string;
   company: string;
   created_at: string;
@@ -33,6 +34,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
   }, []);
 
   useEffect(() => {
+    console.log('RegistrationListModal effect triggered:', { isOpen, eventId });
     if (isOpen && eventId) {
       fetchRegistrations();
     } else {
@@ -43,19 +45,19 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
 
   const fetchRegistrations = async () => {
     if (!eventId) return;
-    
+
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('event_registrations')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: false });
+      const response = await fetch(`/api/admin/registrations?eventId=${eventId}`);
+      const data = await response.json();
 
-      if (error) throw error;
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar inscrições');
+
+      console.log('API response:', data);
       setRegistrations(data || []);
     } catch (error) {
       console.error('Erro ao carregar inscrições:', error);
+      toast.error('Erro ao carregar lista de inscritos');
     } finally {
       setIsLoading(false);
     }
@@ -65,32 +67,13 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
     if (!confirm('Tem certeza que deseja excluir este inscrito?')) return;
 
     try {
-      const { error } = await supabase
-        .from('event_registrations')
-        .delete()
-        .eq('id', id);
+      const response = await fetch(`/api/admin/registrations?id=${id}&eventId=${eventId}`, {
+        method: 'DELETE'
+      });
 
-      if (error) throw error;
+      const data = await response.json();
 
-      // Tentar atualizar o contador de participantes
-      // Nota: Em uma implementação ideal, isso seria feito por uma trigger no banco ou uma function
-      // Mas como estamos fazendo manualmente na inserção, vamos tentar manter consistente aqui
-      try {
-        const { data: eventData } = await supabase
-          .from('events')
-          .select('attendees')
-          .eq('id', eventId)
-          .single();
-
-        if (eventData && eventData.attendees > 0) {
-          await supabase
-            .from('events')
-            .update({ attendees: eventData.attendees - 1 })
-            .eq('id', eventId);
-        }
-      } catch (countError) {
-        console.error('Erro ao atualizar contador de participantes:', countError);
-      }
+      if (!response.ok) throw new Error(data.error || 'Erro ao excluir inscrito');
 
       toast.success('Inscrito excluído com sucesso');
       fetchRegistrations();
@@ -100,7 +83,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
     }
   };
 
-  const filteredRegistrations = registrations.filter(reg => 
+  const filteredRegistrations = registrations.filter(reg =>
     reg.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     reg.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     reg.company?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -135,10 +118,10 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
-      <div 
+      <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
       ></div>
-      
+
       <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl relative z-10 flex flex-col animate-scale-in">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
           <div>
@@ -165,7 +148,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-[#003f7f] focus:border-[#003f7f]"
               />
             </div>
-            
+
             <button
               onClick={handleExport}
               disabled={registrations.length === 0}
@@ -181,7 +164,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
               <table className="w-full text-sm text-left">
                 <thead className="bg-gray-50 text-gray-700 font-semibold">
                   <tr>
-                    <th className="px-4 py-3">Nome</th>
+                    <th className="px-4 py-3">Nome / CPF</th>
                     <th className="px-4 py-3">Contato</th>
                     <th className="px-4 py-3">Empresa</th>
                     <th className="px-4 py-3">Data</th>
@@ -209,7 +192,10 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
                             <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
                               <FaUser className="w-3 h-3" />
                             </div>
-                            {reg.name}
+                            <div>
+                              <div className="font-semibold">{reg.name}</div>
+                              {reg.cpf && <div className="text-xs text-gray-500">{reg.cpf}</div>}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-gray-600">
@@ -254,7 +240,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
               </table>
             </div>
           </div>
-          
+
           <div className="text-sm text-gray-500 text-right">
             Total: <strong>{registrations.length}</strong> inscritos
           </div>

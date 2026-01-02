@@ -17,21 +17,13 @@ import {
   FaVideo, 
   FaImages, 
   FaCalendarAlt, 
-  FaMobileAlt, 
   FaCertificate, 
-  FaBolt, 
-  FaHeartbeat, 
-  FaTooth, 
-  FaCreditCard, 
-  FaStore, 
   FaBroadcastTower, 
   FaBriefcase, 
-  FaGraduationCap, 
-  FaHandshake, 
   FaBalanceScale, 
   FaStoreAlt, 
-  FaInfoCircle, 
-  FaMusic,
+  FaFileAlt,
+  FaBook,
   FaChevronRight
 } from 'react-icons/fa';
 
@@ -73,40 +65,30 @@ const MobileBottomNav = () => {
   ];
 
   const allItems = [
-    // Destaques/Rápidos
-    { href: '/produtos/spc-brasil', label: 'SPC Brasil', icon: FaShieldAlt, category: 'produtos', highlight: true },
-    { href: '/imprensa/noticias', label: 'Notícias', icon: FaNewspaper, category: 'imprensa', highlight: true },
-    { href: '/imprensa/contato', label: 'Contato', icon: FaEnvelope, category: 'imprensa', highlight: true },
-    { href: '/beneficios/cartao-convenio', label: 'Cartão', icon: FaCreditCard, category: 'beneficios', highlight: true },
-
     // Institucional
     { href: '/institucional/historia', label: 'História', icon: FaHistory, category: 'institucional' },
     { href: '/institucional/diretoria', label: 'Diretoria', icon: FaUsers, category: 'institucional' },
     { href: '/institucional/missao-visao-valores', label: 'Missão/Visão', icon: FaBullseye, category: 'institucional' },
+    { href: '/institucional/compromisso-cdl', label: 'Compromisso', icon: FaFileAlt, category: 'institucional' },
+    { href: '/institucional/portal-transparencia', label: 'Transparência', icon: FaFileAlt, category: 'institucional' },
 
     // Produtos
-    { href: '/produtos/cdl-celular', label: 'CDL Celular', icon: FaMobileAlt, category: 'produtos' },
+    { href: '/produtos/spc-brasil', label: 'SPC Brasil', icon: FaShieldAlt, category: 'produtos', highlight: true },
     { href: '/produtos/certificado-digital', label: 'Certificado', icon: FaCertificate, category: 'produtos' },
-    { href: '/produtos/cdl-energia', label: 'Energia', icon: FaBolt, category: 'produtos' },
-    { href: '/produtos/cdl-saude', label: 'Saúde', icon: FaHeartbeat, category: 'produtos' },
-    { href: '/produtos/cdl-odonto', label: 'Odonto', icon: FaTooth, category: 'produtos' },
-    { href: '/produtos/cartao-credito-cdl', label: 'Crédito', icon: FaCreditCard, category: 'produtos' },
-    { href: '/produtos/espaco-cdl', label: 'Espaço CDL', icon: FaStore, category: 'produtos' },
-    { href: '/produtos/cdl-midia', label: 'Mídia', icon: FaBroadcastTower, category: 'produtos' },
+    { href: '/produtos/cdl-midia', label: 'CDL Mídia', icon: FaBroadcastTower, category: 'produtos' },
     { href: '/produtos/balcao-empregos', label: 'Empregos', icon: FaBriefcase, category: 'produtos' },
-    { href: '/produtos/cursos-palestras', label: 'Cursos', icon: FaGraduationCap, category: 'produtos' },
 
     // Benefícios
-    { href: '/beneficios/projeto-conduz', label: 'Conduz', icon: FaMusic, category: 'beneficios' },
     { href: '/beneficios/orientacao-juridica', label: 'Jurídico', icon: FaBalanceScale, category: 'beneficios' },
-    { href: '/beneficios/convenios', label: 'Convênios', icon: FaHandshake, category: 'beneficios' },
-    { href: '/beneficios/empresas', label: 'Empresas', icon: FaStoreAlt, category: 'beneficios' },
-    { href: '/beneficios/nucleo-informacoes', label: 'Informações', icon: FaInfoCircle, category: 'beneficios' },
+    { href: '/beneficios/empresas', label: 'Associados', icon: FaStoreAlt, category: 'beneficios' },
 
     // Imprensa
+    { href: '/imprensa/noticias', label: 'Notícias', icon: FaNewspaper, category: 'imprensa', highlight: true },
     { href: '/imprensa/tv-lojista', label: 'TV Lojista', icon: FaVideo, category: 'imprensa' },
     { href: '/imprensa/galeria-fotos', label: 'Fotos', icon: FaImages, category: 'imprensa' },
     { href: '/imprensa/eventos', label: 'Eventos', icon: FaCalendarAlt, category: 'imprensa' },
+    { href: '/imprensa/revista-cdl', label: 'Revista CDL', icon: FaBook, category: 'imprensa' },
+    { href: '/imprensa/contato', label: 'Contato', icon: FaEnvelope, category: 'imprensa', highlight: true },
   ];
 
   const filteredItems = allItems.filter(item => item.category === activeCategory);

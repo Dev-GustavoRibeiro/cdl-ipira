@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <pattern id="musicPattern" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+      <!-- Nota musical 1 -->
+      <path d="M15 10 L15 25 C15 28 12 30 9 30 C6 30 4 28 4 25 C4 22 6 20 9 20 C11 20 13 21 15 22 L15 10 L22 8 L22 10 L15 12" fill="currentColor" opacity="0.3"/>
+      <!-- Nota musical 2 -->
+      <path d="M45 20 L45 35 C45 38 42 40 39 40 C36 40 34 38 34 35 C34 32 36 30 39 30 C41 30 43 31 45 32 L45 20 L52 18 L52 20 L45 22" fill="currentColor" opacity="0.3"/>
+      <!-- Clave de sol simplificada -->
+      <circle cx="30" cy="50" r="3" fill="currentColor" opacity="0.2"/>
+      <path d="M33 50 L33 42 C33 38 35 36 38 36" stroke="currentColor" fill="none" stroke-width="1.5" opacity="0.2"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#musicPattern)"/>
+</svg>
+
+
+

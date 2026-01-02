@@ -19,6 +19,7 @@ interface Evento {
   image?: string;
   gradient?: string;
   attendees?: number;
+  registrations_count?: number;
 }
 
 const CATEGORIES = ['Networking', 'Capacitação', 'Feira', 'Palestra', 'Institucional', 'Reunião'];
@@ -44,8 +45,8 @@ export default function AdminEventosPage() {
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRegistrationListOpen, setIsRegistrationListOpen] = useState(false);
-  const [selectedEventForList, setSelectedEventForList] = useState<{id: number, title: string} | null>(null);
-  
+  const [selectedEventForList, setSelectedEventForList] = useState<{ id: number, title: string } | null>(null);
+
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -59,7 +60,12 @@ export default function AdminEventosPage() {
     status: 'upcoming',
     image: '',
     gradient: 'from-[#003f7f] to-[#0066cc]',
+    attendees: 0,
   });
+
+  // Delete modal state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<number | null>(null);
 
   useEffect(() => {
     fetchEventos();
@@ -85,7 +91,8 @@ export default function AdminEventosPage() {
           description: item.description,
           image: item.image,
           gradient: item.gradient,
-          attendees: item.attendees || 0
+          attendees: item.attendees || 0,
+          registrations_count: item.registrations_count || 0
         }));
         setEventos(mappedEventos as Evento[]);
       }
@@ -97,11 +104,16 @@ export default function AdminEventosPage() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Tem certeza que deseja excluir este evento?')) return;
+  function handleDelete(id: number) {
+    setEventToDelete(id);
+    setIsDeleteModalOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!eventToDelete) return;
 
     try {
-      const response = await fetch(`/api/admin/eventos?id=${id}`, {
+      const response = await fetch(`/api/admin/eventos?id=${eventToDelete}`, {
         method: 'DELETE'
       });
 
@@ -113,6 +125,9 @@ export default function AdminEventosPage() {
     } catch (error) {
       console.error('Erro ao excluir evento:', error);
       toast.error('Erro ao excluir evento');
+    } finally {
+      setIsDeleteModalOpen(false);
+      setEventToDelete(null);
     }
   }
 
@@ -129,6 +144,7 @@ export default function AdminEventosPage() {
         status: evento.status,
         image: evento.image || '',
         gradient: evento.gradient || 'from-[#003f7f] to-[#0066cc]',
+        attendees: evento.attendees || 0,
       });
     } else {
       setEditingId(null);
@@ -142,6 +158,7 @@ export default function AdminEventosPage() {
         status: 'upcoming',
         image: '',
         gradient: 'from-[#003f7f] to-[#0066cc]',
+        attendees: 0,
       });
     }
     setIsModalOpen(true);
@@ -172,7 +189,7 @@ export default function AdminEventosPage() {
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao enviar imagem');
-      
+
       setFormData({ ...formData, image: data.url });
       toast.success('Imagem enviada com sucesso!');
     } catch (error) {
@@ -198,7 +215,8 @@ export default function AdminEventosPage() {
         category: formData.category,
         status: formData.status,
         image: formData.image,
-        gradient: formData.gradient
+        gradient: formData.gradient,
+        attendees: formData.attendees
       };
 
       const response = await fetch('/api/admin/eventos', {
@@ -289,7 +307,8 @@ export default function AdminEventosPage() {
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Local</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Categoria</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Status</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Inscritos</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Inscritos (Real)</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Inscritos (Site)</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Ações</th>
               </tr>
             </thead>
@@ -341,8 +360,11 @@ export default function AdminEventosPage() {
                           className="flex items-center gap-1 text-[#003f7f] hover:underline font-medium text-sm"
                         >
                           <FaUsers className="w-4 h-4" />
-                          {evento.attendees || 0}
+                          {evento.registrations_count || 0}
                         </button>
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
+                        {evento.attendees}
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
                         <div className="flex items-center gap-2">
@@ -456,7 +478,7 @@ export default function AdminEventosPage() {
                 required
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
               >
-                <option value="">Selecione...</option>
+                <option value="">Selecione uma categoria</option>
                 {CATEGORIES.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
@@ -478,6 +500,25 @@ export default function AdminEventosPage() {
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Nova entrada para número de participantes */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                Inscritos (Exibido no Site)
+              </label>
+              <input
+                type="number"
+                name="attendees"
+                value={formData.attendees || 0}
+                onChange={handleChange}
+                min="0"
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+                placeholder="0"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Este é o número que aparecerá no card do evento no site.
+              </p>
             </div>
 
             <div>
@@ -515,7 +556,7 @@ export default function AdminEventosPage() {
               <label className="block text-sm font-bold text-gray-700 mb-2">
                 Imagem de Capa
               </label>
-              
+
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   {/* Opção 1: Upload de Arquivo */}
@@ -532,9 +573,9 @@ export default function AdminEventosPage() {
                         </p>
                         <p className="text-xs text-gray-500">PNG, JPG ou WEBP</p>
                       </div>
-                      <input 
-                        type="file" 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        className="hidden"
                         accept="image/*"
                         onChange={handleImageUpload}
                         disabled={isUploading}
@@ -604,6 +645,32 @@ export default function AdminEventosPage() {
         eventId={selectedEventForList?.id || null}
         eventTitle={selectedEventForList?.title || ''}
       />
+
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Confirmar Exclusão"
+      >
+        <div className="space-y-6">
+          <p className="text-gray-600">
+            Tem certeza que deseja excluir este evento? esta ação não pode ser desfeita.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmDelete}
+              className="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold transition-colors shadow-lg shadow-red-200"
+            >
+              Excluir
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -4,11 +4,12 @@ import { validateAndSanitize } from '@/lib/security';
 import { auditServer } from '@/lib/audit-server';
 
 // GET - Listar todos os eventos (incluindo inativos para admin)
+// GET - Listar todos os eventos (incluindo inativos para admin)
 export async function GET() {
   try {
     const { data: events, error } = await supabaseAdmin
       .from('events')
-      .select('*')
+      .select('*, registrations:event_registrations(count)')
       .order('date', { ascending: false });
 
     if (error) {
@@ -16,7 +17,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Erro ao buscar eventos', details: error }, { status: 500 });
     }
 
-    return NextResponse.json(events || []);
+    // Transform the data to flatten the count
+    const eventsWithCount = events?.map(event => ({
+      ...event,
+      registrations_count: event.registrations?.[0]?.count || 0
+    }));
+
+    return NextResponse.json(eventsWithCount || []);
   } catch (error) {
     console.error('Erro interno:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
@@ -27,12 +34,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
+
     // Validar campos obrigatórios
     if (!body.title || !body.date || !body.location || !body.category) {
       return NextResponse.json({ error: 'Campos obrigatórios faltando: título, data, local e categoria são obrigatórios' }, { status: 400 });
     }
-    
+
     // Validar e sanitizar
     const { valid, errors, sanitized } = validateAndSanitize(body, {
       title: { type: 'string', required: true, maxLength: 500 },
@@ -45,11 +52,11 @@ export async function POST(request: NextRequest) {
       image: { type: 'url', required: false },
       gradient: { type: 'string', required: false, maxLength: 100 }
     });
-    
+
     if (!valid) {
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
     }
-    
+
     const { data, error } = await supabaseAdmin
       .from('events')
       .insert([
@@ -63,6 +70,7 @@ export async function POST(request: NextRequest) {
           status: sanitized.status || 'upcoming',
           image: sanitized.image || null,
           gradient: sanitized.gradient || 'from-[#003f7f] to-[#0066cc]',
+          attendees: body.attendees ? parseInt(body.attendees) : 0,
           is_active: true
         }
       ])
@@ -94,18 +102,18 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    
+
     const { id, ...updateData } = body;
-    
+
     if (!id) {
       return NextResponse.json({ error: 'ID do evento é obrigatório' }, { status: 400 });
     }
-    
+
     // Validar campos obrigatórios
     if (!updateData.title || !updateData.date || !updateData.location || !updateData.category) {
       return NextResponse.json({ error: 'Campos obrigatórios faltando: título, data, local e categoria são obrigatórios' }, { status: 400 });
     }
-    
+
     // Validar e sanitizar
     const { valid, errors, sanitized } = validateAndSanitize(updateData, {
       title: { type: 'string', required: true, maxLength: 500 },
@@ -118,25 +126,31 @@ export async function PUT(request: NextRequest) {
       image: { type: 'url', required: false },
       gradient: { type: 'string', required: false, maxLength: 100 }
     });
-    
+
     if (!valid) {
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
     }
-    
+
+    const updatePayload: any = {
+      title: sanitized.title,
+      description: sanitized.description || '',
+      date: sanitized.date,
+      time: sanitized.time || '19:00',
+      location: sanitized.location,
+      category: sanitized.category,
+      status: sanitized.status || 'upcoming',
+      image: sanitized.image || null,
+      gradient: sanitized.gradient || 'from-[#003f7f] to-[#0066cc]',
+      is_active: true
+    };
+
+    if (body.attendees !== undefined) {
+      updatePayload.attendees = parseInt(body.attendees);
+    }
+
     const { data, error } = await supabaseAdmin
       .from('events')
-      .update({
-        title: sanitized.title,
-        description: sanitized.description || '',
-        date: sanitized.date,
-        time: sanitized.time || '19:00',
-        location: sanitized.location,
-        category: sanitized.category,
-        status: sanitized.status || 'upcoming',
-        image: sanitized.image || null,
-        gradient: sanitized.gradient || 'from-[#003f7f] to-[#0066cc]',
-        is_active: true
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single();
@@ -167,18 +181,18 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    
+
     if (!id) {
       return NextResponse.json({ error: 'ID do evento é obrigatório' }, { status: 400 });
     }
-    
+
     // Buscar dados do evento antes de excluir (para auditoria)
     const { data: evento } = await supabaseAdmin
       .from('events')
       .select('title')
       .eq('id', id)
       .single();
-    
+
     const { error } = await supabaseAdmin
       .from('events')
       .delete()

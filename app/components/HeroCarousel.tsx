@@ -84,9 +84,8 @@ export default function HeroCarousel() {
       {slides.map((slide, index) => (
         <div
           key={slide.id}
-          className={`absolute inset-0 transition-all duration-700 ease-in-out transform ${
-            index === currentSlide ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
-          }`}
+          className={`absolute inset-0 transition-all duration-700 ease-in-out transform ${index === currentSlide ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
+            }`}
         >
           {/* Imagem de Fundo - Agora bem visível */}
           {slide.image ? (
@@ -102,14 +101,14 @@ export default function HeroCarousel() {
             /* Fallback: Gradiente como fundo quando não há imagem */
             <div className={`absolute inset-0 ${slide.gradient ? `bg-linear-to-br ${slide.gradient}` : 'bg-gray-800'}`}></div>
           )}
-          
+
           {/* Overlay com gradiente suave que cobre toda a área */}
           {slide.gradient ? (
             <>
               {/* Gradiente colorido com fade suave da esquerda para direita */}
-              <div 
+              <div
                 className={`absolute inset-0 z-10 bg-linear-to-r ${slide.gradient}`}
-                style={{ 
+                style={{
                   maskImage: 'linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%)',
                   WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%)'
                 }}
@@ -124,8 +123,8 @@ export default function HeroCarousel() {
 
           {/* Padrão Geométrico (opcional) */}
           {slide.pattern && (
-            <div className="absolute inset-0 opacity-5 z-10" 
-                 style={{ backgroundImage: `url('/patterns/${slide.pattern}.svg')` }}>
+            <div className="absolute inset-0 opacity-5 z-10"
+              style={{ backgroundImage: `url('/patterns/${slide.pattern}.svg')` }}>
             </div>
           )}
 
@@ -161,9 +160,8 @@ export default function HeroCarousel() {
           <button
             key={index}
             onClick={() => setCurrentSlide(index)}
-            className={`w-3 h-3 rounded-full transition-all duration-300 ${
-              index === currentSlide ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/80'
-            }`}
+            className={`w-3 h-3 rounded-full transition-all duration-300 ${index === currentSlide ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/80'
+              }`}
             aria-label={`Ir para slide ${index + 1}`}
           />
         ))}

@@ -22,6 +22,7 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    cpf: '',
     phone: '',
     company: ''
   });
@@ -35,7 +36,7 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
   React.useEffect(() => {
     if (!isOpen) {
       setIsSuccess(false);
-      setFormData({ name: '', email: '', phone: '', company: '' });
+      setFormData({ name: '', email: '', cpf: '', phone: '', company: '' });
     }
   }, [isOpen]);
 
@@ -45,33 +46,39 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
 
     setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from('event_registrations')
-        .insert([
-          {
-            event_id: event.id,
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            company: formData.company
-          }
-        ]);
+      const response = await fetch('/api/eventos/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event_id: event.id,
+          name: formData.name,
+          email: formData.email,
+          cpf: formData.cpf,
+          phone: formData.phone,
+          company: formData.company
+        }),
+      });
 
-      if (error) throw error;
+      const data = await response.json();
 
-      // Atualizar contagem de inscritos
-      if (event.attendees !== undefined) {
-        await supabase
-          .from('events')
-          .update({ attendees: (event.attendees || 0) + 1 })
-          .eq('id', event.id);
+      if (!response.ok) {
+        if (response.status === 409 || data.code === 'DUPLICATE_CPF') {
+          throw { code: '23505', message: 'CPF duplicado' };
+        }
+        throw new Error(data.error || 'Erro ao realizar inscrição');
       }
 
       setIsSuccess(true);
       toast.success('Inscrição realizada com sucesso!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao realizar inscrição:', error);
-      toast.error('Erro ao realizar inscrição. Tente novamente.');
+      if (error.code === '23505' || error.message?.includes('CPF duplicado')) {
+        toast.error('Você já está inscrito neste evento!');
+      } else {
+        toast.error('Erro ao realizar inscrição. Tente novamente.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -81,10 +88,10 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
-      <div 
+      <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
       ></div>
-      
+
       <div className="bg-white w-full max-w-md overflow-y-auto rounded-2xl shadow-2xl relative z-10 flex flex-col animate-scale-in">
         {/* Botão Fechar */}
         <button
@@ -102,11 +109,11 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Inscrição Confirmada!</h3>
               <p className="text-gray-600 mb-6">
-                Sua presença no evento <br/>
-                <span className="font-bold text-[#003f7f]">{event.title}</span><br/>
+                Sua presença no evento <br />
+                <span className="font-bold text-[#003f7f]">{event.title}</span><br />
                 foi registrada com sucesso.
               </p>
-              <button 
+              <button
                 onClick={onClose}
                 className="w-full bg-[#00a859] text-white py-3 rounded-lg font-bold hover:bg-[#008f4c] transition-colors shadow-lg"
               >
@@ -118,21 +125,47 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-black text-[#003f7f] mb-2">Inscreva-se</h3>
                 <p className="text-sm text-gray-600">
-                  Preencha os dados para participar do evento<br/>
+                  Preencha os dados para participar do evento<br />
                   <span className="font-bold text-[#003f7f]">{event.title}</span>
                 </p>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Nome Completo *</label>
                 <input
                   type="text"
                   required
                   value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
                   placeholder="Seu nome completo"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">CPF *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.cpf}
+                  onChange={(e) => {
+                    // Mascara de CPF
+                    let v = e.target.value.replace(/\D/g, ''); // Remove tudo o que não é dígito
+                    if (v.length > 11) v = v.slice(0, 11); // Limita a 11 dígitos
+
+                    // Coloca ponto entre o terceiro e o quarto dígitos
+                    v = v.replace(/(\d{3})(\d)/, '$1.$2');
+                    // Coloca ponto entre o sexto e o sétimo dígitos
+                    v = v.replace(/(\d{3})(\d)/, '$1.$2');
+                    // Coloca um hífen entre o nono e o décimo dígitos
+                    v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+
+                    setFormData({ ...formData, cpf: v });
+                  }}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+                  placeholder="000.000.000-00"
+                />
+                <p className="text-xs text-gray-500 mt-1">Necessário para garantir inscrição única.</p>
               </div>
 
               <div>
@@ -141,7 +174,7 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
                   type="email"
                   required
                   value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
                   placeholder="seu@email.com"
                 />
@@ -153,7 +186,7 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
                   type="tel"
                   required
                   value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
                   placeholder="(00) 00000-0000"
                 />
@@ -164,13 +197,13 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
                 <input
                   type="text"
                   value={formData.company}
-                  onChange={(e) => setFormData({...formData, company: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
                   placeholder="Nome da sua empresa"
                 />
               </div>
 
-              <button 
+              <button
                 type="submit"
                 disabled={isLoading}
                 className="w-full bg-[#003f7f] text-white py-3.5 rounded-lg font-bold hover:bg-[#005a9e] transition-all shadow-lg hover:shadow-xl disabled:opacity-70 flex items-center justify-center gap-2 mt-2"

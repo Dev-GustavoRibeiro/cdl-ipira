@@ -48,7 +48,7 @@ const ServicesCards = () => {
             const props = isExternal
               ? { href: service.link, target: '_blank', rel: 'noopener noreferrer' }
               : { href: service.link };
-            
+
             return (
               <Component
                 key={index}

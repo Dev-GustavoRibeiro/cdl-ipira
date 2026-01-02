@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { FaUsers, FaUser, FaPlus, FaEdit, FaTrash, FaSearch, FaSave, FaSpinner, FaEye, FaEyeSlash, FaUpload, FaArrowUp, FaArrowDown, FaCrown, FaBriefcase, FaUserTie } from 'react-icons/fa';
+import { FaUsers, FaUser, FaPlus, FaEdit, FaTrash, FaSearch, FaSave, FaSpinner, FaEye, FaEyeSlash, FaUpload, FaArrowUp, FaArrowDown, FaCrown, FaBriefcase, FaUserTie, FaUserShield, FaUserFriends } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { supabase } from '@/lib/supabase';
@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 interface TeamMember {
   id: number;
   name: string;
-  role: 'presidente' | 'diretor' | 'colaborador';
+  role: 'presidente' | 'vice_presidente' | 'diretor' | 'suplente' | 'colaborador';
   position: string;
   photo_url?: string;
   bio?: string;
@@ -23,7 +23,9 @@ interface TeamMember {
 
 const roleConfig = {
   presidente: { label: 'Presidente', icon: FaCrown, color: 'bg-[#ffd000] text-[#003f7f]' },
+  vice_presidente: { label: 'Vice-Presidente', icon: FaUserShield, color: 'bg-[#e6b800] text-[#003f7f]' },
   diretor: { label: 'Diretor', icon: FaUserTie, color: 'bg-[#003f7f] text-white' },
+  suplente: { label: 'Suplente', icon: FaUserFriends, color: 'bg-[#0066cc] text-white' },
   colaborador: { label: 'Colaborador', icon: FaBriefcase, color: 'bg-[#00a859] text-white' },
 };
 
@@ -31,7 +33,7 @@ export default function AdminDiretoriaPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'presidente' | 'diretor' | 'colaborador'>('presidente');
+  const [activeTab, setActiveTab] = useState<'presidente' | 'vice_presidente' | 'diretor' | 'suplente' | 'colaborador'>('presidente');
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,13 +47,13 @@ export default function AdminDiretoriaPage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Dialog states
-  const [deleteDialog, setDeleteDialog] = useState<{isOpen: boolean, id: number | null, name: string}>({
+  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean, id: number | null, name: string }>({
     isOpen: false,
     id: null,
     name: ''
   });
   const [isDeleting, setIsDeleting] = useState(false);
-  const [successDialog, setSuccessDialog] = useState<{isOpen: boolean, message: string, type: 'success' | 'edit' | 'delete'}>({
+  const [successDialog, setSuccessDialog] = useState<{ isOpen: boolean, message: string, type: 'success' | 'edit' | 'delete' }>({
     isOpen: false,
     message: '',
     type: 'success'
@@ -283,13 +285,15 @@ export default function AdminDiretoriaPage() {
 
   const filteredMembers = members.filter(m => {
     const matchesSearch = m.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          m.position?.toLowerCase().includes(searchTerm.toLowerCase());
+      m.position?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = m.role === activeTab;
     return matchesSearch && matchesRole;
   });
 
   const presidente = members.find(m => m.role === 'presidente' && m.is_active);
+  const vicePresidenteCount = members.filter(m => m.role === 'vice_presidente').length;
   const diretoresCount = members.filter(m => m.role === 'diretor').length;
+  const suplentesCount = members.filter(m => m.role === 'suplente').length;
   const colaboradoresCount = members.filter(m => m.role === 'colaborador').length;
 
   const formatFileSize = (bytes: number) => {
@@ -319,7 +323,7 @@ export default function AdminDiretoriaPage() {
       </div>
 
       {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div
           onClick={() => setActiveTab('presidente')}
           className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'presidente' ? 'border-[#ffd000] ring-2 ring-[#ffd000]/20' : 'border-transparent hover:border-gray-200'}`}
@@ -335,6 +339,20 @@ export default function AdminDiretoriaPage() {
           </div>
         </div>
         <div
+          onClick={() => setActiveTab('vice_presidente')}
+          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'vice_presidente' ? 'border-[#e6b800] ring-2 ring-[#e6b800]/20' : 'border-transparent hover:border-gray-200'}`}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#e6b800] rounded-lg flex items-center justify-center">
+              <FaUserShield className="w-5 h-5 text-[#003f7f]" />
+            </div>
+            <div>
+              <div className="text-gray-500 text-xs font-bold uppercase">Vice-Presidente</div>
+              <div className="text-xl font-black text-gray-900">{vicePresidenteCount}</div>
+            </div>
+          </div>
+        </div>
+        <div
           onClick={() => setActiveTab('diretor')}
           className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'diretor' ? 'border-[#003f7f] ring-2 ring-[#003f7f]/20' : 'border-transparent hover:border-gray-200'}`}
         >
@@ -345,6 +363,20 @@ export default function AdminDiretoriaPage() {
             <div>
               <div className="text-gray-500 text-xs font-bold uppercase">Diretores</div>
               <div className="text-xl font-black text-gray-900">{diretoresCount}</div>
+            </div>
+          </div>
+        </div>
+        <div
+          onClick={() => setActiveTab('suplente')}
+          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'suplente' ? 'border-[#0066cc] ring-2 ring-[#0066cc]/20' : 'border-transparent hover:border-gray-200'}`}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#0066cc] rounded-lg flex items-center justify-center">
+              <FaUserFriends className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="text-gray-500 text-xs font-bold uppercase">Suplentes</div>
+              <div className="text-xl font-black text-gray-900">{suplentesCount}</div>
             </div>
           </div>
         </div>
@@ -383,7 +415,7 @@ export default function AdminDiretoriaPage() {
         <div className={`px-6 py-4 ${roleConfig[activeTab].color}`}>
           <h2 className="text-lg font-bold flex items-center gap-2">
             {React.createElement(roleConfig[activeTab].icon, { className: 'w-5 h-5' })}
-            {activeTab === 'presidente' ? 'Presidente' : activeTab === 'diretor' ? 'Diretores' : 'Colaboradores'}
+            {activeTab === 'presidente' ? 'Presidente' : activeTab === 'vice_presidente' ? 'Vice-Presidente' : activeTab === 'diretor' ? 'Diretores' : activeTab === 'suplente' ? 'Suplentes' : 'Colaboradores'}
           </h2>
         </div>
 
@@ -456,11 +488,10 @@ export default function AdminDiretoriaPage() {
                     )}
                     <button
                       onClick={() => handleToggleActive(member)}
-                      className={`p-2 rounded-lg transition-colors ${
-                        member.is_active
-                          ? 'text-green-600 hover:bg-green-100'
-                          : 'text-gray-500 hover:bg-gray-100'
-                      }`}
+                      className={`p-2 rounded-lg transition-colors ${member.is_active
+                        ? 'text-green-600 hover:bg-green-100'
+                        : 'text-gray-500 hover:bg-gray-100'
+                        }`}
                       title={member.is_active ? 'Ocultar' : 'Ativar'}
                     >
                       {member.is_active ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
@@ -559,11 +590,13 @@ export default function AdminDiretoriaPage() {
               <label className="block text-sm font-bold text-gray-700 mb-2">Tipo *</label>
               <select
                 value={currentMember.role || activeTab}
-                onChange={(e) => setCurrentMember({ ...currentMember, role: e.target.value as 'presidente' | 'diretor' | 'colaborador' })}
+                onChange={(e) => setCurrentMember({ ...currentMember, role: e.target.value as 'presidente' | 'vice_presidente' | 'diretor' | 'suplente' | 'colaborador' })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
               >
                 <option value="presidente">Presidente</option>
+                <option value="vice_presidente">Vice-Presidente</option>
                 <option value="diretor">Diretor</option>
+                <option value="suplente">Suplente</option>
                 <option value="colaborador">Colaborador</option>
               </select>
             </div>
@@ -678,8 +711,8 @@ export default function AdminDiretoriaPage() {
         onClose={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
         title={
           successDialog.type === 'delete' ? 'Membro Removido' :
-          successDialog.type === 'edit' ? 'Membro Atualizado' :
-          'Membro Cadastrado'
+            successDialog.type === 'edit' ? 'Membro Atualizado' :
+              'Membro Cadastrado'
         }
         message={successDialog.message}
         type={successDialog.type === 'delete' ? 'success' : successDialog.type}

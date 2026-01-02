@@ -46,7 +46,7 @@ const TVLojista = () => {
     <section className="py-12 sm:py-16 md:py-20 bg-[#003f7f] relative overflow-hidden">
       {/* Background Gradient Overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#003f7f] via-[#0052a3] to-[#003366]"></div>
-      
+
       {/* Decorative Elements */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#ffd000]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"></div>
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4"></div>
@@ -65,7 +65,7 @@ const TVLojista = () => {
               Acompanhe entrevistas, dicas e conteúdos exclusivos para impulsionar seu negócio
             </p>
           </div>
-          <Link 
+          <Link
             href="/imprensa/tv-lojista"
             className="group inline-flex items-center gap-2 text-[#ffd000] font-bold hover:text-white transition-colors text-sm sm:text-base"
           >
@@ -90,20 +90,20 @@ const TVLojista = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
             {/* Video Principal - Primeiro vídeo maior */}
             {videos[0] && (
-              <Link 
+              <Link
                 href={`/imprensa/tv-lojista?video=${videos[0].id}`}
                 className="group block lg:row-span-2"
               >
                 <article className="relative aspect-video lg:aspect-auto lg:h-full lg:min-h-[450px] rounded-2xl overflow-hidden">
-                  <Image 
-                    src={videos[0].thumbnail} 
+                  <Image
+                    src={videos[0].thumbnail}
                     alt={videos[0].title}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-700"
                   />
                   {/* Gradient Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
-                  
+
                   {/* Play Button */}
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#ffd000] rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform duration-300">
@@ -127,7 +127,7 @@ const TVLojista = () => {
             {/* Videos Secundários */}
             <div className="flex flex-col gap-6 sm:gap-8">
               {videos.slice(1, 3).map((video) => (
-                <Link 
+                <Link
                   key={video.id}
                   href={`/imprensa/tv-lojista?video=${video.id}`}
                   className="group block"
@@ -135,8 +135,8 @@ const TVLojista = () => {
                   <article className="flex gap-4 sm:gap-5 bg-white/5 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/10 hover:border-[#ffd000]/50 hover:bg-white/10 transition-all duration-300">
                     {/* Thumbnail */}
                     <div className="relative w-32 sm:w-40 md:w-48 aspect-video rounded-lg overflow-hidden flex-shrink-0">
-                      <Image 
-                        src={video.thumbnail} 
+                      <Image
+                        src={video.thumbnail}
                         alt={video.title}
                         fill
                         className="object-cover group-hover:scale-105 transition-transform duration-500"
@@ -170,7 +170,7 @@ const TVLojista = () => {
 
         {/* Bottom CTA */}
         <div className="mt-10 sm:mt-14 text-center">
-          <Link 
+          <Link
             href="/imprensa/tv-lojista"
             className="inline-flex items-center gap-3 bg-[#ffd000] text-[#003f7f] px-8 py-4 rounded-full font-bold hover:bg-white transition-all shadow-xl hover:shadow-2xl text-sm sm:text-base group"
           >

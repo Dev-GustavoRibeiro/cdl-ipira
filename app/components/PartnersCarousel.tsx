@@ -88,7 +88,7 @@ const PartnersCarousel = () => {
           </h2>
           <div className="w-20 h-1 bg-[#003f7f] mx-auto"></div>
         </div>
-        
+
         {/* Carrossel de Associados - Estilo com Destaque Central */}
         <div className="overflow-hidden py-8">
           <Swiper
@@ -136,8 +136,8 @@ const PartnersCarousel = () => {
             {duplicatedPartners.map((partner, index) => (
               <SwiperSlide key={`${partner.id}-${index}`}>
                 <div className="flex items-center justify-center h-[180px] sm:h-[220px] md:h-[260px] px-4 partner-slide">
-                  <Image 
-                    src={partner.logo} 
+                  <Image
+                    src={partner.logo}
                     alt={partner.name}
                     width={400}
                     height={200}

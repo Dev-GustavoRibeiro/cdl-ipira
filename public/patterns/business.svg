@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <pattern id="businessPattern" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+      <!-- Gráfico de barras -->
+      <rect x="5" y="35" width="6" height="15" fill="currentColor" opacity="0.2"/>
+      <rect x="13" y="28" width="6" height="22" fill="currentColor" opacity="0.25"/>
+      <rect x="21" y="20" width="6" height="30" fill="currentColor" opacity="0.3"/>
+      <!-- Cifrão -->
+      <text x="42" y="35" font-size="18" fill="currentColor" opacity="0.2" font-family="Arial">$</text>
+      <!-- Linha de tendência -->
+      <path d="M5 45 L15 38 L25 30 L35 25" stroke="currentColor" fill="none" stroke-width="1.5" opacity="0.15"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#businessPattern)"/>
+</svg>
+
+
+

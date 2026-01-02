@@ -23,7 +23,7 @@ const Header = () => {
     const formValue = formData.get('search') as string || '';
     // Usa o valor do FormData ou do state como fallback
     const query = (formValue || searchTerm).trim();
-    
+
     if (query.length >= 2) {
       router.push(`/pesquisa?q=${encodeURIComponent(query)}`);
       setSearchTerm('');
@@ -38,16 +38,16 @@ const Header = () => {
       setTimeout(() => searchInputRef.current?.focus(), 100);
     }
   };
-  
+
   // Refs para os dropdowns (para melhor controle)
   const institucionalRef = useRef<HTMLDivElement>(null);
   const imprensaRef = useRef<HTMLDivElement>(null);
   const produtosRef = useRef<HTMLDivElement>(null);
   const beneficiosRef = useRef<HTMLDivElement>(null);
-  
+
   // Timeouts para delay no fechamento
   const closeTimeouts = useRef<{ [key: string]: NodeJS.Timeout }>({});
-  
+
   // Função para abrir dropdown com delay no fechamento
   const handleMouseEnter = (dropdown: string) => {
     // Cancela qualquer timeout de fechamento pendente
@@ -55,8 +55,8 @@ const Header = () => {
       clearTimeout(closeTimeouts.current[dropdown]);
       delete closeTimeouts.current[dropdown];
     }
-    
-    switch(dropdown) {
+
+    switch (dropdown) {
       case 'institucional':
         setIsInstitucionalOpen(true);
         break;
@@ -71,11 +71,11 @@ const Header = () => {
         break;
     }
   };
-  
+
   // Função para fechar dropdown com delay
   const handleMouseLeave = (dropdown: string) => {
     const timeout = setTimeout(() => {
-      switch(dropdown) {
+      switch (dropdown) {
         case 'institucional':
           setIsInstitucionalOpen(false);
           break;
@@ -91,7 +91,7 @@ const Header = () => {
       }
       delete closeTimeouts.current[dropdown];
     }, 200); // 200ms de delay
-    
+
     closeTimeouts.current[dropdown] = timeout;
   };
 
@@ -103,7 +103,7 @@ const Header = () => {
           <div className="flex justify-center sm:justify-end items-center gap-3 sm:gap-4 md:gap-6 text-xs sm:text-sm">
             <span className="hidden sm:inline">Central de Atendimento</span>
             <a href="tel:5575999145061" className="flex items-center gap-1.5 sm:gap-2 font-semibold hover:text-[#ffd000] transition-colors whitespace-nowrap">
-              <FaPhone className="text-xs sm:text-sm" /> 
+              <FaPhone className="text-xs sm:text-sm" />
               <span className="text-xs sm:text-sm">(75) 99914-5061</span>
             </a>
           </div>
@@ -117,24 +117,24 @@ const Header = () => {
             {/* Logos */}
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0">
               <Link href="/" className="hover:opacity-80 transition-opacity">
-                <Image 
-                  src="/logo-cdl.png" 
-                  alt="CDL Ipirá" 
+                <Image
+                  src="/logo-cdl.png"
+                  alt="CDL Ipirá"
                   width={350}
                   height={140}
                   className="h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32 w-auto object-contain cursor-pointer"
                   priority
                 />
               </Link>
-              <a 
-                href="https://www.spcbrasil.org.br" 
-                target="_blank" 
+              <a
+                href="https://www.spcbrasil.org.br"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="hover:opacity-80 transition-opacity hidden sm:block"
               >
-                <Image 
-                  src="/spc-brasil-logo.png" 
-                  alt="SPC Brasil" 
+                <Image
+                  src="/spc-brasil-logo.png"
+                  alt="SPC Brasil"
                   width={350}
                   height={140}
                   className="h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32 w-auto object-contain cursor-pointer"
@@ -145,7 +145,7 @@ const Header = () => {
 
             {/* Menu Desktop - Tablet e Desktop */}
             <nav className="hidden md:flex items-center gap-3 lg:gap-4 xl:gap-6 flex-wrap">
-              <div 
+              <div
                 ref={institucionalRef}
                 className="relative group"
                 onMouseEnter={() => handleMouseEnter('institucional')}
@@ -158,7 +158,7 @@ const Header = () => {
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 {/* Dropdown Menu */}
                 {isInstitucionalOpen && (
                   <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden">
@@ -168,35 +168,51 @@ const Header = () => {
                         Institucional
                       </h4>
                     </div>
-                    <Link 
-                      href="/institucional/historia" 
+                    <Link
+                      href="/institucional/historia"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item"
                     >
                       <FaHistory className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">História</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/institucional/diretoria" 
+                    <Link
+                      href="/institucional/diretoria"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item"
                     >
                       <FaUsers className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">Diretoria</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/institucional/missao-visao-valores" 
+                    <Link
+                      href="/institucional/missao-visao-valores"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item"
                     >
                       <FaBullseye className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">Missão Visão e Valores</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
+                    <Link
+                      href="/institucional/compromisso-cdl"
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item"
+                    >
+                      <FaHandshake className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors" />
+                      <span className="flex-1">Compromisso CDL</span>
+                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                    </Link>
+                    <Link
+                      href="/institucional/portal-transparencia"
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item"
+                    >
+                      <FaFileAlt className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors" />
+                      <span className="flex-1">Portal Transparência</span>
+                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                    </Link>
                   </div>
                 )}
               </div>
 
-              <div 
+              <div
                 ref={imprensaRef}
                 className="relative group"
                 onMouseEnter={() => handleMouseEnter('imprensa')}
@@ -209,7 +225,7 @@ const Header = () => {
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 {/* Dropdown Menu Imprensa */}
                 {isImprensaOpen && (
                   <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden">
@@ -219,40 +235,48 @@ const Header = () => {
                         Imprensa
                       </h4>
                     </div>
-                    <Link 
-                      href="/imprensa/noticias" 
+                    <Link
+                      href="/imprensa/noticias"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
                     >
                       <FaFileAlt className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">Notícias</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/imprensa/tv-lojista" 
+                    <Link
+                      href="/imprensa/tv-lojista"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
                     >
                       <FaVideo className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">TV Lojista</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/imprensa/galeria-fotos" 
+                    <Link
+                      href="/imprensa/galeria-fotos"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
                     >
                       <FaImages className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">Galeria Fotos</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/imprensa/eventos" 
+                    <Link
+                      href="/imprensa/eventos"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
                     >
                       <FaCalendarAlt className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">Eventos</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/imprensa/contato" 
+                    <Link
+                      href="/imprensa/revista-cdl"
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
+                    >
+                      <FaFileAlt className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
+                      <span className="flex-1">Revista CDL</span>
+                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                    </Link>
+                    <Link
+                      href="/imprensa/contato"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
                     >
                       <FaEnvelope className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
@@ -267,7 +291,7 @@ const Header = () => {
                 Filie-se
               </a>
 
-              <div 
+              <div
                 ref={produtosRef}
                 className="relative group"
                 onMouseEnter={() => handleMouseEnter('produtos')}
@@ -280,7 +304,7 @@ const Header = () => {
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 {/* Dropdown Menu Produtos */}
                 {isProdutosOpen && (
                   <div className="absolute top-full left-0 mt-1 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 max-h-[500px] overflow-y-auto animate-blur-fade-in scrollbar-thin scrollbar-thumb-[#003f7f] scrollbar-track-gray-100">
@@ -290,99 +314,43 @@ const Header = () => {
                         Produtos & Serviços
                       </h4>
                     </div>
-                    <Link 
-                      href="/produtos/spc-brasil" 
+                    <Link
+                      href="/produtos/spc-brasil"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
                     >
                       <FaShieldAlt className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
                       <span className="flex-1">SPC Brasil</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/produtos/cdl-celular" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
-                    >
-                      <FaMobileAlt className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
-                      <span className="flex-1">CDL Celular</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/produtos/certificado-digital" 
+                    <Link
+                      href="/produtos/certificado-digital"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
                     >
                       <FaCertificate className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
                       <span className="flex-1">Certificado Digital</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/produtos/cdl-energia" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
-                    >
-                      <FaBolt className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
-                      <span className="flex-1">CDL Energia</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/produtos/cdl-saude" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
-                    >
-                      <FaHeartbeat className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
-                      <span className="flex-1">CDL Saúde</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/produtos/cdl-odonto" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
-                    >
-                      <FaTooth className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
-                      <span className="flex-1">CDL Odonto</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/produtos/cartao-credito-cdl" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
-                    >
-                      <FaCreditCard className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
-                      <span className="flex-1">Cartão de Crédito CDL</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/produtos/espaco-cdl" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
-                    >
-                      <FaStore className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
-                      <span className="flex-1">Espaço CDL</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/produtos/cdl-midia" 
+                    <Link
+                      href="/produtos/cdl-midia"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
                     >
                       <FaBroadcastTower className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
                       <span className="flex-1">CDL Mídia</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/produtos/balcao-empregos" 
+                    <Link
+                      href="/produtos/balcao-empregos"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
                     >
                       <FaBriefcase className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
                       <span className="flex-1">Balcão de Empregos</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/produtos/cursos-palestras" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#003f7f] hover:text-white transition-all group/item border-b border-gray-100 last:border-0"
-                    >
-                      <FaGraduationCap className="w-4 h-4 text-[#003f7f] group-hover/item:text-white transition-colors shrink-0" />
-                      <span className="flex-1">Cursos e Palestras</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
                   </div>
                 )}
               </div>
 
-              <div 
+              <div
                 ref={beneficiosRef}
                 className="relative group"
                 onMouseEnter={() => handleMouseEnter('beneficios')}
@@ -395,7 +363,7 @@ const Header = () => {
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 {/* Dropdown Menu Benefícios */}
                 {isBeneficiosOpen && (
                   <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden">
@@ -405,52 +373,20 @@ const Header = () => {
                         Benefícios
                       </h4>
                     </div>
-                    <Link 
-                      href="/beneficios/projeto-conduz" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
-                    >
-                      <FaMusic className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
-                      <span className="flex-1">Projeto Conduz</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/beneficios/cartao-convenio" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
-                    >
-                      <FaCreditCard className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
-                      <span className="flex-1">Cartão Convênio</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/beneficios/orientacao-juridica" 
+                    <Link
+                      href="/beneficios/orientacao-juridica"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
                     >
                       <FaBalanceScale className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">Orientação Jurídica</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
-                    <Link 
-                      href="/beneficios/convenios" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
-                    >
-                      <FaHandshake className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
-                      <span className="flex-1">Convênios</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/beneficios/empresas" 
+                    <Link
+                      href="/beneficios/empresas"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
                     >
                       <FaStoreAlt className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
-                      <span className="flex-1">Empresas</span>
-                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                    </Link>
-                    <Link 
-                      href="/beneficios/nucleo-informacoes" 
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
-                    >
-                      <FaInfoCircle className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
-                      <span className="flex-1">Núcleo de Informações</span>
+                      <span className="flex-1">Associados</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
                   </div>
@@ -460,7 +396,7 @@ const Header = () => {
 
             {/* Campo de Busca - Desktop */}
             <form onSubmit={handleSearch} className="hidden xl:flex items-center gap-2 bg-gray-100 rounded-full px-3 lg:px-4 py-1.5 lg:py-2 flex-1 max-w-md ml-4">
-              <input 
+              <input
                 type="text"
                 name="search"
                 value={searchTerm}
@@ -468,7 +404,7 @@ const Header = () => {
                 placeholder="Pesquise em cdlipira.com.br"
                 className="bg-transparent outline-none flex-1 text-xs lg:text-sm"
               />
-              <button 
+              <button
                 type="submit"
                 className="bg-[#003f7f] text-white px-3 lg:px-4 py-1.5 lg:py-2 rounded-full text-xs lg:text-sm hover:bg-[#0066cc] transition-colors font-medium whitespace-nowrap"
               >
@@ -477,7 +413,7 @@ const Header = () => {
             </form>
 
             {/* Botão de Busca Mobile/Tablet */}
-            <button 
+            <button
               onClick={toggleMobileSearch}
               className="xl:hidden text-[#003f7f] text-lg sm:text-xl p-2 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Pesquisar"
