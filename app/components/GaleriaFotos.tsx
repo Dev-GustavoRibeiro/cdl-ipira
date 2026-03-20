@@ -63,20 +63,20 @@ const GaleriaFotos = () => {
               <span className="w-8 h-0.5 bg-[#ffd000]"></span>
               <span>Nossa Galeria</span>
             </div>
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] tracking-tight leading-[1.1] mb-6">
+            <h2 suppressHydrationWarning className="text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] tracking-tight leading-[1.1] mb-6">
               Momentos que <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#003f7f] to-[#0066cc]">Fazem História</span>
             </h2>
-            <p className="text-lg text-gray-600 leading-relaxed max-w-xl">
+            <p suppressHydrationWarning className="text-lg text-gray-600 leading-relaxed max-w-xl">
               Navegue pelos registros fotográficos dos principais eventos, ações e celebrações realizados pela CDL Ipirá.
             </p>
           </div>
 
           <div className={`hidden md:flex gap-4 ${galleries.length <= 1 ? 'opacity-0 pointer-events-none' : ''}`}>
-            <button className="swiper-button-prev-custom w-14 h-14 rounded-full border border-[#003f7f]/10 bg-white text-[#003f7f] flex items-center justify-center hover:bg-[#003f7f] hover:text-white hover:scale-105 transition-all duration-300 shadow-sm">
+            <button suppressHydrationWarning className="swiper-button-prev-custom w-14 h-14 rounded-full border border-[#003f7f]/10 bg-white text-[#003f7f] flex items-center justify-center hover:bg-[#003f7f] hover:text-white hover:scale-105 transition-all duration-300 shadow-sm">
               <FaChevronLeft className="w-5 h-5" />
             </button>
-            <button className="swiper-button-next-custom w-14 h-14 rounded-full bg-[#003f7f] text-white flex items-center justify-center hover:bg-[#0052a3] hover:scale-105 transition-all duration-300 shadow-lg shadow-[#003f7f]/20">
+            <button suppressHydrationWarning className="swiper-button-next-custom w-14 h-14 rounded-full bg-[#003f7f] text-white flex items-center justify-center hover:bg-[#0052a3] hover:scale-105 transition-all duration-300 shadow-lg shadow-[#003f7f]/20">
               <FaChevronRight className="w-5 h-5" />
             </button>
           </div>

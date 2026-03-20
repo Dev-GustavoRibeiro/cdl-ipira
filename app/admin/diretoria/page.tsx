@@ -5,8 +5,8 @@ import Image from 'next/image';
 import { FaUsers, FaUser, FaPlus, FaEdit, FaTrash, FaSearch, FaSave, FaSpinner, FaEye, FaEyeSlash, FaUpload, FaArrowUp, FaArrowDown, FaCrown, FaBriefcase, FaUserTie, FaUserShield, FaUserFriends } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface TeamMember {
   id: number;
@@ -62,12 +62,9 @@ export default function AdminDiretoriaPage() {
   const fetchMembers = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('*')
-        .order('display_order', { ascending: true });
-
-      if (error) throw error;
+      const response = await fetch('/api/admin/team-members');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar membros');
       setMembers(data || []);
     } catch (error) {
       console.error('Erro ao carregar membros:', error);
@@ -97,24 +94,22 @@ export default function AdminDiretoriaPage() {
   };
 
   const uploadPhoto = async (file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `photos/${fileName}`;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', 'team-photos');
+    formData.append('folder', 'photos');
 
-    const { error } = await supabase.storage
-      .from('team-photos')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    const response = await fetchWithCSRF('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json();
 
-    if (error) throw error;
+    if (!response.ok || !data.url) {
+      throw new Error(data.error || 'Erro ao enviar foto');
+    }
 
-    const { data: urlData } = supabase.storage
-      .from('team-photos')
-      .getPublicUrl(filePath);
-
-    return urlData.publicUrl;
+    return data.url;
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -141,21 +136,23 @@ export default function AdminDiretoriaPage() {
         is_active: currentMember.is_active !== false,
       };
 
-      let error;
+      let response: Response;
       if (isEditing && currentMember.id) {
-        const { error: updateError } = await supabase
-          .from('team_members')
-          .update(memberData)
-          .eq('id', currentMember.id);
-        error = updateError;
+        response = await fetchWithCSRF('/api/admin/team-members', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentMember.id, ...memberData }),
+        });
       } else {
-        const { error: insertError } = await supabase
-          .from('team_members')
-          .insert([memberData]);
-        error = insertError;
+        response = await fetchWithCSRF('/api/admin/team-members', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(memberData),
+        });
       }
 
-      if (error) throw error;
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar membro');
 
       const wasEditing = isEditing;
       await fetchMembers();
@@ -190,12 +187,11 @@ export default function AdminDiretoriaPage() {
 
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('id', deleteDialog.id);
-
-      if (error) throw error;
+      const response = await fetchWithCSRF(`/api/admin/team-members?id=${deleteDialog.id}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao excluir membro');
 
       setMembers(current => current.filter(m => m.id !== deleteDialog.id));
       setDeleteDialog({ isOpen: false, id: null, name: '' });
@@ -216,12 +212,24 @@ export default function AdminDiretoriaPage() {
 
   const handleToggleActive = async (member: TeamMember) => {
     try {
-      const { error } = await supabase
-        .from('team_members')
-        .update({ is_active: !member.is_active })
-        .eq('id', member.id);
-
-      if (error) throw error;
+      const response = await fetchWithCSRF('/api/admin/team-members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: member.id,
+          name: member.name,
+          role: member.role,
+          position: member.position,
+          photo_url: member.photo_url,
+          bio: member.bio,
+          contribution: member.contribution,
+          function_description: member.function_description,
+          display_order: member.display_order,
+          is_active: !member.is_active,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status');
 
       toast.success(member.is_active ? 'Membro ocultado' : 'Membro ativado');
       fetchMembers();
@@ -242,15 +250,29 @@ export default function AdminDiretoriaPage() {
     const swapMember = currentRoleMembers[swapIndex];
 
     try {
-      await supabase
-        .from('team_members')
-        .update({ display_order: swapMember.display_order })
-        .eq('id', member.id);
+      const firstResponse = await fetchWithCSRF('/api/admin/team-members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...member,
+          id: member.id,
+          display_order: swapMember.display_order,
+        }),
+      });
+      const firstData = await firstResponse.json();
+      if (!firstResponse.ok) throw new Error(firstData.error || 'Erro ao reordenar');
 
-      await supabase
-        .from('team_members')
-        .update({ display_order: member.display_order })
-        .eq('id', swapMember.id);
+      const secondResponse = await fetchWithCSRF('/api/admin/team-members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...swapMember,
+          id: swapMember.id,
+          display_order: member.display_order,
+        }),
+      });
+      const secondData = await secondResponse.json();
+      if (!secondResponse.ok) throw new Error(secondData.error || 'Erro ao reordenar');
 
       fetchMembers();
     } catch (error) {

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { FaSearch, FaGavel, FaCheckCircle, FaClock, FaEnvelope, FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
 import Modal from '@/app/components/Modal';
-import { supabase } from '@/lib/supabase';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Solicitacao {
   id: number;
@@ -24,17 +24,17 @@ export default function AdminOrientacaoJuridicaPage() {
   const [isEditing, setIsEditing] = useState(false);
 
   const fetchSolicitacoes = async () => {
-    const { data, error } = await supabase
-      .from('legal_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const response = await fetch('/api/admin/legal-requests');
+      const data = await response.json();
 
-    if (error) {
-      console.error('Erro ao carregar solicitações:', error);
-    } else {
-      // Mapear created_at para data para compatibilidade visual se necessário, 
-      // ou usar created_at diretamente na renderização.
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao carregar solicitações');
+      }
+
       setSolicitacoes(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar solicitações:', error);
     }
   };
 
@@ -55,14 +55,21 @@ export default function AdminOrientacaoJuridicaPage() {
 
     try {
       if (isEditing && currentSolicitacao.id) {
-        const { error } = await supabase
-          .from('legal_requests')
-          .update(solicitacaoData)
-          .eq('id', currentSolicitacao.id);
-        if (error) throw error;
+        const response = await fetchWithCSRF('/api/admin/legal-requests', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentSolicitacao.id, ...solicitacaoData }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro ao atualizar solicitação');
       } else {
-        const { error } = await supabase.from('legal_requests').insert([solicitacaoData]);
-        if (error) throw error;
+        const response = await fetchWithCSRF('/api/admin/legal-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(solicitacaoData),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro ao criar solicitação');
       }
       
       await fetchSolicitacoes();
@@ -78,8 +85,11 @@ export default function AdminOrientacaoJuridicaPage() {
   const handleDelete = async (id: number) => {
     if (confirm('Tem certeza que deseja excluir esta solicitação?')) {
       try {
-        const { error } = await supabase.from('legal_requests').delete().eq('id', id);
-        if (error) throw error;
+        const response = await fetchWithCSRF(`/api/admin/legal-requests?id=${id}`, {
+          method: 'DELETE',
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro ao excluir solicitação');
         await fetchSolicitacoes();
       } catch (error) {
         console.error('Erro ao excluir solicitação:', error);

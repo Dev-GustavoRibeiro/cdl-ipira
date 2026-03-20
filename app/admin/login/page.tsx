@@ -29,10 +29,8 @@ export default function AdminLoginPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Salvar informações do usuário no localStorage
-        localStorage.setItem('admin_authenticated', 'true');
         localStorage.setItem('admin_user', JSON.stringify(data.user));
-        router.push('/admin/dashboard');
+        router.replace('/admin/dashboard');
       } else {
         setError(data.error || 'Usuário ou senha incorretos');
       }
@@ -74,7 +72,10 @@ export default function AdminLoginPage() {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-lg text-sm animate-blur-fade-in">
+            <div
+              data-testid="admin-login-error"
+              className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-lg text-sm animate-blur-fade-in"
+            >
               <div className="flex items-center gap-2">
                 <FaLock className="w-4 h-4" />
                 <span>{error}</span>
@@ -82,7 +83,7 @@ export default function AdminLoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form data-testid="admin-login-form" onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Usuário
@@ -90,11 +91,13 @@ export default function AdminLoginPage() {
               <div className="relative">
                 <FaUser className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
+                  data-testid="admin-login-username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
                   disabled={isLoading}
+                  autoComplete="username"
                   className="w-full pl-11 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:outline-none focus:border-[#00a859] focus:bg-white transition-all duration-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400"
                   placeholder="Digite seu usuário"
                 />
@@ -108,15 +111,18 @@ export default function AdminLoginPage() {
               <div className="relative">
                 <FaLock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
+                  data-testid="admin-login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={isLoading}
+                  autoComplete="current-password"
                   className="w-full pl-11 pr-11 py-3.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:outline-none focus:border-[#00a859] focus:bg-white transition-all duration-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400"
                   placeholder="Digite sua senha"
                 />
                 <button
+                  data-testid="admin-login-toggle-password"
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
@@ -127,6 +133,7 @@ export default function AdminLoginPage() {
             </div>
 
             <button
+              data-testid="admin-login-submit"
               type="submit"
               disabled={isLoading}
               className="w-full bg-linear-to-r from-[#00a859] to-[#00d670] text-white py-3.5 rounded-xl font-bold hover:shadow-xl hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"

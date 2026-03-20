@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaCloudUploadAlt } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/app/components/Modal';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Noticia {
   id: number;
@@ -87,7 +88,7 @@ export default function AdminNoticiasPage() {
     if (!confirm('Tem certeza que deseja excluir esta notícia?')) return;
 
     try {
-      const response = await fetch(`/api/admin/noticias?id=${id}`, {
+      const response = await fetchWithCSRF(`/api/admin/noticias?id=${id}`, {
         method: 'DELETE',
       });
       
@@ -142,7 +143,7 @@ export default function AdminNoticiasPage() {
       uploadFormData.append('file', file);
       uploadFormData.append('bucket', 'news');
 
-      const response = await fetch('/api/admin/upload', {
+      const response = await fetchWithCSRF('/api/admin/upload', {
         method: 'POST',
         body: uploadFormData
       });
@@ -178,13 +179,13 @@ export default function AdminNoticiasPage() {
       let response;
 
       if (editingId) {
-        response = await fetch('/api/admin/noticias', {
+        response = await fetchWithCSRF('/api/admin/noticias', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: editingId, ...payload }),
         });
       } else {
-        response = await fetch('/api/admin/noticias', {
+        response = await fetchWithCSRF('/api/admin/noticias', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),

@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes, FaSearch, FaFileExport, FaUser, FaEnvelope, FaPhone, FaBuilding, FaCalendar, FaTrash } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface RegistrationListModalProps {
   isOpen: boolean;
@@ -67,7 +67,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
     if (!confirm('Tem certeza que deseja excluir este inscrito?')) return;
 
     try {
-      const response = await fetch(`/api/admin/registrations?id=${id}&eventId=${eventId}`, {
+      const response = await fetchWithCSRF(`/api/admin/registrations?id=${id}&eventId=${eventId}`, {
         method: 'DELETE'
       });
 

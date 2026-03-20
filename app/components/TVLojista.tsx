@@ -58,10 +58,10 @@ const TVLojista = () => {
             <span className="inline-block text-[#ffd000] text-sm font-bold tracking-widest uppercase mb-3">
               📺 Canal CDL Ipirá
             </span>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
+            <h2 suppressHydrationWarning className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
               TV Lojista
             </h2>
-            <p className="text-white/70 mt-3 text-sm sm:text-base max-w-xl">
+            <p suppressHydrationWarning className="text-white/70 mt-3 text-sm sm:text-base max-w-xl">
               Acompanhe entrevistas, dicas e conteúdos exclusivos para impulsionar seu negócio
             </p>
           </div>
@@ -99,6 +99,7 @@ const TVLojista = () => {
                     src={videos[0].thumbnail}
                     alt={videos[0].title}
                     fill
+                    sizes="(min-width: 1024px) 50vw, 100vw"
                     className="object-cover group-hover:scale-105 transition-transform duration-700"
                   />
                   {/* Gradient Overlay */}
@@ -139,6 +140,7 @@ const TVLojista = () => {
                         src={video.thumbnail}
                         alt={video.title}
                         fill
+                        sizes="(min-width: 768px) 12rem, 8rem"
                         className="object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                       {/* Play Icon */}

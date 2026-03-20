@@ -77,9 +77,11 @@ const PartnersCarousel = () => {
 
   // Duplicar associados para garantir continuidade visual
   const duplicatedPartners = [...partners, ...partners, ...partners];
+  const eagerPartnerLogos = new Set(partners.slice(0, 5).map((partner) => partner.logo));
+  const priorityPartnerLogo = partners[0]?.logo;
 
   return (
-    <section className="py-12 sm:py-16 relative overflow-hidden">
+    <section className="py-12 sm:py-16 relative overflow-hidden bg-white">
       <div className="container mx-auto px-4 relative z-10">
         {/* Header da Seção */}
         <div className="text-center mb-8 sm:mb-10">
@@ -135,13 +137,15 @@ const PartnersCarousel = () => {
           >
             {duplicatedPartners.map((partner, index) => (
               <SwiperSlide key={`${partner.id}-${index}`}>
-                <div className="flex items-center justify-center h-[180px] sm:h-[220px] md:h-[260px] px-4 partner-slide">
+                <div className="flex items-center justify-center h-[160px] sm:h-[200px] md:h-[240px] px-4 partner-slide">
                   <Image
                     src={partner.logo}
                     alt={partner.name}
                     width={400}
                     height={200}
-                    className="h-24 sm:h-32 md:h-40 w-auto max-w-[300px] sm:max-w-[360px] md:max-w-[420px] object-contain transition-all duration-500"
+                    priority={partner.logo === priorityPartnerLogo}
+                    loading={eagerPartnerLogos.has(partner.logo) ? 'eager' : 'lazy'}
+                    className="h-20 sm:h-28 md:h-32 w-auto max-w-[280px] sm:max-w-[320px] md:max-w-[380px] object-contain transition-all duration-500"
                   />
                 </div>
               </SwiperSlide>
@@ -152,9 +156,14 @@ const PartnersCarousel = () => {
 
       <style jsx global>{`
         .partners-coverflow .swiper-slide {
-          transition: all 0.2s ease;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
           opacity: 0.4;
           filter: grayscale(100%);
+          background: transparent !important;
+        }
+
+        .partners-coverflow .partner-slide {
+          background: transparent;
         }
         
         .partners-coverflow .swiper-slide-active {
@@ -166,12 +175,13 @@ const PartnersCarousel = () => {
         
         .partners-coverflow .swiper-slide-prev,
         .partners-coverflow .swiper-slide-next {
-          opacity: 0.6;
-          filter: grayscale(50%);
+          opacity: 0.7;
+          filter: grayscale(40%);
         }
         
         .partners-coverflow .swiper-slide img {
-          transition: all 0.3s ease;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          will-change: transform;
         }
       `}</style>
     </section>

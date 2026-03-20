@@ -19,6 +19,30 @@
 /* Reset mínimo sem interferir no Tailwind */
 html {
   scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* Otimização de Performance Global */
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+  shape-rendering: geometricPrecision;
+}
+
+/* Hardware Acceleration para Transições Comuns */
+a,
+button,
+.transition-all,
+.transition-transform {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 /* Scrollbar Personalizado Global */
@@ -613,4 +637,80 @@ html.focus-highlight *:focus-visible {
 ::-moz-selection {
   background-color: var(--cdl-blue);
   color: white;
+}
+
+/* ========================================
+   LOADING SCREEN
+   ======================================== */
+@keyframes loadingBar {
+  0% {
+    width: 0%;
+  }
+
+  60% {
+    width: 75%;
+  }
+
+  85% {
+    width: 90%;
+  }
+
+  100% {
+    width: 100%;
+  }
+}
+
+@keyframes loadingDot {
+
+  0%,
+  80%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes loadingLogoIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes loadingTextFade {
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.loading-bar {
+  animation: loadingBar 1.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.loading-dot {
+  animation: loadingDot 1.2s ease-in-out infinite;
+}
+
+.loading-logo {
+  animation: loadingLogoIn 0.6s ease-out both;
+}
+
+.loading-text {
+  animation: loadingTextFade 1.5s ease-in-out infinite;
 }

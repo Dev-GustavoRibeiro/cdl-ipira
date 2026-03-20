@@ -4,7 +4,7 @@ const isDev = process.env.NODE_ENV === 'development';
 
 // Content Security Policy
 // Em desenvolvimento, é mais permissivo para permitir acesso via IP
-const ContentSecurityPolicy = isDev 
+const ContentSecurityPolicy = isDev
   ? `
     default-src 'self';
     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br;
@@ -37,14 +37,14 @@ const ContentSecurityPolicy = isDev
 const nextConfig: NextConfig = {
   // Desabilitar header X-Powered-By para não expor tecnologia usada
   poweredByHeader: false,
-  
+
   // Desabilitar React Strict Mode para evitar double-mounting em desenvolvimento
   // NOTA: Em produção, isso não tem efeito. Considere reativar para debugging.
   reactStrictMode: false,
-  
+
   // Configuração do Turbopack (Next.js 16+)
   turbopack: {},
-  
+
   // Permitir acesso de outros dispositivos na rede local durante desenvolvimento
   // NOTA: Este warning pode aparecer mesmo com configuração correta (bug do Turbopack)
   // Para evitar reloads, use uma única aba ou acesse via localhost
@@ -54,7 +54,7 @@ const nextConfig: NextConfig = {
     'http://192.168.88.238:3000',
     'http://localhost:3000',
   ],
-  
+
   images: {
     // Qualidades permitidas para imagens
     qualities: [75, 100],
@@ -78,7 +78,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  
+
   async headers() {
     // Headers base para todos os ambientes
     const baseHeaders = [

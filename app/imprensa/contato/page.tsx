@@ -19,6 +19,7 @@ const ContatoPage = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({
@@ -31,10 +32,25 @@ const ContatoPage = () => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus(null);
+    setSubmitMessage(null);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Não foi possível enviar sua mensagem.');
+      }
+
       setSubmitStatus('success');
+      setSubmitMessage(result.message || 'Mensagem enviada com sucesso! Entraremos em contato em breve.');
       setFormData({
         nome: '',
         email: '',
@@ -42,8 +58,13 @@ const ContatoPage = () => {
         assunto: '',
         mensagem: ''
       });
-    } catch {
+    } catch (error) {
       setSubmitStatus('error');
+      setSubmitMessage(
+        error instanceof Error
+          ? error.message
+          : 'Erro ao enviar mensagem. Tente novamente ou entre em contato por telefone.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -62,6 +83,7 @@ const ContatoPage = () => {
               formData={formData}
               isSubmitting={isSubmitting}
               submitStatus={submitStatus}
+              submitMessage={submitMessage}
               onChange={handleChange}
               onSubmit={handleSubmit}
             />

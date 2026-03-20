@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaEyeSlash, FaUpload, FaImages, FaTimes, FaCloudUploadAlt, FaCalendarAlt, FaMapMarkerAlt } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Album {
   id: number;
@@ -85,39 +85,10 @@ export default function AdminGaleriaFotosPage() {
   const fetchAlbums = async () => {
     setIsLoading(true);
     try {
-      // Buscar álbuns com contagem de fotos
-      const { data: albumsData, error } = await supabase
-        .from('albums')
-        .select('*')
-        .order('date', { ascending: false });
-
-      if (error) {
-        console.error('Erro ao buscar álbuns:', error);
-        if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          toast.error('Tabela "albums" não existe. Execute o script SQL no Supabase.');
-        }
-        throw error;
-      }
-
-      // Buscar contagem de fotos para cada álbum
-      const albumsWithCount = await Promise.all(
-        (albumsData || []).map(async (album) => {
-          const { count } = await supabase
-            .from('album_photos')
-            .select('*', { count: 'exact', head: true })
-            .eq('album_id', album.id);
-          
-          // Normalizar campos (cover pode ser cover_url ou cover)
-          return { 
-            ...album, 
-            cover_url: album.cover_url || album.cover,
-            is_active: album.is_active !== false,
-            photo_count: count || 0 
-          };
-        })
-      );
-
-      setAlbums(albumsWithCount);
+      const response = await fetch('/api/admin/albums');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar álbuns');
+      setAlbums(data || []);
     } catch (error) {
       console.error('Erro ao carregar álbuns:', error);
       toast.error('Erro ao carregar álbuns');
@@ -129,13 +100,9 @@ export default function AdminGaleriaFotosPage() {
   const fetchAlbumPhotos = async (albumId: number) => {
     setIsLoadingPhotos(true);
     try {
-      const { data, error } = await supabase
-        .from('album_photos')
-        .select('*')
-        .eq('album_id', albumId)
-        .order('display_order', { ascending: true });
-
-      if (error) throw error;
+      const response = await fetch(`/api/admin/album-photos?albumId=${albumId}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar fotos');
       setAlbumPhotos(data || []);
     } catch (error) {
       console.error('Erro ao carregar fotos:', error);
@@ -189,21 +156,22 @@ export default function AdminGaleriaFotosPage() {
   };
 
   const uploadImage = async (file: File, folder: string): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${folder}/${fileName}`;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', 'gallery');
+    formData.append('folder', folder);
 
-    const { error } = await supabase.storage
-      .from('gallery')
-      .upload(filePath, file, { cacheControl: '3600', upsert: false });
+    const response = await fetchWithCSRF('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json();
 
-    if (error) throw error;
+    if (!response.ok || !data.url) {
+      throw new Error(data.error || 'Erro ao enviar imagem');
+    }
 
-    const { data: urlData } = supabase.storage
-      .from('gallery')
-      .getPublicUrl(filePath);
-
-    return urlData.publicUrl;
+    return data.url;
   };
 
   const handleSaveAlbum = async (e: React.FormEvent) => {
@@ -234,27 +202,29 @@ export default function AdminGaleriaFotosPage() {
       }
 
       let albumId = currentAlbum.id;
-      
+      let response: Response;
+
       if (isEditing && currentAlbum.id) {
-        const { error } = await supabase
-          .from('albums')
-          .update(albumData)
-          .eq('id', currentAlbum.id);
-        if (error) {
-          console.error('Erro Supabase (update):', error);
-          throw new Error(error.message || error.details || 'Erro ao atualizar álbum');
-        }
+        response = await fetchWithCSRF('/api/admin/albums', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentAlbum.id, ...albumData }),
+        });
       } else {
-        const { data, error } = await supabase
-          .from('albums')
-          .insert([albumData])
-          .select()
-          .single();
-        if (error) {
-          console.error('Erro Supabase (insert):', error);
-          throw new Error(error.message || error.details || 'Erro ao criar álbum. Verifique se as tabelas foram criadas no Supabase.');
-        }
-        albumId = data.id;
+        response = await fetchWithCSRF('/api/admin/albums', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(albumData),
+        });
+      }
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao salvar álbum');
+      }
+
+      if (!isEditing) {
+        albumId = result.data?.id;
       }
 
       // Upload das fotos iniciais (apenas para novo álbum)
@@ -264,12 +234,20 @@ export default function AdminGaleriaFotosPage() {
         
         for (const file of initialPhotos) {
           const url = await uploadImage(file, `albums/${albumId}`);
-          await supabase.from('album_photos').insert({
-            album_id: albumId,
-            url,
-            title: file.name.replace(/\.[^/.]+$/, ''),
-            display_order: uploaded
+          const photoResponse = await fetchWithCSRF('/api/admin/album-photos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              album_id: albumId,
+              url,
+              title: file.name.replace(/\.[^/.]+$/, ''),
+              display_order: uploaded,
+            }),
           });
+          const photoData = await photoResponse.json();
+          if (!photoResponse.ok) {
+            throw new Error(photoData.error || 'Erro ao salvar foto inicial');
+          }
           uploaded++;
           setUploadProgress(Math.round((uploaded / totalPhotos) * 100));
         }
@@ -312,13 +290,21 @@ export default function AdminGaleriaFotosPage() {
 
       for (const file of selectedPhotos) {
         const url = await uploadImage(file, `albums/${selectedAlbum.id}`);
-        
-        await supabase.from('album_photos').insert({
-          album_id: selectedAlbum.id,
-          url,
-          title: file.name.replace(/\.[^/.]+$/, ''),
-          display_order: albumPhotos.length + uploaded
+
+        const response = await fetchWithCSRF('/api/admin/album-photos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            album_id: selectedAlbum.id,
+            url,
+            title: file.name.replace(/\.[^/.]+$/, ''),
+            display_order: albumPhotos.length + uploaded,
+          }),
         });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao salvar foto');
+        }
 
         uploaded++;
         setUploadProgress(Math.round((uploaded / totalPhotos) * 100));
@@ -347,12 +333,18 @@ export default function AdminGaleriaFotosPage() {
     setIsDeleting(true);
     try {
       if (deleteDialog.type === 'album') {
-        const { error } = await supabase.from('albums').delete().eq('id', deleteDialog.id);
-        if (error) throw error;
+        const response = await fetchWithCSRF(`/api/admin/albums?id=${deleteDialog.id}`, {
+          method: 'DELETE',
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro ao excluir álbum');
         setAlbums(current => current.filter(a => a.id !== deleteDialog.id));
       } else {
-        const { error } = await supabase.from('album_photos').delete().eq('id', deleteDialog.id);
-        if (error) throw error;
+        const response = await fetchWithCSRF(`/api/admin/album-photos?id=${deleteDialog.id}`, {
+          method: 'DELETE',
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro ao excluir foto');
         setAlbumPhotos(current => current.filter(p => p.id !== deleteDialog.id));
         fetchAlbums();
       }
@@ -375,11 +367,23 @@ export default function AdminGaleriaFotosPage() {
 
   const handleToggleActive = async (album: Album) => {
     try {
-      const { error } = await supabase
-        .from('albums')
-        .update({ is_active: !album.is_active })
-        .eq('id', album.id);
-      if (error) throw error;
+      const response = await fetchWithCSRF('/api/admin/albums', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: album.id,
+          title: album.title,
+          description: album.description,
+          category: album.category,
+          date: album.date,
+          location: album.location,
+          cover_url: album.cover_url,
+          cover: album.cover,
+          is_active: !album.is_active,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status');
       toast.success(album.is_active ? 'Álbum ocultado' : 'Álbum ativado');
       fetchAlbums();
     } catch (error) {

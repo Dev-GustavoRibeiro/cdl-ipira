@@ -53,12 +53,13 @@ const ServicesCards = () => {
               <Component
                 key={index}
                 {...props}
+                suppressHydrationWarning
                 className="bg-white rounded-lg shadow-lg p-6 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 flex flex-col items-center text-center group"
               >
                 <div className="mb-4 transform group-hover:scale-110 transition-transform">
                   {service.icon}
                 </div>
-                <h3 className="text-sm font-semibold text-gray-800 group-hover:text-[#003f7f]">
+                <h3 suppressHydrationWarning className="text-sm font-semibold text-gray-800 group-hover:text-[#003f7f]">
                   {service.title}
                 </h3>
               </Component>

@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaSave, FaImage, FaSpinner } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Partner {
   id: number;
@@ -39,12 +39,9 @@ export default function AdminParceirosPage() {
   async function fetchPartners() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('partners')
-        .select('*')
-        .order('order_index', { ascending: true });
-
-      if (error) throw error;
+      const response = await fetch('/api/admin/parceiros');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar associados');
 
       if (data) {
         const mappedPartners = data.map((item: any) => ({
@@ -99,7 +96,7 @@ export default function AdminParceirosPage() {
       const method = isAdding ? 'POST' : 'PUT';
       const body = isAdding ? payload : { id: editingId, ...payload };
 
-      const response = await fetch('/api/parceiros', {
+      const response = await fetchWithCSRF('/api/admin/parceiros', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -124,7 +121,7 @@ export default function AdminParceirosPage() {
     if (!confirm('Tem certeza que deseja excluir este associado?')) return;
 
     try {
-      const response = await fetch(`/api/parceiros?id=${id}`, { method: 'DELETE' });
+      const response = await fetchWithCSRF(`/api/admin/parceiros?id=${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Erro ao excluir');
       
       toast.success('Associado excluído!');
@@ -151,7 +148,7 @@ export default function AdminParceirosPage() {
       formData.append('file', file);
       formData.append('bucket', 'partners');
 
-      const response = await fetch('/api/upload', {
+      const response = await fetchWithCSRF('/api/upload', {
         method: 'POST',
         body: formData,
       });

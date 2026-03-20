@@ -134,6 +134,8 @@ const EventsCarousel = () => {
     );
   }
 
+  const shouldLoop = events.length > 3;
+
   return (
     <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-visible">
       {/* Elementos decorativos de fundo */}
@@ -175,7 +177,7 @@ const EventsCarousel = () => {
                 nextEl: '.events-button-next',
                 prevEl: '.events-button-prev',
               }}
-              loop={true}
+              loop={shouldLoop}
               breakpoints={{
                 768: {
                   slidesPerView: 2,
@@ -204,6 +206,7 @@ const EventsCarousel = () => {
                           src={event.image}
                           alt={event.title}
                           fill
+                          sizes="(min-width: 1024px) 33vw, (min-width: 768px) 45vw, 100vw"
                           className="object-cover transform group-hover:scale-110 transition-transform duration-700"
                         />
                       )}

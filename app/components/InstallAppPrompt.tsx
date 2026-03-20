@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  FaTimes, 
-  FaShareAlt, 
-  FaPlusSquare, 
+import {
+  FaTimes,
+  FaShareAlt,
+  FaPlusSquare,
   FaEllipsisV,
   FaChrome,
   FaApple,
@@ -24,16 +24,16 @@ export default function InstallAppPrompt() {
 
   useEffect(() => {
     setMounted(true);
-    
+
     // Detectar tipo de dispositivo
     const userAgent = navigator.userAgent.toLowerCase();
     const isIOS = /iphone|ipad|ipod/.test(userAgent);
     const isAndroid = /android/.test(userAgent);
-    
+
     // Verificar se é um app instalado (PWA standalone)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-    
+
     // Verificar se já foi exibido recentemente
     const lastShown = localStorage.getItem('install-prompt-shown');
     const dayInMs = 24 * 60 * 60 * 1000 * 7; // 7 dias
@@ -259,11 +259,11 @@ export default function InstallAppPrompt() {
   );
 
   return createPortal(
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && handleClose()}
     >
-      <div 
+      <div
         className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden animate-slide-up"
         role="dialog"
         aria-modal="true"
@@ -300,13 +300,12 @@ export default function InstallAppPrompt() {
             <button
               key={step}
               onClick={() => setCurrentStep(step)}
-              className={`w-3 h-3 rounded-full transition-all ${
-                step === currentStep 
-                  ? 'bg-[var(--cdl-blue)] scale-125' 
-                  : step < currentStep 
-                    ? 'bg-[var(--cdl-green)]' 
+              className={`w-3 h-3 rounded-full transition-all ${step === currentStep
+                  ? 'bg-[var(--cdl-blue)] scale-125'
+                  : step < currentStep
+                    ? 'bg-[var(--cdl-green)]'
                     : 'bg-gray-300'
-              }`}
+                }`}
               aria-label={`Ir para passo ${step}`}
             />
           ))}
@@ -329,7 +328,7 @@ export default function InstallAppPrompt() {
               Não mostrar novamente
             </button>
           )}
-          
+
           {currentStep < totalSteps ? (
             <button
               onClick={nextStep}

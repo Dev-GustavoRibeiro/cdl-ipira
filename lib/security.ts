@@ -4,7 +4,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { supabaseAdmin } from './supabase-admin';
 
 // ==================== RATE LIMITING ====================
@@ -17,6 +16,15 @@ interface RateLimitEntry {
 
 // Store de rate limiting em memória (em produção, use Redis)
 const rateLimitStore = new Map<string, RateLimitEntry>();
+
+/**
+ * Quando `E2E_RELAX_RATE_LIMIT=true`, desliga rate limiting HTTP (proxy) para
+ * ferramentas como TestSprite e suites CRUD sem 429 em sequência.
+ * NUNCA ativar em produção.
+ */
+export function isE2ERateLimitBypassEnabled(): boolean {
+  return process.env.E2E_RELAX_RATE_LIMIT === 'true';
+}
 
 // Configurações de rate limiting por tipo de endpoint
 export const RATE_LIMIT_CONFIG = {
@@ -71,6 +79,10 @@ export function checkRateLimit(
   request: NextRequest,
   type: RateLimitType = 'public'
 ): NextResponse | null {
+  if (isE2ERateLimitBypassEnabled()) {
+    return null;
+  }
+
   const ip = getClientIP(request);
   const config = RATE_LIMIT_CONFIG[type];
   const key = `${type}:${ip}`;
@@ -305,6 +317,10 @@ const ALLOWED_IMAGE_TYPES = [
 
 const ALLOWED_DOCUMENT_TYPES = [
   'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ] as const;
 
 // Magic bytes para validar tipos de arquivo
@@ -314,6 +330,23 @@ const FILE_SIGNATURES: Record<string, number[][]> = {
   'image/gif': [[0x47, 0x49, 0x46, 0x38]],
   'image/webp': [[0x52, 0x49, 0x46, 0x46]],
   'application/pdf': [[0x25, 0x50, 0x44, 0x46]],
+  'application/msword': [[0xD0, 0xCF, 0x11, 0xE0]],
+  'application/vnd.ms-excel': [[0xD0, 0xCF, 0x11, 0xE0]],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [[0x50, 0x4B, 0x03, 0x04]],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [[0x50, 0x4B, 0x03, 0x04]],
+};
+
+const MIME_ALLOWED_EXTENSIONS: Record<string, string[]> = {
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/jpg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+  'image/webp': ['webp'],
+  'image/gif': ['gif'],
+  'application/pdf': ['pdf'],
+  'application/msword': ['doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
+  'application/vnd.ms-excel': ['xls'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx'],
 };
 
 /**
@@ -347,7 +380,9 @@ export async function validateFile(
   // Verificar extensão
   // Nota: SVG removido por segurança - pode conter scripts maliciosos
   const extension = file.name.split('.').pop()?.toLowerCase();
-  const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'];
+  const validExtensions = Array.from(
+    new Set(allowedTypes.flatMap((type) => MIME_ALLOWED_EXTENSIONS[type] || []))
+  );
   if (!extension || !validExtensions.includes(extension)) {
     return { valid: false, error: 'Extensão de arquivo não permitida' };
   }
@@ -391,8 +426,7 @@ export function generateCSRFToken(): string {
  * Verifica se o token CSRF é válido
  */
 export async function verifyCSRFToken(request: NextRequest): Promise<boolean> {
-  const cookieStore = await cookies();
-  const cookieToken = cookieStore.get('csrf_token')?.value;
+  const cookieToken = request.cookies.get('csrf_token')?.value;
   const headerToken = request.headers.get('x-csrf-token');
   
   if (!cookieToken || !headerToken) return false;

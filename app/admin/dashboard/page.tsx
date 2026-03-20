@@ -6,7 +6,6 @@ import {
   FaNewspaper, FaCalendarAlt, FaVideo, FaImages, 
   FaBriefcase, FaStore, FaArrowRight
 } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
 
 export default function AdminDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -23,30 +22,20 @@ export default function AdminDashboardPage() {
     async function loadDashboardData() {
       setIsLoading(true);
       try {
-        // Buscar contagens
-        const [
-          { count: newsCount },
-          { count: eventsCount },
-          { count: videosCount },
-          { count: heroCount },
-          { count: partnersCount },
-          { count: jobsCount },
-        ] = await Promise.all([
-          supabase.from('news').select('*', { count: 'exact', head: true }),
-          supabase.from('events').select('*', { count: 'exact', head: true }),
-          supabase.from('videos').select('*', { count: 'exact', head: true }),
-          supabase.from('hero_slides').select('*', { count: 'exact', head: true }),
-          supabase.from('partners').select('*', { count: 'exact', head: true }),
-          supabase.from('jobs').select('*', { count: 'exact', head: true }),
-        ]);
+        const response = await fetch('/api/admin/dashboard');
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao carregar estatísticas');
+        }
 
         setStats([
-          { label: 'Notícias', value: (newsCount || 0).toString(), icon: <FaNewspaper />, color: 'from-[#003f7f] to-[#0066cc]', href: '/admin/noticias' },
-          { label: 'Eventos', value: (eventsCount || 0).toString(), icon: <FaCalendarAlt />, color: 'from-[#00a859] to-[#00d670]', href: '/admin/eventos' },
-          { label: 'Vídeos', value: (videosCount || 0).toString(), icon: <FaVideo />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/tv-lojista' },
-          { label: 'Banners (Slides)', value: (heroCount || 0).toString(), icon: <FaImages />, color: 'from-[#003f7f] to-[#0066cc]', href: '/admin/conteudo/hero-carousel' },
-          { label: 'Associados', value: (partnersCount || 0).toString(), icon: <FaStore />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/conteudo/parceiros' },
-          { label: 'Vagas', value: (jobsCount || 0).toString(), icon: <FaBriefcase />, color: 'from-[#00a859] to-[#00d670]', href: '/admin/balcao-empregos' },
+          { label: 'Notícias', value: (data.news || 0).toString(), icon: <FaNewspaper />, color: 'from-[#003f7f] to-[#0066cc]', href: '/admin/noticias' },
+          { label: 'Eventos', value: (data.events || 0).toString(), icon: <FaCalendarAlt />, color: 'from-[#00a859] to-[#00d670]', href: '/admin/eventos' },
+          { label: 'Vídeos', value: (data.videos || 0).toString(), icon: <FaVideo />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/tv-lojista' },
+          { label: 'Banners (Slides)', value: (data.hero_slides || 0).toString(), icon: <FaImages />, color: 'from-[#003f7f] to-[#0066cc]', href: '/admin/conteudo/hero-carousel' },
+          { label: 'Associados', value: (data.partners || 0).toString(), icon: <FaStore />, color: 'from-[#ffd000] to-[#ffed4e]', href: '/admin/conteudo/parceiros' },
+          { label: 'Vagas', value: (data.jobs || 0).toString(), icon: <FaBriefcase />, color: 'from-[#00a859] to-[#00d670]', href: '/admin/balcao-empregos' },
         ]);
 
       } catch (error) {

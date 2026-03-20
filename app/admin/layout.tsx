@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 import { 
   FaHome, FaNewspaper, FaCalendarAlt, FaVideo, FaImages, 
   FaBriefcase, FaGavel, FaFileAlt, FaBook, 
@@ -17,42 +18,17 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    // Não verificar autenticação na página de login
-    if (pathname === '/admin/login') {
-      setTimeout(() => setIsLoading(false), 0);
-      return;
-    }
-
-    // Verificar autenticação
-    const checkAuth = () => {
-      const auth = localStorage.getItem('admin_authenticated');
-      if (auth === 'true') {
-        setIsAuthenticated(true);
-      } else {
-        router.push('/admin/login');
-      }
-      setTimeout(() => setIsLoading(false), 0);
-    };
-
-    checkAuth();
-  }, [router, pathname]);
 
   const handleLogout = async () => {
     try {
       // Limpar cookie no servidor
-      await fetch('/api/admin/logout', { method: 'POST' });
+      await fetchWithCSRF('/api/admin/logout', { method: 'POST' });
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     } finally {
-      // Limpar localStorage e redirecionar
-    localStorage.removeItem('admin_authenticated');
       localStorage.removeItem('admin_user');
-    router.push('/admin/login');
+      router.push('/admin/login');
     }
   };
 
@@ -79,24 +55,17 @@ export default function AdminLayout({
     { icon: <FaHistory />, label: 'Auditoria', href: '/admin/auditoria' },
   ];
 
+  const toTestId = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
   // Se estiver na página de login, renderizar apenas o children sem layout
   if (pathname === '/admin/login') {
     return <>{children}</>;
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003f7f] mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null;
   }
 
   return (
@@ -114,6 +83,7 @@ export default function AdminLayout({
                   src="/logo-cdl.png"
                   alt="CDL Ipirá"
                   fill
+                  sizes="128px"
                   className="object-contain"
                   priority
                 />
@@ -130,7 +100,7 @@ export default function AdminLayout({
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-180px)]">
+        <nav data-testid="admin-sidebar" className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-180px)]">
           {menuItems.map((item) => {
             const isActive = pathname === item.href || (item.submenu && item.submenu.some(sub => pathname === sub.href));
             const hasSubmenu = item.submenu && item.submenu.length > 0;
@@ -140,6 +110,7 @@ export default function AdminLayout({
                 <Link
                   href={item.href}
                   onClick={() => setIsMobileMenuOpen(false)}
+                  data-testid={`admin-nav-${toTestId(item.label)}`}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
                     isActive
                       ? 'bg-linear-to-r from-[#00a859] to-[#00d670] text-white shadow-lg font-bold'
@@ -160,6 +131,7 @@ export default function AdminLayout({
                           key={subItem.href}
                           href={subItem.href}
                           onClick={() => setIsMobileMenuOpen(false)}
+                          data-testid={`admin-subnav-${toTestId(subItem.label)}`}
                           className={`block px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                             isSubActive
                               ? 'bg-[#00a859] text-white font-bold'
@@ -181,6 +153,7 @@ export default function AdminLayout({
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-gray-50">
           <button
             onClick={handleLogout}
+            data-testid="admin-logout-button"
             className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-white bg-linear-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md hover:shadow-lg font-semibold"
           >
             <FaSignOutAlt />
@@ -220,7 +193,7 @@ export default function AdminLayout({
         </header>
 
         {/* Page Content */}
-        <main className="p-4 sm:p-6 lg:p-8">
+        <main data-testid="admin-main-content" className="p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>

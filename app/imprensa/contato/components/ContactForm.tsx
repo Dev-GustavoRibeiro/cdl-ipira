@@ -15,11 +15,19 @@ interface ContactFormProps {
   formData: FormData;
   isSubmitting: boolean;
   submitStatus: 'success' | 'error' | null;
+  submitMessage?: string | null;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   onSubmit: (e: React.FormEvent) => void;
 }
 
-const ContactForm = ({ formData, isSubmitting, submitStatus, onChange, onSubmit }: ContactFormProps) => {
+const ContactForm = ({
+  formData,
+  isSubmitting,
+  submitStatus,
+  submitMessage,
+  onChange,
+  onSubmit
+}: ContactFormProps) => {
   return (
     <div className="bg-white rounded-2xl shadow-2xl p-8 lg:p-10">
       <div className="mb-8">
@@ -126,7 +134,7 @@ const ContactForm = ({ formData, isSubmitting, submitStatus, onChange, onSubmit 
           <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 flex items-center gap-3">
             <FaCheckCircle className="w-5 h-5 text-green-600 shrink-0" />
             <p className="text-green-800 font-semibold">
-              Mensagem enviada com sucesso! Entraremos em contato em breve.
+              {submitMessage || 'Mensagem enviada com sucesso! Entraremos em contato em breve.'}
             </p>
           </div>
         )}
@@ -135,7 +143,7 @@ const ContactForm = ({ formData, isSubmitting, submitStatus, onChange, onSubmit 
           <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-center gap-3">
             <FaTimesCircle className="w-5 h-5 text-red-600 shrink-0" />
             <p className="text-red-800 font-semibold">
-              Erro ao enviar mensagem. Tente novamente ou entre em contato por telefone.
+              {submitMessage || 'Erro ao enviar mensagem. Tente novamente ou entre em contato por telefone.'}
             </p>
           </div>
         )}

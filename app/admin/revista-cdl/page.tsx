@@ -6,8 +6,8 @@ import Image from 'next/image';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaBook, FaSearch, FaSpinner, FaSave, FaEyeSlash, FaUpload, FaLink, FaCloudUploadAlt, FaTimes, FaDownload, FaImage } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Magazine {
   id: number;
@@ -53,12 +53,9 @@ export default function AdminRevistaCDLPage() {
   const fetchMagazines = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('magazines')
-        .select('*')
-        .order('date', { ascending: false });
-
-      if (error) throw error;
+      const response = await fetch('/api/admin/magazines');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar revistas');
       setMagazines(data || []);
     } catch (error) {
       console.error('Erro ao carregar revistas:', error);
@@ -112,24 +109,22 @@ export default function AdminRevistaCDLPage() {
 
   // Upload do arquivo para o Supabase Storage
   const uploadFile = async (file: File, folder: string): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${folder}/${fileName}`;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', 'magazines');
+    formData.append('folder', folder);
 
-    const { data, error } = await supabase.storage
-      .from('magazines')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    const response = await fetchWithCSRF('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json();
 
-    if (error) throw error;
+    if (!response.ok || !data.url) {
+      throw new Error(data.error || 'Erro ao enviar arquivo');
+    }
 
-    const { data: urlData } = supabase.storage
-      .from('magazines')
-      .getPublicUrl(filePath);
-
-    return urlData.publicUrl;
+    return data.url;
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -168,21 +163,23 @@ export default function AdminRevistaCDLPage() {
         is_active: currentMagazine.is_active !== false,
       };
 
-      let error;
+      let response: Response;
       if (isEditing && currentMagazine.id) {
-        const { error: updateError } = await supabase
-          .from('magazines')
-          .update(magazineData)
-          .eq('id', currentMagazine.id);
-        error = updateError;
+        response = await fetchWithCSRF('/api/admin/magazines', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentMagazine.id, ...magazineData }),
+        });
       } else {
-        const { error: insertError } = await supabase
-          .from('magazines')
-          .insert([magazineData]);
-        error = insertError;
+        response = await fetchWithCSRF('/api/admin/magazines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(magazineData),
+        });
       }
 
-      if (error) throw error;
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar revista');
       
       const wasEditing = isEditing;
       await fetchMagazines();
@@ -217,12 +214,11 @@ export default function AdminRevistaCDLPage() {
     
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('magazines')
-        .delete()
-        .eq('id', deleteDialog.id);
-
-      if (error) throw error;
+      const response = await fetchWithCSRF(`/api/admin/magazines?id=${deleteDialog.id}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao excluir revista');
 
       setMagazines(current => current.filter(m => m.id !== deleteDialog.id));
       setDeleteDialog({ isOpen: false, id: null, title: '' });
@@ -243,12 +239,22 @@ export default function AdminRevistaCDLPage() {
 
   const handleToggleActive = async (magazine: Magazine) => {
     try {
-      const { error } = await supabase
-        .from('magazines')
-        .update({ is_active: !magazine.is_active })
-        .eq('id', magazine.id);
-
-      if (error) throw error;
+      const response = await fetchWithCSRF('/api/admin/magazines', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: magazine.id,
+          title: magazine.title,
+          description: magazine.description,
+          edition: magazine.edition,
+          date: magazine.date,
+          cover_url: magazine.cover_url,
+          file_url: magazine.file_url,
+          is_active: !magazine.is_active,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status');
       
       toast.success(magazine.is_active ? 'Revista ocultada' : 'Revista ativada');
       fetchMagazines();

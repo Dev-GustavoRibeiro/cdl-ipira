@@ -3,7 +3,13 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { getClientIP, logSecurityEvent, sanitizeString, generateCSRFToken } from '@/lib/security';
+import {
+  getClientIP,
+  logSecurityEvent,
+  sanitizeString,
+  generateCSRFToken,
+  isE2ERateLimitBypassEnabled,
+} from '@/lib/security';
 
 // Armazenar tentativas de login falhas para detectar ataques de força bruta
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
@@ -82,8 +88,10 @@ export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
   const userAgent = request.headers.get('user-agent') || undefined;
 
-  // Verificar se IP está bloqueado
-  const { blocked, remainingTime } = isIPBlocked(ip);
+  // Lockout por IP após falhas (desligado com E2E_RELAX_RATE_LIMIT para TestSprite / CRUD E2E)
+  const { blocked, remainingTime } = isE2ERateLimitBypassEnabled()
+    ? { blocked: false as const, remainingTime: undefined }
+    : isIPBlocked(ip);
   if (blocked) {
     logSecurityEvent({
       type: 'auth_failure',
@@ -143,8 +151,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (userError || !user) {
-      // Registrar tentativa de login falha
-      recordFailedAttempt(ip);
+      if (!isE2ERateLimitBypassEnabled()) {
+        recordFailedAttempt(ip);
+      }
       await logAudit('LOGIN', username, ip, false, { reason: 'Usuário não encontrado' });
       
       // Mensagem genérica para não revelar se o usuário existe
@@ -158,8 +167,9 @@ export async function POST(request: NextRequest) {
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!isValidPassword) {
-      // Registrar tentativa de login falha
-      recordFailedAttempt(ip);
+      if (!isE2ERateLimitBypassEnabled()) {
+        recordFailedAttempt(ip);
+      }
       await logAudit('LOGIN', username, ip, false, { reason: 'Senha incorreta', userId: user.id });
       
       logSecurityEvent({

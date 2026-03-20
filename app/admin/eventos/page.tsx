@@ -6,6 +6,7 @@ import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaImage, FaSave, F
 import { toast } from 'sonner';
 import Modal from '@/app/components/Modal';
 import RegistrationListModal from '@/app/admin/components/RegistrationListModal';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Evento {
   id: number;
@@ -113,7 +114,7 @@ export default function AdminEventosPage() {
     if (!eventToDelete) return;
 
     try {
-      const response = await fetch(`/api/admin/eventos?id=${eventToDelete}`, {
+      const response = await fetchWithCSRF(`/api/admin/eventos?id=${eventToDelete}`, {
         method: 'DELETE'
       });
 
@@ -182,7 +183,7 @@ export default function AdminEventosPage() {
       uploadFormData.append('file', file);
       uploadFormData.append('bucket', 'events');
 
-      const response = await fetch('/api/admin/upload', {
+      const response = await fetchWithCSRF('/api/admin/upload', {
         method: 'POST',
         body: uploadFormData
       });
@@ -219,7 +220,7 @@ export default function AdminEventosPage() {
         attendees: formData.attendees
       };
 
-      const response = await fetch('/api/admin/eventos', {
+      const response = await fetchWithCSRF('/api/admin/eventos', {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

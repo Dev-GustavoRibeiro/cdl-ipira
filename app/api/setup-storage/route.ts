@@ -1,8 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { validateAdminSession } from '@/lib/security';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const session = await validateAdminSession(request);
+    if (!session.valid) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
     const buckets = ['partners', 'hero', 'news', 'events', 'videos', 'jobs'];
     const results = [];
 

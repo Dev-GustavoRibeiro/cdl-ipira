@@ -1,35 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { validateFile, getClientIP, logSecurityEvent } from '@/lib/security';
+import { validateAdminSession, validateFile, getClientIP, logSecurityEvent } from '@/lib/security';
 
-// Buckets permitidos (whitelist)
-const ALLOWED_BUCKETS = ['defaults', 'partners', 'news', 'events', 'heroes', 'team', 'gallery', 'transparency'];
-
-// Tipos MIME permitidos
-const ALLOWED_MIME_TYPES = [
+const IMAGE_TYPES = [
   'image/png',
   'image/jpeg',
   'image/jpg',
   'image/webp',
   'image/gif',
-  'application/pdf'
-];
+] as const;
 
-// Tamanho máximo por tipo (em MB)
-const MAX_SIZE_BY_TYPE: Record<string, number> = {
-  'image/png': 5,
-  'image/jpeg': 5,
-  'image/jpg': 5,
-  'image/webp': 5,
-  'image/gif': 5,
-  'application/pdf': 10,
-  'default': 5
+const DOCUMENT_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+] as const;
+
+interface BucketConfig {
+  allowedTypes: readonly string[];
+  maxSizeMB: number;
+  isPublic: boolean;
+}
+
+const BUCKET_CONFIG: Record<string, BucketConfig> = {
+  defaults: { allowedTypes: [...IMAGE_TYPES], maxSizeMB: 10, isPublic: true },
+  partners: { allowedTypes: [...IMAGE_TYPES], maxSizeMB: 10, isPublic: true },
+  news: { allowedTypes: [...IMAGE_TYPES], maxSizeMB: 10, isPublic: true },
+  events: { allowedTypes: [...IMAGE_TYPES], maxSizeMB: 10, isPublic: true },
+  heroes: { allowedTypes: [...IMAGE_TYPES], maxSizeMB: 10, isPublic: true },
+  gallery: { allowedTypes: [...IMAGE_TYPES], maxSizeMB: 20, isPublic: true },
+  'team-photos': { allowedTypes: [...IMAGE_TYPES], maxSizeMB: 10, isPublic: true },
+  magazines: { allowedTypes: [...IMAGE_TYPES, ...DOCUMENT_TYPES], maxSizeMB: 100, isPublic: true },
+  'transparency-documents': { allowedTypes: [...IMAGE_TYPES, ...DOCUMENT_TYPES], maxSizeMB: 50, isPublic: true },
+  resumes: { allowedTypes: [...IMAGE_TYPES, ...DOCUMENT_TYPES], maxSizeMB: 10, isPublic: false },
 };
+
+type AllowedBucket = keyof typeof BUCKET_CONFIG;
+
+function isAllowedBucket(bucket: string): bucket is AllowedBucket {
+  return bucket in BUCKET_CONFIG;
+}
+
+function isSafeStoragePath(value: string): boolean {
+  return Boolean(value) && !value.includes('..') && !value.includes('//') && !value.startsWith('/');
+}
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
   
   try {
+    const session = await validateAdminSession(request);
+    if (!session.valid) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const bucket = formData.get('bucket') as string || 'defaults';
@@ -41,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validação: bucket na whitelist
-    if (!ALLOWED_BUCKETS.includes(bucket)) {
+    if (!isAllowedBucket(bucket)) {
       logSecurityEvent({
         type: 'suspicious_activity',
         ip,
@@ -52,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validação: folder não pode conter path traversal
-    if (folder.includes('..') || folder.includes('//') || folder.startsWith('/')) {
+    if (folder && !isSafeStoragePath(folder)) {
       logSecurityEvent({
         type: 'suspicious_activity',
         ip,
@@ -62,19 +88,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Caminho inválido' }, { status: 400 });
     }
 
+    const bucketConfig = BUCKET_CONFIG[bucket];
+
     // Validação: tipo MIME
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    if (!bucketConfig.allowedTypes.includes(file.type)) {
       return NextResponse.json({ 
         error: `Tipo de arquivo não permitido: ${file.type}`,
-        allowedTypes: ALLOWED_MIME_TYPES
+        allowedTypes: bucketConfig.allowedTypes
       }, { status: 400 });
     }
 
     // Validação completa do arquivo (tamanho, magic bytes, etc)
-    const maxSize = MAX_SIZE_BY_TYPE[file.type] || MAX_SIZE_BY_TYPE['default'];
     const validation = await validateFile(file, {
-      maxSizeMB: maxSize,
-      allowedTypes: ALLOWED_MIME_TYPES,
+      maxSizeMB: bucketConfig.maxSizeMB,
+      allowedTypes: bucketConfig.allowedTypes,
       validateMagicBytes: true
     });
 
@@ -86,18 +113,6 @@ export async function POST(request: NextRequest) {
         details: { reason: 'Validação de arquivo falhou', error: validation.error }
       });
       return NextResponse.json({ error: validation.error }, { status: 400 });
-    }
-
-    // Garantir que o bucket existe
-    const { data: buckets } = await supabaseAdmin.storage.listBuckets();
-    const bucketExists = buckets?.find(b => b.name === bucket);
-
-    if (!bucketExists) {
-      await supabaseAdmin.storage.createBucket(bucket, {
-        public: true,
-        fileSizeLimit: 10485760, // 10MB
-        allowedMimeTypes: ALLOWED_MIME_TYPES
-      });
     }
 
     // Gerar nome de arquivo seguro (sem caracteres especiais)
@@ -113,7 +128,7 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
 
-    const { data, error } = await supabaseAdmin.storage
+    const { error } = await supabaseAdmin.storage
       .from(bucket)
       .upload(filePath, buffer, {
         contentType: file.type,
@@ -125,14 +140,61 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
+    const responsePayload: { path: string; url?: string } = { path: filePath };
 
-    return NextResponse.json({ url: publicUrl });
+    if (bucketConfig.isPublic) {
+      const { data: { publicUrl } } = supabaseAdmin.storage
+        .from(bucket)
+        .getPublicUrl(filePath);
+      responsePayload.url = publicUrl;
+    }
+
+    return NextResponse.json(responsePayload);
   } catch (error: unknown) {
     console.error('Erro na rota de upload:', error);
     const errorMessage = error instanceof Error ? error.message : 'Erro interno no upload';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const ip = getClientIP(request);
+
+  try {
+    const session = await validateAdminSession(request);
+    if (!session.valid) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    const body = await request.json() as { bucket?: string; path?: string };
+    const bucket = body.bucket || '';
+    const path = body.path || '';
+
+    if (!isAllowedBucket(bucket)) {
+      return NextResponse.json({ error: 'Bucket não permitido' }, { status: 400 });
+    }
+
+    if (!isSafeStoragePath(path)) {
+      logSecurityEvent({
+        type: 'suspicious_activity',
+        ip,
+        path: '/api/upload',
+        details: { reason: 'Path de exclusão inválido', bucket, path }
+      });
+      return NextResponse.json({ error: 'Caminho inválido' }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin.storage.from(bucket).remove([path]);
+
+    if (error) {
+      console.error('Erro ao excluir arquivo do storage:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    console.error('Erro ao excluir arquivo:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro interno ao excluir arquivo';
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

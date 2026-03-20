@@ -111,18 +111,18 @@ const Header = () => {
       </div>
 
       {/* Header Principal */}
-      <header className="bg-white shadow-md sticky top-0 z-50">
+      <header className="bg-white shadow-md sticky top-0 z-50" suppressHydrationWarning>
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4 md:gap-6 lg:gap-8">
             {/* Logos */}
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0">
-              <Link href="/" className="hover:opacity-80 transition-opacity">
+              <Link href="/" className="hover:opacity-80 transition-opacity flex items-center h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32">
                 <Image
                   src="/logo-cdl.png"
                   alt="CDL Ipirá"
                   width={350}
                   height={140}
-                  className="h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32 w-auto object-contain cursor-pointer"
+                  className="w-auto h-full object-contain cursor-pointer"
                   priority
                 />
               </Link>
@@ -130,26 +130,27 @@ const Header = () => {
                 href="https://www.spcbrasil.org.br"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:opacity-80 transition-opacity hidden sm:block"
+                className="hover:opacity-80 transition-opacity hidden sm:flex items-center h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32"
               >
                 <Image
                   src="/spc-brasil-logo.png"
                   alt="SPC Brasil"
                   width={350}
                   height={140}
-                  className="h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32 w-auto object-contain cursor-pointer"
+                  className="w-auto h-full object-contain cursor-pointer"
                   priority
                 />
               </a>
             </div>
 
             {/* Menu Desktop - Tablet e Desktop */}
-            <nav className="hidden md:flex items-center gap-3 lg:gap-4 xl:gap-6 flex-wrap">
+            <nav className="hidden md:flex items-center gap-3 lg:gap-4 xl:gap-6 flex-wrap" suppressHydrationWarning>
               <div
                 ref={institucionalRef}
                 className="relative group"
                 onMouseEnter={() => handleMouseEnter('institucional')}
                 onMouseLeave={() => handleMouseLeave('institucional')}
+                suppressHydrationWarning
               >
                 <button className={`text-gray-700 font-medium text-sm lg:text-base flex items-center gap-2 transition-all whitespace-nowrap px-2 py-1 rounded-md ${isInstitucionalOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
                   <FaBuilding className="w-3.5 h-3.5" />
@@ -217,6 +218,7 @@ const Header = () => {
                 className="relative group"
                 onMouseEnter={() => handleMouseEnter('imprensa')}
                 onMouseLeave={() => handleMouseLeave('imprensa')}
+                suppressHydrationWarning
               >
                 <button className={`text-gray-700 font-medium text-sm lg:text-base flex items-center gap-2 transition-all whitespace-nowrap px-2 py-1 rounded-md ${isImprensaOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
                   <FaNewspaper className="w-3.5 h-3.5" />
@@ -296,6 +298,7 @@ const Header = () => {
                 className="relative group"
                 onMouseEnter={() => handleMouseEnter('produtos')}
                 onMouseLeave={() => handleMouseLeave('produtos')}
+                suppressHydrationWarning
               >
                 <button className={`text-gray-700 font-medium text-sm lg:text-base flex items-center gap-2 transition-all whitespace-nowrap px-2 py-1 rounded-md ${isProdutosOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
                   <FaBox className="w-3.5 h-3.5" />
@@ -355,6 +358,7 @@ const Header = () => {
                 className="relative group"
                 onMouseEnter={() => handleMouseEnter('beneficios')}
                 onMouseLeave={() => handleMouseLeave('beneficios')}
+                suppressHydrationWarning
               >
                 <button className={`text-gray-700 font-medium text-sm lg:text-base flex items-center gap-2 transition-all whitespace-nowrap px-2 py-1 rounded-md ${isBeneficiosOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
                   <FaGift className="w-3.5 h-3.5" />
@@ -414,6 +418,7 @@ const Header = () => {
 
             {/* Botão de Busca Mobile/Tablet */}
             <button
+              suppressHydrationWarning
               onClick={toggleMobileSearch}
               className="xl:hidden text-[#003f7f] text-lg sm:text-xl p-2 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Pesquisar"

@@ -7,7 +7,6 @@ import {
   FaSignOutAlt, FaPlus, FaEdit, FaTrash, FaSpinner, FaChevronLeft,
   FaChevronRight, FaDatabase
 } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
 
 interface AuditLog {
   id: string;
@@ -58,39 +57,28 @@ export default function AuditoriaPage() {
     setError(null);
     
     try {
-      let query = supabase
-        .from('audit_log')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false });
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(itemsPerPage),
+      });
 
-      // Aplicar filtros
-      if (filterAction) {
-        query = query.eq('action', filterAction);
-      }
-      if (filterTable) {
-        query = query.eq('table_name', filterTable);
-      }
-      if (searchTerm) {
-        query = query.or(`record_title.ilike.%${searchTerm}%,user_name.ilike.%${searchTerm}%`);
-      }
+      if (filterAction) params.set('action', filterAction);
+      if (filterTable) params.set('table_name', filterTable);
+      if (searchTerm) params.set('search', searchTerm);
 
-      // Paginação
-      const from = (currentPage - 1) * itemsPerPage;
-      const to = from + itemsPerPage - 1;
-      query = query.range(from, to);
+      const response = await fetch(`/api/admin/audit?${params.toString()}`);
+      const result = await response.json();
 
-      const { data, error: queryError, count } = await query;
-
-      if (queryError) {
-        throw queryError;
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao carregar auditoria');
       }
 
-      setLogs(data || []);
-      setTotalCount(count || 0);
-      setTotalPages(Math.ceil((count || 0) / itemsPerPage));
+      setLogs(result.data || []);
+      setTotalCount(result.pagination?.total || 0);
+      setTotalPages(result.pagination?.totalPages || 1);
     } catch (err) {
       console.error('Erro ao carregar logs de auditoria:', err);
-      setError('Erro ao carregar os logs de auditoria. A tabela pode não existir ainda.');
+      setError('Erro ao carregar os logs de auditoria.');
     } finally {
       setIsLoading(false);
     }
@@ -239,31 +227,6 @@ export default function AuditoriaPage() {
           <div className="text-center py-16">
             <FaDatabase className="mx-auto text-gray-300 text-5xl mb-4" />
             <p className="text-gray-500 mb-4">{error}</p>
-            <div className="bg-gray-50 rounded-lg p-4 max-w-2xl mx-auto text-left">
-              <p className="text-sm text-gray-600 mb-2 font-semibold">Para criar a tabela de auditoria, execute o seguinte SQL no Supabase:</p>
-              <pre className="bg-gray-800 text-green-400 p-4 rounded-lg text-xs overflow-x-auto">
-{`CREATE TABLE IF NOT EXISTS audit_log (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  action TEXT NOT NULL,
-  table_name TEXT NOT NULL,
-  record_id TEXT,
-  record_title TEXT,
-  user_id TEXT,
-  user_name TEXT,
-  details JSONB,
-  ip_address TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_log_created_at ON audit_log(created_at DESC);
-CREATE INDEX idx_audit_log_table_name ON audit_log(table_name);
-CREATE INDEX idx_audit_log_action ON audit_log(action);
-
-ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow all for audit_log" ON audit_log FOR ALL USING (true);`}
-              </pre>
-            </div>
           </div>
         ) : logs.length === 0 ? (
           <div className="text-center py-16">

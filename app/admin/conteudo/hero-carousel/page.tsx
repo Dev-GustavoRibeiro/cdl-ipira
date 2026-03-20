@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaImage, FaSave, FaSpinner } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Slide {
   id: number;
@@ -55,12 +55,9 @@ export default function AdminHeroCarouselPage() {
   async function fetchSlides() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('hero_slides')
-        .select('*')
-        .order('order_index', { ascending: true });
-
-      if (error) throw error;
+      const response = await fetch('/api/admin/hero');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar slides');
 
       if (data) {
         const mappedSlides = data.map((item: any) => ({
@@ -139,7 +136,7 @@ export default function AdminHeroCarouselPage() {
       const method = isAdding ? 'POST' : 'PUT';
       const body = isAdding ? payload : { id: editingId, ...payload };
 
-      const response = await fetch('/api/hero', {
+      const response = await fetchWithCSRF('/api/admin/hero', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -164,7 +161,7 @@ export default function AdminHeroCarouselPage() {
     if (!confirm('Tem certeza que deseja excluir este slide?')) return;
 
     try {
-      const response = await fetch(`/api/hero?id=${id}`, { method: 'DELETE' });
+      const response = await fetchWithCSRF(`/api/admin/hero?id=${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Erro ao excluir');
       
       toast.success('Slide excluído!');
@@ -191,7 +188,7 @@ export default function AdminHeroCarouselPage() {
       formData.append('file', file);
       formData.append('bucket', 'heroes');
 
-      const response = await fetch('/api/upload', {
+      const response = await fetchWithCSRF('/api/upload', {
         method: 'POST',
         body: formData,
       });

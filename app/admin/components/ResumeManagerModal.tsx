@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { FaTimes, FaCloudUploadAlt, FaTrash, FaFilePdf, FaFileAlt, FaSpinner, FaDownload } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Resume {
   id: number;
@@ -46,13 +46,9 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
     if (!jobId) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('resumes')
-        .select('*')
-        .eq('job_id', jobId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const response = await fetch(`/api/admin/resumes?jobId=${jobId}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar currículos');
       setResumes(data || []);
     } catch (error) {
       console.error('Erro ao carregar currículos:', error);
@@ -95,35 +91,35 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
 
     setIsUploading(true);
     try {
-      // 1. Upload do arquivo para o Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${jobId}/${Date.now()}_${name.replace(/\s+/g, '_').toLowerCase()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('resumes')
-        .upload(fileName, file);
+      const uploadForm = new FormData();
+      uploadForm.append('file', file);
+      uploadForm.append('bucket', 'resumes');
+      uploadForm.append('folder', String(jobId));
 
-      if (uploadError) throw uploadError;
+      const uploadResponse = await fetchWithCSRF('/api/upload', {
+        method: 'POST',
+        body: uploadForm,
+      });
+      const uploadData = await uploadResponse.json();
 
-      // 2. Obter URL pública
-      const { data: { publicUrl } } = supabase.storage
-        .from('resumes')
-        .getPublicUrl(fileName);
+      if (!uploadResponse.ok || !uploadData.path) {
+        throw new Error(uploadData.error || 'Erro no upload do currículo');
+      }
 
-      // 3. Salvar metadados no banco
-      const { error: insertError } = await supabase
-        .from('resumes')
-        .insert([
-          {
-            job_id: jobId,
-            candidate_name: name,
-            candidate_email: email,
-            candidate_phone: phone,
-            file_url: publicUrl
-          }
-        ]);
-
-      if (insertError) throw insertError;
+      // 2. Salvar metadados no banco
+      const response = await fetchWithCSRF('/api/admin/resumes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: jobId,
+          candidate_name: name,
+          candidate_email: email,
+          candidate_phone: phone,
+          file_url: uploadData.path,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar currículo');
 
       toast.success('Currículo adicionado com sucesso!');
       
@@ -137,9 +133,10 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
       // Recarregar lista
       fetchResumes();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro no upload:', error);
-      toast.error(`Erro ao salvar currículo: ${error.message || 'Erro desconhecido'}`);
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(`Erro ao salvar currículo: ${message}`);
     } finally {
       setIsUploading(false);
     }
@@ -149,24 +146,28 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
     if (!confirm('Tem certeza que deseja excluir este currículo?')) return;
 
     try {
-      // Tentar extrair o path do arquivo da URL para deletar do storage
-      // URL típica: .../storage/v1/object/public/resumes/jobId/filename
-      const path = fileUrl.split('/resumes/')[1];
+      const path = fileUrl.includes('/resumes/')
+        ? fileUrl.split('/resumes/')[1]
+        : fileUrl;
 
       if (path) {
-        const { error: storageError } = await supabase.storage
-          .from('resumes')
-          .remove([path]);
-        
-        if (storageError) console.warn('Erro ao deletar arquivo do storage (pode já não existir):', storageError);
+        const storageResponse = await fetchWithCSRF('/api/upload', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bucket: 'resumes', path }),
+        });
+
+        if (!storageResponse.ok) {
+          const storageData = await storageResponse.json();
+          console.warn('Erro ao deletar arquivo do storage (pode já não existir):', storageData.error);
+        }
       }
 
-      const { error: dbError } = await supabase
-        .from('resumes')
-        .delete()
-        .eq('id', id);
-
-      if (dbError) throw dbError;
+      const response = await fetchWithCSRF(`/api/admin/resumes?id=${id}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao excluir currículo');
 
       toast.success('Currículo excluído.');
       setResumes(prev => prev.filter(r => r.id !== id));
@@ -331,7 +332,7 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
                     
                     <div className="flex items-center gap-2 shrink-0 pl-2">
                       <a
-                        href={resume.file_url}
+                        href={`/api/admin/resumes/download?fileUrl=${encodeURIComponent(resume.file_url)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 text-[#003f7f] hover:bg-blue-50 rounded-lg transition-colors"

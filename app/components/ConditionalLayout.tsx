@@ -7,6 +7,7 @@ import MobileBottomNav from './MobileBottomNav';
 import AccessibilityWidget from './AccessibilityWidget';
 import InstallAppPrompt from './InstallAppPrompt';
 import CookieConsent from './CookieConsent';
+import LoadingScreen from './LoadingScreen';
 
 export default function ConditionalLayout({
   children,
@@ -24,6 +25,7 @@ export default function ConditionalLayout({
   // Para rotas normais, renderizar com Header, Footer e Menu Mobile
   return (
     <>
+      <LoadingScreen />
       <Header />
       <main className="pb-20 md:pb-0">
         {children}

@@ -117,8 +117,8 @@ const MobileBottomNav = () => {
         {/* Header do Menu */}
         <div className="px-6 py-4 flex justify-between items-center bg-white/50 backdrop-blur-sm sticky top-0 z-10">
           <div>
-            <h2 className="text-xl font-bold text-[#003f7f]">Menu</h2>
-            <p className="text-xs text-gray-500">Explore nossos serviços</p>
+            <h2 suppressHydrationWarning className="text-xl font-bold text-[#003f7f]">Menu</h2>
+            <p suppressHydrationWarning className="text-xs text-gray-500">Explore nossos serviços</p>
           </div>
           <button 
             onClick={() => setIsMenuOpen(false)}

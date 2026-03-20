@@ -1,6 +1,22 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { validateAdminSession, addSecurityHeaders, checkRateLimit, getClientIP } from '@/lib/security';
+import { validateAdminSession, verifyCSRFToken, addSecurityHeaders, checkRateLimit, getClientIP } from '@/lib/security';
+
+const CSRF_PROTECTED_PATHS = [
+  '/api/admin',
+  '/api/upload',
+  '/api/hero',
+  '/api/parceiros',
+  '/api/setup-storage',
+];
+
+function isMutationMethod(method: string): boolean {
+  return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
+}
+
+function requiresCSRFProtection(pathname: string): boolean {
+  return CSRF_PROTECTED_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
 
 // ==================== PROXY PRINCIPAL (Next.js 16+) ====================
 
@@ -49,9 +65,21 @@ export async function proxy(request: NextRequest) {
   // ==================== AUTENTICAÇÃO ====================
 
   // Ignorar rota de login/logout (não requer autenticação)
-  if (pathname === '/admin/login' || pathname === '/api/admin/auth' || pathname === '/api/admin/logout') {
+  if (pathname === '/admin/login' || pathname === '/api/admin/auth') {
     const response = NextResponse.next();
     return addSecurityHeaders(response);
+  }
+
+  if (isMutationMethod(request.method) && requiresCSRFProtection(pathname)) {
+    const csrfValid = await verifyCSRFToken(request);
+    if (!csrfValid) {
+      console.warn(`[SECURITY] CSRF inválido: IP=${ip}, path=${pathname}`);
+      const response = NextResponse.json(
+        { error: 'Token CSRF inválido' },
+        { status: 403 }
+      );
+      return addSecurityHeaders(response);
+    }
   }
 
   // Proteção para rotas de API Administrativa

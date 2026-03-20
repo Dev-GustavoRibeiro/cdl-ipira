@@ -12,49 +12,20 @@ export interface AuditLogEntry {
   ip_address?: string;
 }
 
-// POST - Criar novo registro de auditoria
 export async function POST(request: NextRequest) {
-  try {
-    const body: AuditLogEntry = await request.json();
-    
-    // Obter IP do request
-    const forwarded = request.headers.get('x-forwarded-for');
-    const ip = forwarded ? forwarded.split(',')[0].trim() : request.headers.get('x-real-ip') || 'unknown';
-
-    const { data, error } = await supabaseAdmin
-      .from('audit_log')
-      .insert({
-        action: body.action,
-        table_name: body.table_name,
-        record_id: body.record_id || null,
-        record_title: body.record_title || null,
-        user_id: body.user_id || null,
-        user_name: body.user_name || null,
-        details: body.details || null,
-        ip_address: body.ip_address || ip,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Erro ao criar log de auditoria:', error);
-      // Não retornar erro para não afetar a operação principal
-      return NextResponse.json({ success: false, error: error.message }, { status: 200 });
-    }
-
-    return NextResponse.json({ success: true, data });
-  } catch (error) {
-    console.error('Erro na API de auditoria:', error);
-    return NextResponse.json({ success: false, error: 'Erro interno' }, { status: 200 });
-  }
+  void request;
+  return NextResponse.json(
+    { error: 'Criação direta de auditoria desabilitada. Use o backend server-side.' },
+    { status: 405 }
+  );
 }
 
 // GET - Buscar logs de auditoria
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10), 1), 100);
     const action = searchParams.get('action');
     const table_name = searchParams.get('table_name');
     const search = searchParams.get('search');

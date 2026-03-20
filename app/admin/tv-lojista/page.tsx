@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaVideo, FaSpinner, FaSave, FaImage } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Video {
   id: number;
@@ -76,7 +77,7 @@ export default function AdminTVLojistaPage() {
     if (!confirm('Tem certeza que deseja excluir este vídeo?')) return;
 
     try {
-      const response = await fetch(`/api/admin/videos?id=${id}`, {
+      const response = await fetchWithCSRF(`/api/admin/videos?id=${id}`, {
         method: 'DELETE'
       });
 
@@ -131,7 +132,7 @@ export default function AdminTVLojistaPage() {
         duration: formData.duration || '00:00'
       };
 
-      const response = await fetch('/api/admin/videos', {
+      const response = await fetchWithCSRF('/api/admin/videos', {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

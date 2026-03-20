@@ -3,12 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaBriefcase, FaCheckCircle, FaSpinner, FaSave, FaEnvelope, FaPhone, FaUser, FaFileAlt } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ResumeManagerModal from '../components/ResumeManagerModal';
-import { auditLog } from '@/lib/audit';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Vaga {
   id: number;
@@ -71,15 +70,15 @@ export default function AdminBalcaoEmpregosPage() {
   async function fetchVagas() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const response = await fetch('/api/admin/jobs');
+      const data = await response.json();
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao carregar vagas');
+      }
 
       if (data) {
-        const mappedVagas = data.map((item: any) => ({
+        const mappedVagas = data.map((item: Vaga & { created_at?: string }) => ({
           id: item.id,
           title: item.title,
           company: item.company,
@@ -117,18 +116,14 @@ export default function AdminBalcaoEmpregosPage() {
     
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('jobs')
-        .delete()
-        .eq('id', deleteDialog.id);
+      const response = await fetchWithCSRF(`/api/admin/jobs?id=${deleteDialog.id}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
 
-      if (error) {
-        console.error('Erro do Supabase:', error);
-        throw error;
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao excluir vaga');
       }
-
-      // Registrar auditoria
-      auditLog.delete('jobs', deleteDialog.id.toString(), deleteDialog.title);
 
       // Atualiza o estado local removendo a vaga
       setVagas(currentVagas => currentVagas.filter(v => v.id !== deleteDialog.id));
@@ -153,12 +148,31 @@ export default function AdminBalcaoEmpregosPage() {
 
   async function handleToggleStatus(id: number, currentStatus: boolean) {
     try {
-      const { error } = await supabase
-        .from('jobs')
-        .update({ is_active: !currentStatus })
-        .eq('id', id);
+      const vaga = vagas.find((item) => item.id === id);
+      if (!vaga) return;
 
-      if (error) throw error;
+      const response = await fetchWithCSRF('/api/admin/jobs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          title: vaga.title,
+          company: vaga.company,
+          quantity: vaga.quantity,
+          description: vaga.description,
+          location: vaga.location,
+          category: vaga.category,
+          contact_name: vaga.contact_name,
+          contact_email: vaga.contact_email,
+          contact_phone: vaga.contact_phone,
+          is_active: !currentStatus,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao atualizar status');
+      }
       
       toast.success(currentStatus ? 'Vaga desativada' : 'Vaga ativada com sucesso');
       fetchVagas();
@@ -225,33 +239,26 @@ export default function AdminBalcaoEmpregosPage() {
         contact_phone: formData.contact_phone
       };
 
-      let error;
-      let newId: number | null = null;
       const wasEditing = !!editingId;
+      let response: Response;
 
       if (editingId) {
-        const { error: updateError } = await supabase
-          .from('jobs')
-          .update(payload)
-          .eq('id', editingId);
-        error = updateError;
+        response = await fetchWithCSRF('/api/admin/jobs', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...payload }),
+        });
       } else {
-        const { data, error: insertError } = await supabase
-          .from('jobs')
-          .insert([payload])
-          .select('id')
-          .single();
-        error = insertError;
-        newId = data?.id;
+        response = await fetchWithCSRF('/api/admin/jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
       }
 
-      if (error) throw error;
-
-      // Registrar auditoria
-      if (wasEditing && editingId) {
-        auditLog.update('jobs', editingId.toString(), formData.title);
-      } else if (newId) {
-        auditLog.create('jobs', newId.toString(), formData.title);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao salvar vaga');
       }
 
       setIsModalOpen(false);

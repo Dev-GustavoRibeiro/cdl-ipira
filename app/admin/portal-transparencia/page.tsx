@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FaPlus, FaEdit, FaTrash, FaDownload, FaFileAlt, FaSearch, FaSpinner, FaSave, FaEye, FaEyeSlash, FaFilePdf, FaFileWord, FaFileExcel, FaFile, FaUpload, FaLink, FaCloudUploadAlt, FaTimes } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Documento {
   id: number;
@@ -67,12 +67,9 @@ export default function AdminPortalTransparenciaPage() {
   const fetchDocumentos = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('transparency_documents')
-        .select('*')
-        .order('date', { ascending: false });
-
-      if (error) throw error;
+      const response = await fetch('/api/admin/transparency-documents');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar documentos');
       setDocumentos(data || []);
     } catch (error) {
       console.error('Erro ao carregar documentos:', error);
@@ -123,33 +120,27 @@ export default function AdminPortalTransparenciaPage() {
 
   // Upload do arquivo para o Supabase Storage
   const uploadFile = async (file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `documents/${fileName}`;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', 'transparency-documents');
+    formData.append('folder', 'documents');
 
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
-      const { data, error } = await supabase.storage
-        .from('transparency-documents')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+      const response = await fetchWithCSRF('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
 
-      if (error) throw error;
-
-      // Obter URL pública
-      const { data: urlData } = supabase.storage
-        .from('transparency-documents')
-        .getPublicUrl(filePath);
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || 'Erro no upload');
+      }
 
       setUploadProgress(100);
-      return urlData.publicUrl;
-    } catch (error) {
-      console.error('Erro no upload:', error);
-      throw error;
+      return data.url;
     } finally {
       setIsUploading(false);
     }
@@ -183,21 +174,23 @@ export default function AdminPortalTransparenciaPage() {
         is_active: currentDocumento.is_active !== false,
       };
 
-      let error;
+      let response: Response;
       if (isEditing && currentDocumento.id) {
-        const { error: updateError } = await supabase
-          .from('transparency_documents')
-          .update(docData)
-          .eq('id', currentDocumento.id);
-        error = updateError;
+        response = await fetchWithCSRF('/api/admin/transparency-documents', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentDocumento.id, ...docData }),
+        });
       } else {
-        const { error: insertError } = await supabase
-          .from('transparency_documents')
-          .insert([docData]);
-        error = insertError;
+        response = await fetchWithCSRF('/api/admin/transparency-documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(docData),
+        });
       }
 
-      if (error) throw error;
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar documento');
       
       const wasEditing = isEditing;
       await fetchDocumentos();
@@ -231,12 +224,11 @@ export default function AdminPortalTransparenciaPage() {
     
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('transparency_documents')
-        .delete()
-        .eq('id', deleteDialog.id);
-
-      if (error) throw error;
+      const response = await fetchWithCSRF(`/api/admin/transparency-documents?id=${deleteDialog.id}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao excluir documento');
 
       setDocumentos(current => current.filter(d => d.id !== deleteDialog.id));
       setDeleteDialog({ isOpen: false, id: null, title: '' });
@@ -257,12 +249,22 @@ export default function AdminPortalTransparenciaPage() {
 
   const handleToggleActive = async (doc: Documento) => {
     try {
-      const { error } = await supabase
-        .from('transparency_documents')
-        .update({ is_active: !doc.is_active })
-        .eq('id', doc.id);
-
-      if (error) throw error;
+      const response = await fetchWithCSRF('/api/admin/transparency-documents', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: doc.id,
+          title: doc.title,
+          description: doc.description,
+          type: doc.type,
+          category: doc.category,
+          date: doc.date,
+          file_url: doc.file_url,
+          is_active: !doc.is_active,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status');
       
       toast.success(doc.is_active ? 'Documento ocultado' : 'Documento ativado');
       fetchDocumentos();
