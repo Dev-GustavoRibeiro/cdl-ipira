@@ -175,9 +175,9 @@ const Footer = () => {
       </div>
 
       {/* Copyright */}
-      <div className="bg-[#002855] py-4">
+      <div className="bg-[#002855] py-4 pb-24 md:pb-4">
         <div className="container mx-auto px-4 text-center text-sm">
-          <p suppressHydrationWarning>© 2025 CDL Ipirá - Câmara de Dirigentes Lojistas. Todos os direitos reservados.</p>
+          <p suppressHydrationWarning>© {new Date().getFullYear()} CDL Ipirá - Câmara de Dirigentes Lojistas. Todos os direitos reservados.</p>
         </div>
       </div>
     </footer>

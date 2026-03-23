@@ -1,6 +1,5 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Footer from './Footer';
 import MobileBottomNav from './MobileBottomNav';
@@ -9,20 +8,12 @@ import InstallAppPrompt from './InstallAppPrompt';
 import CookieConsent from './CookieConsent';
 import LoadingScreen from './LoadingScreen';
 
+/** Usado apenas em rotas públicas (grupo `(site)`). Admin fica fora deste layout. */
 export default function ConditionalLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const isAdminRoute = pathname?.startsWith('/admin');
-
-  // Se for rota do admin, renderizar apenas o children
-  if (isAdminRoute) {
-    return <>{children}</>;
-  }
-
-  // Para rotas normais, renderizar com Header, Footer e Menu Mobile
   return (
     <>
       <LoadingScreen />
@@ -38,6 +29,7 @@ export default function ConditionalLayout({
     </>
   );
 }
+
 
 
 

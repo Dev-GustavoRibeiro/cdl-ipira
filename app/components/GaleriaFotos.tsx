@@ -43,7 +43,9 @@ const GaleriaFotos = () => {
     fetchGalleries();
   }, []);
 
-  const shouldLoop = galleries.length >= 4;
+  // Loop só funciona bem quando há slides suficientes para o slidesPerView máximo (3).
+  // Swiper precisa de pelo menos slidesPerView * 2 + 1 slides únicos → mínimo 7.
+  const shouldLoop = galleries.length >= 7;
 
   return (
     <section className="py-20 sm:py-28 relative overflow-hidden bg-gray-50">
@@ -93,14 +95,13 @@ const GaleriaFotos = () => {
             <p className="text-gray-500">Volte em breve para ver novos registros.</p>
           </div>
         ) : (
-          <div className="relative -mr-[calc((100vw-100%)/2)]"> {/* Overflow to right edge */}
+          <div className="relative overflow-visible">
             <Swiper
               modules={[Autoplay, Navigation, Pagination]}
               spaceBetween={24}
-              slidesPerView={'auto'}
               centeredSlides={true}
               loop={shouldLoop}
-              speed={1000}
+              speed={800}
               navigation={{
                 prevEl: '.swiper-button-prev-custom',
                 nextEl: '.swiper-button-next-custom',
@@ -111,12 +112,12 @@ const GaleriaFotos = () => {
                 pauseOnMouseEnter: true
               } : false}
               breakpoints={{
-                0: { slidesPerView: 1.1, spaceBetween: 16 },
-                640: { slidesPerView: 2.2, spaceBetween: 20 },
-                1024: { slidesPerView: 3.2, spaceBetween: 24 },
-                1280: { slidesPerView: 3.5, spaceBetween: 32 },
+                0: { slidesPerView: 1.15, spaceBetween: 16, centeredSlides: true },
+                640: { slidesPerView: 2, spaceBetween: 20, centeredSlides: true },
+                1024: { slidesPerView: 3, spaceBetween: 24, centeredSlides: true },
+                1280: { slidesPerView: 3, spaceBetween: 32, centeredSlides: true },
               }}
-              className="!pb-20 !pr-4"
+              className="gallery-swiper !pb-20 !overflow-visible"
             >
               {galleries.map((gallery, index) => (
                 <SwiperSlide
@@ -124,15 +125,17 @@ const GaleriaFotos = () => {
                   className="!h-auto"
                 >
                   <Link href="/imprensa/galeria-fotos" className="group block h-full">
-                    <article className="relative h-[450px] sm:h-[550px] rounded-[2rem] overflow-hidden bg-gray-900 isolate">
+                    <article className="relative h-[420px] sm:h-[500px] rounded-[2rem] overflow-hidden bg-gray-900 isolate shadow-xl">
                       {/* Main Image */}
                       {gallery.image && gallery.image !== '/placeholder-gallery.jpg' ? (
                         <Image
                           src={gallery.image}
                           alt={gallery.title}
                           fill
+                          priority={index === 0}
+                          loading={index === 0 ? 'eager' : 'lazy'}
                           className="object-cover transition-transform duration-1000 group-hover:scale-110"
-                          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
+                          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 33vw"
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-[#003f7f] to-[#001f3f] flex items-center justify-center">
@@ -141,15 +144,15 @@ const GaleriaFotos = () => {
                       )}
 
                       {/* Overlays */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#00152b] via-transparent to-transparent opacity-90"></div>
-                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500"></div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#00152b] via-black/20 to-transparent opacity-90"></div>
+                      <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors duration-500"></div>
 
                       {/* Content Card (Glassmorphism) */}
-                      <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
-                        <div className="relative overflow-hidden rounded-3xl bg-white/10 backdrop-blur-md border border-white/10 p-6 transition-all duration-300 group-hover:bg-white/15 group-hover:translate-y-[-5px]">
+                      <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
+                        <div className="relative overflow-hidden rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-5 transition-all duration-300 group-hover:bg-white/20 group-hover:translate-y-[-4px]">
 
                           {/* Badges Row */}
-                          <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center justify-between mb-3">
                             {gallery.category && (
                               <span className="inline-block px-3 py-1 bg-[#ffd000] text-[#003f7f] text-xs font-bold uppercase tracking-wider rounded-full">
                                 {gallery.category}
@@ -157,19 +160,19 @@ const GaleriaFotos = () => {
                             )}
                             <div className="flex items-center gap-1.5 text-white/90 text-xs font-medium bg-black/30 px-3 py-1 rounded-full">
                               <FaCamera className="w-3 h-3" />
-                              <span>{gallery.photos}</span>
+                              <span>{gallery.photos} fotos</span>
                             </div>
                           </div>
 
                           {/* Title */}
-                          <h3 className="text-xl sm:text-2xl font-bold text-white leading-tight mb-4 line-clamp-2 group-hover:text-[#ffd000] transition-colors">
+                          <h3 className="text-lg sm:text-xl font-bold text-white leading-tight mb-3 line-clamp-2 group-hover:text-[#ffd000] transition-colors">
                             {gallery.title}
                           </h3>
 
                           {/* Action */}
                           <div className="flex items-center gap-3 text-white/80 text-sm group/btn">
                             <span className="font-medium">Visualizar Galeria</span>
-                            <span className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover/btn:bg-[#ffd000] group-hover/btn:text-[#003f7f] transition-all duration-300">
+                            <span className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center group-hover/btn:bg-[#ffd000] group-hover/btn:text-[#003f7f] transition-all duration-300">
                               <FaArrowRight className="w-3 h-3 -rotate-45 group-hover/btn:rotate-0 transition-transform duration-300" />
                             </span>
                           </div>
@@ -180,6 +183,41 @@ const GaleriaFotos = () => {
                 </SwiperSlide>
               ))}
             </Swiper>
+
+            <style jsx global>{`
+              .gallery-swiper {
+                overflow: visible !important;
+              }
+              .gallery-swiper .swiper-wrapper {
+                overflow: visible !important;
+              }
+              .gallery-swiper .swiper-slide {
+                transition: transform 0.4s ease, opacity 0.4s ease;
+                opacity: 0.75;
+              }
+              .gallery-swiper .swiper-slide-active {
+                opacity: 1;
+                transform: scale(1.02);
+                z-index: 10;
+              }
+              .gallery-swiper .swiper-slide-prev,
+              .gallery-swiper .swiper-slide-next {
+                opacity: 0.85;
+              }
+              .gallery-swiper .swiper-pagination {
+                bottom: 0 !important;
+              }
+              .gallery-swiper .swiper-pagination-bullet {
+                background: #003f7f;
+                opacity: 0.3;
+              }
+              .gallery-swiper .swiper-pagination-bullet-active {
+                opacity: 1;
+                width: 24px;
+                border-radius: 4px;
+                background: #003f7f;
+              }
+            `}</style>
           </div>
         )}
 

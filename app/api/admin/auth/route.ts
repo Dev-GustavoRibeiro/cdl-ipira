@@ -11,6 +11,27 @@ import {
   isE2ERateLimitBypassEnabled,
 } from '@/lib/security';
 
+// Verificar token Cloudflare Turnstile
+async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  // Se não há chave configurada ou é a chave de teste, pula a verificação
+  if (!secret || secret.startsWith('1x000000000000') || secret.startsWith('2x000000000000')) {
+    // Chaves de teste: 1x0000...AA = always passes, 2x0000...AB = always fails
+    return !secret?.startsWith('2x');
+  }
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret, response: token, remoteip: ip }).toString(),
+    });
+    const data = await res.json();
+    return data.success === true;
+  } catch {
+    return false;
+  }
+}
+
 // Armazenar tentativas de login falhas para detectar ataques de força bruta
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
 const MAX_ATTEMPTS = 5;
@@ -110,7 +131,30 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { username, password } = body;
+    const { username, password, turnstileToken } = body;
+
+    // Verificar Turnstile (se não estiver em modo E2E)
+    if (!isE2ERateLimitBypassEnabled()) {
+      if (!turnstileToken) {
+        return NextResponse.json(
+          { error: 'Verificação de segurança necessária' },
+          { status: 400 }
+        );
+      }
+      const turnstileValid = await verifyTurnstile(turnstileToken, ip);
+      if (!turnstileValid) {
+        logSecurityEvent({
+          type: 'auth_failure',
+          ip,
+          path: '/api/admin/auth',
+          details: { reason: 'Falha na verificação Turnstile' }
+        });
+        return NextResponse.json(
+          { error: 'Verificação de segurança inválida. Recarregue a página e tente novamente.' },
+          { status: 400 }
+        );
+      }
+    }
 
     // Validação básica
     if (!username || !password) {

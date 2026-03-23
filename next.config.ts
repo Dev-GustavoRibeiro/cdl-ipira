@@ -7,26 +7,28 @@ const isDev = process.env.NODE_ENV === 'development';
 const ContentSecurityPolicy = isDev
   ? `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br https://challenges.cloudflare.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     img-src 'self' data: blob: https: http:;
     font-src 'self' https://fonts.gstatic.com data:;
-    frame-src 'self' https://www.youtube.com https://www.google.com https://impostometro.com.br;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com ws: wss:;
+    frame-src 'self' https://www.youtube.com https://www.google.com https://impostometro.com.br https://challenges.cloudflare.com;
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://challenges.cloudflare.com ws: wss:;
     media-src 'self' https://*.supabase.co blob:;
+    worker-src 'self' blob:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
   `.replace(/\s{2,}/g, ' ').trim()
   : `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br https://challenges.cloudflare.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     img-src 'self' data: blob: https: http:;
     font-src 'self' https://fonts.gstatic.com data:;
-    frame-src 'self' https://www.youtube.com https://www.google.com https://impostometro.com.br;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com;
+    frame-src 'self' https://www.youtube.com https://www.google.com https://impostometro.com.br https://challenges.cloudflare.com;
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://challenges.cloudflare.com;
     media-src 'self' https://*.supabase.co blob:;
+    worker-src 'self' blob:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';

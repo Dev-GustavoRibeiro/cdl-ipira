@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination, Navigation } from 'swiper/modules';
 import EventModal from './EventModal';
@@ -134,7 +135,8 @@ const EventsCarousel = () => {
     );
   }
 
-  const shouldLoop = events.length > 3;
+  // Loop exige slidesPerView * 2 + 1 slides únicos. Max slidesPerView = 3 → mínimo 7.
+  const shouldLoop = events.length >= 7;
 
   return (
     <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-visible">
@@ -322,7 +324,10 @@ const EventsCarousel = () => {
 
         {/* Botão Ver Todos */}
         <div className="text-center mt-12 sm:mt-16">
-          <button className="group relative bg-[#003f7f] text-white px-8 sm:px-10 md:px-12 py-4 sm:py-5 rounded-full font-black text-base sm:text-lg overflow-hidden shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-3xl magic-card">
+          <Link
+            href="/imprensa/eventos"
+            className="group relative inline-flex bg-[#003f7f] text-white px-8 sm:px-10 md:px-12 py-4 sm:py-5 rounded-full font-black text-base sm:text-lg overflow-hidden shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-3xl"
+          >
             <span className="relative z-10 flex items-center justify-center gap-3 sm:gap-4">
               Ver Calendário Completo
               <svg className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transform group-hover:rotate-12 transition-transform" fill="currentColor" viewBox="0 0 20 20">
@@ -330,7 +335,7 @@ const EventsCarousel = () => {
               </svg>
             </span>
             <div className="absolute inset-0 bg-linear-to-r from-[#ffd000] to-[#ffed4e] transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -343,7 +348,11 @@ const EventsCarousel = () => {
       <style jsx global>{`
         .events-modern-carousel {
           position: relative;
+          overflow: visible !important;
           padding-bottom: 60px !important;
+        }
+        .events-modern-carousel .swiper-wrapper {
+          overflow: visible !important;
         }
         .events-modern-carousel .swiper-pagination {
           position: absolute;

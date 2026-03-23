@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import ConditionalLayout from "./components/ConditionalLayout";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -43,11 +42,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning data-scroll-behavior="smooth">
       <body className={inter.className} suppressHydrationWarning>
-        <ConditionalLayout>
-          {children}
-        </ConditionalLayout>
+        {children}
       </body>
     </html>
   );

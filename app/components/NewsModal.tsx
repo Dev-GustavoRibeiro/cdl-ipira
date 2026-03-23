@@ -4,6 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { FaTimes, FaCalendar, FaUser, FaTag } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
+import DOMPurify from 'isomorphic-dompurify';
 
 interface NewsModalProps {
   isOpen: boolean;
@@ -102,8 +103,8 @@ export default function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
           )}
 
           <div 
-            className="prose prose-lg max-w-none text-gray-700 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: news.content }}
+            className="prose prose-lg max-w-none text-gray-700 leading-relaxed text-justify"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(news.content) }}
           />
         </div>
       </div>

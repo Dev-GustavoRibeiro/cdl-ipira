@@ -714,3 +714,7 @@ html.focus-highlight *:focus-visible {
 .loading-text {
   animation: loadingTextFade 1.5s ease-in-out infinite;
 }
+
+/* LoadingScreen — animações movidas para inline styles em LoadingScreen.tsx */
+
+/* Página 404 — animações movidas para inline styles em NotFoundScreen.tsx */

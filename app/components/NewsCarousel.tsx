@@ -162,12 +162,14 @@ const NewsCarousel = () => {
           </Link>
         </div>
 
-        <div className="relative max-w-7xl mx-auto">
+        <div className="relative max-w-7xl mx-auto overflow-visible">
           <div className="px-4 sm:px-8 md:px-12 lg:px-20 relative overflow-visible">
             <Swiper
               modules={[Autoplay, Pagination, Navigation, EffectCreative]}
               spaceBetween={24}
               slidesPerView={1}
+              centeredSlides={true}
+              loop={news.length >= 7}
               autoplay={{
                 delay: 6000,
                 disableOnInteraction: false,
@@ -184,14 +186,17 @@ const NewsCarousel = () => {
                 480: {
                   slidesPerView: 1.2,
                   spaceBetween: 20,
+                  centeredSlides: true,
                 },
                 768: {
                   slidesPerView: 2.2,
                   spaceBetween: 24,
+                  centeredSlides: true,
                 },
                 1024: {
                   slidesPerView: 3,
                   spaceBetween: 32,
+                  centeredSlides: true,
                 },
               }}
               className="news-carousel-modern pb-20!"
@@ -318,8 +323,21 @@ const NewsCarousel = () => {
       <style jsx global>{`
         .news-carousel-modern {
           position: relative;
+          overflow: visible !important;
           padding-bottom: 60px !important;
-          padding-top: 20px !important;
+          padding-top: 24px !important;
+        }
+        .news-carousel-modern .swiper-wrapper {
+          overflow: visible !important;
+        }
+        .news-carousel-modern .swiper-slide {
+          transition: transform 0.4s ease, opacity 0.4s ease;
+          opacity: 0.7;
+        }
+        .news-carousel-modern .swiper-slide-active {
+          opacity: 1;
+          transform: scale(1.03);
+          z-index: 10;
         }
         .news-carousel-modern .swiper-pagination {
           position: absolute;

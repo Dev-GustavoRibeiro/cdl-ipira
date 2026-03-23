@@ -97,6 +97,8 @@ const Header = () => {
 
   return (
     <>
+      {/* Wrapper sticky para mobile e desktop */}
+      <div className="sticky top-0 z-50">
       {/* Barra azul superior */}
       <div className="bg-[#003f7f] text-white py-2 sm:py-2.5">
         <div className="container mx-auto px-3 sm:px-4">
@@ -111,7 +113,7 @@ const Header = () => {
       </div>
 
       {/* Header Principal */}
-      <header className="bg-white shadow-md sticky top-0 z-50" suppressHydrationWarning>
+      <header className="bg-white shadow-md" suppressHydrationWarning>
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4 md:gap-6 lg:gap-8">
             {/* Logos */}
@@ -463,6 +465,7 @@ const Header = () => {
           </div>
         )}
       </header>
+      </div>
     </>
   );
 };

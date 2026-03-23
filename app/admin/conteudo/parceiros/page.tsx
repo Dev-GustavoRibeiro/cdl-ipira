@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaSave, FaImage, FaSpinner } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaSave, FaImage, FaSpinner, FaSearch, FaTimes } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
 import { fetchWithCSRF } from '@/lib/csrf-client';
@@ -30,7 +30,17 @@ export default function AdminParceirosPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredPartners = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return partners;
+    return partners.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.website?.toLowerCase().includes(q) ?? false)
+    );
+  }, [partners, searchQuery]);
 
   useEffect(() => {
     fetchPartners();
@@ -191,13 +201,36 @@ export default function AdminParceirosPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleAdd}
-          className="inline-flex items-center gap-2 bg-[#ffd000] text-[#003f7f] px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#ffed4e] transition-all duration-300 shadow-lg"
-        >
-          <FaPlus />
-          Novo Associado
-        </button>
+        <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+          {!isLoading && partners.length > 0 && (
+            <div className="relative w-full sm:w-[320px]">
+              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar associado por nome ou site..."
+                className="w-full pl-11 pr-10 py-3 rounded-xl border-2 border-gray-200 bg-white focus:outline-none focus:border-[#003f7f] transition-all text-sm text-gray-800 placeholder-gray-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <FaTimes className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={handleAdd}
+            className="inline-flex items-center justify-center gap-2 bg-[#ffd000] text-[#003f7f] px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#ffed4e] transition-all duration-300 shadow-lg whitespace-nowrap"
+          >
+            <FaPlus />
+            Novo Associado
+          </button>
+        </div>
       </div>
 
       <Modal
@@ -297,9 +330,23 @@ export default function AdminParceirosPage() {
         <div className="flex justify-center py-12">
           <FaSpinner className="animate-spin text-[#003f7f] text-3xl" />
         </div>
+      ) : filteredPartners.length === 0 && searchQuery ? (
+        <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+          <FaSearch className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 font-semibold">Nenhum associado encontrado</p>
+          <p className="text-gray-400 text-sm mt-1">
+            Nenhum resultado para <span className="font-bold text-gray-600">&ldquo;{searchQuery}&rdquo;</span>
+          </p>
+          <button
+            onClick={() => setSearchQuery('')}
+            className="mt-4 text-[#003f7f] text-sm font-bold hover:underline"
+          >
+            Limpar pesquisa
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {partners.map((partner) => (
+          {filteredPartners.map((partner) => (
             <div key={partner.id} className="bg-white rounded-xl shadow-md overflow-hidden">
               <div className="h-32 bg-gray-100 flex items-center justify-center p-4">
                 <img src={partner.logo} alt={partner.name} className="max-h-full max-w-full object-contain" />
@@ -329,6 +376,16 @@ export default function AdminParceirosPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Contador de resultados */}
+      {!isLoading && partners.length > 0 && (
+        <p className="text-sm text-gray-400 text-right">
+          {searchQuery
+            ? `${filteredPartners.length} de ${partners.length} associado${partners.length !== 1 ? 's' : ''}`
+            : `${partners.length} associado${partners.length !== 1 ? 's' : ''} no total`
+          }
+        </p>
       )}
     </div>
   );
