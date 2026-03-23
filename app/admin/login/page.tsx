@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Turnstile } from '@marsidev/react-turnstile';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { FaLock, FaUser, FaEye, FaEyeSlash, FaShieldAlt } from 'react-icons/fa';
 import { useEffect } from 'react';
 
@@ -18,7 +18,7 @@ export default function AdminLoginPage() {
   const [turnstileReady, setTurnstileReady]     = useState(false);
   const [lockoutSeconds, setLockoutSeconds]     = useState(0);
   const [attempts, setAttempts]                 = useState(0);
-  const turnstileRef                            = useRef<{ reset: () => void }>(null);
+  const turnstileRef                            = useRef<TurnstileInstance>(null);
 
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '1x00000000000000000000AA';
 
