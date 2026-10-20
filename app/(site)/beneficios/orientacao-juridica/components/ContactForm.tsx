@@ -19,7 +19,7 @@ const ContactForm = ({ isFormSubmitting, formStatus, onSubmit }: ContactFormProp
               <h2 className="text-2xl xs:text-3xl sm:text-4xl font-black text-[#003f7f] mb-3 sm:mb-4">
                 Solicite sua Orientação
               </h2>
-              <p className="text-gray-700 text-sm sm:text-base text-justify">
+              <p className="text-gray-700 text-sm sm:text-base text-left sm:text-justify">
                 Preencha o formulário abaixo e nossa equipe entrará em contato para agendar sua orientação jurídica.
               </p>
             </div>
@@ -51,25 +51,29 @@ const ContactForm = ({ isFormSubmitting, formStatus, onSubmit }: ContactFormProp
             <form onSubmit={onSubmit} className="space-y-4 sm:space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                  <label htmlFor="juridico-nome" className="block text-sm font-bold text-gray-700 mb-2">
                     Nome Completo *
                   </label>
                   <input
                     type="text"
+                    id="juridico-nome"
                     name="nome"
                     required
+                    maxLength={120}
                     disabled={isFormSubmitting}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                  <label htmlFor="juridico-empresa" className="block text-sm font-bold text-gray-700 mb-2">
                     Empresa *
                   </label>
                   <input
                     type="text"
+                    id="juridico-empresa"
                     name="empresa"
                     required
+                    maxLength={150}
                     disabled={isFormSubmitting}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
@@ -78,23 +82,26 @@ const ContactForm = ({ isFormSubmitting, formStatus, onSubmit }: ContactFormProp
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                  <label htmlFor="juridico-telefone" className="block text-sm font-bold text-gray-700 mb-2">
                     Telefone/WhatsApp *
                   </label>
                   <input
                     type="tel"
-                    name="contato"
+                    id="juridico-telefone"
+                    name="telefone"
                     required
+                    maxLength={30}
                     disabled={isFormSubmitting}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                  <label htmlFor="juridico-email" className="block text-sm font-bold text-gray-700 mb-2">
                     E-mail *
                   </label>
                   <input
                     type="email"
+                    id="juridico-email"
                     name="email"
                     required
                     disabled={isFormSubmitting}
@@ -104,13 +111,15 @@ const ContactForm = ({ isFormSubmitting, formStatus, onSubmit }: ContactFormProp
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
+                <label htmlFor="juridico-assunto" className="block text-sm font-bold text-gray-700 mb-2">
                   Assunto da Consulta *
                 </label>
                 <input
                   type="text"
+                  id="juridico-assunto"
                   name="assunto"
                   required
+                  maxLength={200}
                   placeholder="Ex: Questão trabalhista, análise de contrato, etc."
                   disabled={isFormSubmitting}
                   className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -118,12 +127,14 @@ const ContactForm = ({ isFormSubmitting, formStatus, onSubmit }: ContactFormProp
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
+                <label htmlFor="juridico-descricao" className="block text-sm font-bold text-gray-700 mb-2">
                   Descrição da Situação *
                 </label>
                 <textarea
+                  id="juridico-descricao"
                   name="descricao"
                   required
+                  maxLength={3000}
                   rows={5}
                   placeholder="Descreva sua situação ou dúvida jurídica..."
                   disabled={isFormSubmitting}

@@ -109,7 +109,7 @@ const HeroSection = () => {
                 Quer saber mais? Entre em contato conosco.
               </p>
               <a
-                href="tel:557532541599"
+                href="tel:+557532541599"
                 className="flex items-center gap-3 text-[#003f7f] font-bold text-lg hover:text-[#0066cc] transition-colors"
               >
                 <div className="bg-[#003f7f] text-white p-3 rounded-lg">

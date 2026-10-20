@@ -1,8 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
-import { FaTimes, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaMapMarkerAlt, FaImages, FaSpinner } from 'react-icons/fa';
+import { isOptimizableImage } from '@/lib/images';
+import { FaTimes, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaMapMarkerAlt, FaImages } from 'react-icons/fa';
+import { formatDateBR } from '@/lib/date';
+import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 import { Album, AlbumPhoto } from './types';
 
 interface PhotoModalProps {
@@ -28,58 +32,76 @@ const PhotoModal = ({
   onNextPhoto,
   onSelectPhoto
 }: PhotoModalProps) => {
+  const isClient = useIsClient();
+  const titleId = useId();
+  // Esc, foco preso e trava de scroll ficam no hook; as setas trocam a foto
+  const dialogRef = useModalBehavior<HTMLDivElement>(isOpen && !!album, onClose);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
     if (e.key === 'ArrowLeft') onPrevPhoto();
     if (e.key === 'ArrowRight') onNextPhoto();
   };
 
-  if (!isOpen || !album) return null;
+  if (!isClient || !isOpen || !album) return null;
 
-  return (
+  // Portal no body com camada de modal, acima do header e da navegação inferior
+  return createPortal(
     <div
-      className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4"
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      className="fixed inset-0 bg-black/95 z-100 flex items-center justify-center p-4"
       onKeyDown={handleKeyDown}
-      tabIndex={0}
     >
       {/* Botão Fechar */}
       <button
+        type="button"
         onClick={onClose}
         className="absolute top-4 right-4 text-white hover:text-[#ffd000] transition-colors z-50 bg-black/50 backdrop-blur-sm rounded-full p-3 hover:bg-black/70"
         aria-label="Fechar"
       >
-        <FaTimes className="w-6 h-6" />
+        <FaTimes className="w-6 h-6" aria-hidden="true" />
       </button>
 
       {/* Informações do Álbum */}
       <div className="absolute top-4 left-4 right-20 bg-black/50 backdrop-blur-sm rounded-xl p-4 text-white z-50">
-        <h2 className="text-xl font-bold mb-2">{album.title}</h2>
+        <h2 id={titleId} className="text-xl font-bold mb-2">{album.title}</h2>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <FaCalendarAlt className="w-4 h-4" />
-            <span>{new Date(album.date).toLocaleDateString('pt-BR')}</span>
+            <FaCalendarAlt className="w-4 h-4" aria-hidden="true" />
+            <span>{formatDateBR(album.date)}</span>
           </div>
           {album.location && (
             <div className="flex items-center gap-2">
-              <FaMapMarkerAlt className="w-4 h-4" />
+              <FaMapMarkerAlt className="w-4 h-4" aria-hidden="true" />
               <span>{album.location}</span>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <FaImages className="w-4 h-4" />
-            <span>{selectedPhotoIndex + 1} / {photos.length}</span>
+          {/* Contador anunciado ao trocar de foto */}
+          <div className="flex items-center gap-2" aria-live="polite">
+            {photos.length > 0 && (
+              <>
+                <FaImages className="w-4 h-4" aria-hidden="true" />
+                <span>Foto {selectedPhotoIndex + 1} de {photos.length}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
 
       {/* Área de Fotos */}
       {isLoadingPhotos ? (
-        <div className="flex items-center justify-center">
-          <FaSpinner className="animate-spin w-12 h-12 text-white" />
-        </div>
+        // Esqueleto da foto principal enquanto as fotos carregam
+        <div
+          role="status"
+          aria-label="Carregando fotos"
+          className="w-full max-w-3xl aspect-4/3 max-h-[60vh] rounded-2xl bg-white/10 animate-pulse motion-reduce:animate-none"
+        />
       ) : photos.length === 0 ? (
         <div className="text-center text-white">
-          <FaImages className="w-20 h-20 mx-auto mb-4 opacity-50" />
+          <FaImages className="w-20 h-20 mx-auto mb-4 opacity-50" aria-hidden="true" />
           <p className="text-xl">Nenhuma foto neste álbum ainda.</p>
         </div>
       ) : (
@@ -89,8 +111,10 @@ const PhotoModal = ({
             <div className="relative w-full h-full max-h-[70vh] flex items-center justify-center">
               <Image
                 src={photos[selectedPhotoIndex].url}
-                alt={photos[selectedPhotoIndex].title || `Foto ${selectedPhotoIndex + 1}`}
+                alt={photos[selectedPhotoIndex].title || `Foto ${selectedPhotoIndex + 1} do álbum ${album.title}`}
                 fill
+                sizes="100vw"
+                unoptimized={!isOptimizableImage(photos[selectedPhotoIndex].url)}
                 className="object-contain"
                 priority
               />
@@ -100,18 +124,20 @@ const PhotoModal = ({
             {photos.length > 1 && (
               <>
                 <button
+                  type="button"
                   onClick={onPrevPhoto}
                   className="absolute left-4 bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 rounded-full p-4 transition-all hover:scale-110"
                   aria-label="Foto anterior"
                 >
-                  <FaChevronLeft className="w-6 h-6" />
+                  <FaChevronLeft className="w-6 h-6" aria-hidden="true" />
                 </button>
                 <button
+                  type="button"
                   onClick={onNextPhoto}
                   className="absolute right-4 bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 rounded-full p-4 transition-all hover:scale-110"
                   aria-label="Próxima foto"
                 >
-                  <FaChevronRight className="w-6 h-6" />
+                  <FaChevronRight className="w-6 h-6" aria-hidden="true" />
                 </button>
               </>
             )}
@@ -123,7 +149,10 @@ const PhotoModal = ({
               {photos.map((photo, index) => (
                 <button
                   key={photo.id}
+                  type="button"
                   onClick={() => onSelectPhoto(index)}
+                  aria-label={`Ver foto ${index + 1}`}
+                  aria-current={index === selectedPhotoIndex}
                   className={`relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
                     index === selectedPhotoIndex
                       ? 'border-[#ffd000] scale-110'
@@ -132,8 +161,10 @@ const PhotoModal = ({
                 >
                   <Image
                     src={photo.url}
-                    alt={photo.title || `Miniatura ${index + 1}`}
+                    alt=""
                     fill
+                    sizes="80px"
+                    unoptimized={!isOptimizableImage(photo.url)}
                     className="object-cover"
                   />
                 </button>
@@ -142,7 +173,8 @@ const PhotoModal = ({
           </div>
         </>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
 

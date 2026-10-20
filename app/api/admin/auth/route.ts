@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { cookies } from 'next/headers';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { createSupabaseServerClient, toAdminUser } from '@/lib/supabase-server';
+import { logAuditServer } from '@/lib/audit-server';
 import {
   getClientIP,
   logSecurityEvent,
-  sanitizeString,
+  isValidEmail,
   generateCSRFToken,
-  isE2ERateLimitBypassEnabled,
+  CSRF_COOKIE,
+  CSRF_COOKIE_OPTIONS,
 } from '@/lib/security';
 
 // Verificar token Cloudflare Turnstile
 async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
-  // Se não há chave configurada ou é a chave de teste, pula a verificação
+  // Sem chave configurada ou com chave de teste, pula a verificação
   if (!secret || secret.startsWith('1x000000000000') || secret.startsWith('2x000000000000')) {
     // Chaves de teste: 1x0000...AA = always passes, 2x0000...AB = always fails
+    if (!secret && process.env.NODE_ENV === 'production') {
+      console.warn('[SECURITY] TURNSTILE_SECRET_KEY não configurada: captcha do login desativado');
+    }
     return !secret?.startsWith('2x');
   }
   try {
@@ -32,59 +35,30 @@ async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
   }
 }
 
-// Armazenar tentativas de login falhas para detectar ataques de força bruta
+// Tentativas de login falhas por IP (força bruta); o Supabase Auth também limita por conta própria
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutos
 
-// Duração da sessão: 4 horas (em milissegundos e segundos)
-const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
-const SESSION_DURATION_SECONDS = 4 * 60 * 60;
-
-// Função auxiliar para registrar auditoria diretamente no banco
-async function logAudit(
-  action: 'LOGIN' | 'LOGOUT',
-  userName: string,
-  ipAddress: string,
-  success: boolean = true,
-  details: Record<string, unknown> = {}
-) {
-  try {
-    await supabaseAdmin.from('audit_log').insert({
-      action,
-      table_name: 'auth',
-      user_name: userName,
-      ip_address: ipAddress,
-      details: { success, ...details },
-    });
-  } catch (error) {
-    console.error('Erro ao registrar auditoria:', error);
-  }
-}
-
-// Verificar se IP está bloqueado por muitas tentativas
 function isIPBlocked(ip: string): { blocked: boolean; remainingTime?: number } {
   const attempts = loginAttempts.get(ip);
   if (!attempts) return { blocked: false };
-  
+
   const timeSinceLastAttempt = Date.now() - attempts.lastAttempt;
-  
-  // Se passou o tempo de lockout, resetar
+
   if (timeSinceLastAttempt > LOCKOUT_DURATION) {
     loginAttempts.delete(ip);
     return { blocked: false };
   }
-  
-  // Se excedeu o limite, bloquear
+
   if (attempts.count >= MAX_ATTEMPTS) {
     const remainingTime = Math.ceil((LOCKOUT_DURATION - timeSinceLastAttempt) / 1000);
     return { blocked: true, remainingTime };
   }
-  
+
   return { blocked: false };
 }
 
-// Registrar tentativa de login falha
 function recordFailedAttempt(ip: string): void {
   const attempts = loginAttempts.get(ip) || { count: 0, lastAttempt: 0 };
   attempts.count++;
@@ -92,27 +66,10 @@ function recordFailedAttempt(ip: string): void {
   loginAttempts.set(ip, attempts);
 }
 
-// Limpar tentativas após login bem-sucedido
-function clearAttempts(ip: string): void {
-  loginAttempts.delete(ip);
-}
-
-/**
- * Gera um token de sessão criptograficamente seguro
- * 32 bytes = 64 caracteres hexadecimais
- */
-function generateSessionToken(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
-
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
-  const userAgent = request.headers.get('user-agent') || undefined;
 
-  // Lockout por IP após falhas (desligado com E2E_RELAX_RATE_LIMIT para TestSprite / CRUD E2E)
-  const { blocked, remainingTime } = isE2ERateLimitBypassEnabled()
-    ? { blocked: false as const, remainingTime: undefined }
-    : isIPBlocked(ip);
+  const { blocked, remainingTime } = isIPBlocked(ip);
   if (blocked) {
     logSecurityEvent({
       type: 'auth_failure',
@@ -121,9 +78,9 @@ export async function POST(request: NextRequest) {
       details: { reason: 'IP bloqueado por muitas tentativas' }
     });
     return NextResponse.json(
-      { 
+      {
         error: 'Muitas tentativas de login. Tente novamente mais tarde.',
-        retryAfter: remainingTime 
+        retryAfter: remainingTime
       },
       { status: 429 }
     );
@@ -131,54 +88,35 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { username, password, turnstileToken } = body;
+    const { email, password, turnstileToken } = body ?? {};
 
-    // Verificar Turnstile (se não estiver em modo E2E)
-    if (!isE2ERateLimitBypassEnabled()) {
-      if (!turnstileToken) {
-        return NextResponse.json(
-          { error: 'Verificação de segurança necessária' },
-          { status: 400 }
-        );
-      }
-      const turnstileValid = await verifyTurnstile(turnstileToken, ip);
-      if (!turnstileValid) {
-        logSecurityEvent({
-          type: 'auth_failure',
-          ip,
-          path: '/api/admin/auth',
-          details: { reason: 'Falha na verificação Turnstile' }
-        });
-        return NextResponse.json(
-          { error: 'Verificação de segurança inválida. Recarregue a página e tente novamente.' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Validação básica
-    if (!username || !password) {
+    if (!turnstileToken || typeof turnstileToken !== 'string') {
       return NextResponse.json(
-        { error: 'Usuário e senha são obrigatórios' },
+        { error: 'Verificação de segurança necessária' },
         { status: 400 }
       );
     }
 
-    // Validar formato do username (prevenir injeção)
-    if (typeof username !== 'string' || username.length > 50 || !/^[a-zA-Z0-9_.-]+$/.test(username)) {
+    if (!(await verifyTurnstile(turnstileToken, ip))) {
       logSecurityEvent({
-        type: 'invalid_input',
+        type: 'auth_failure',
         ip,
         path: '/api/admin/auth',
-        details: { reason: 'Username inválido', username: sanitizeString(username).substring(0, 20) }
+        details: { reason: 'Falha na verificação Turnstile' }
       });
       return NextResponse.json(
-        { error: 'Formato de usuário inválido' },
+        { error: 'Verificação de segurança inválida. Recarregue a página e tente novamente.' },
         { status: 400 }
       );
     }
 
-    // Validar tamanho da senha
+    if (typeof email !== 'string' || !isValidEmail(email.trim())) {
+      return NextResponse.json(
+        { error: 'Informe um e-mail válido' },
+        { status: 400 }
+      );
+    }
+
     if (typeof password !== 'string' || password.length < 6 || password.length > 128) {
       return NextResponse.json(
         { error: 'Senha deve ter entre 6 e 128 caracteres' },
@@ -186,142 +124,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar usuário no banco de dados
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('admin_users')
-      .select('id, username, full_name, email, password_hash, is_active')
-      .eq('username', username)
-      .eq('is_active', true)
-      .single();
+    const normalizedEmail = email.trim().toLowerCase();
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
-    if (userError || !user) {
-      if (!isE2ERateLimitBypassEnabled()) {
-        recordFailedAttempt(ip);
+    const admin = toAdminUser(data?.user);
+
+    if (error || !admin) {
+      // Usuário válido sem papel de admin não mantém sessão
+      if (data?.session) {
+        await supabase.auth.signOut({ scope: 'local' });
       }
-      await logAudit('LOGIN', username, ip, false, { reason: 'Usuário não encontrado' });
-      
-      // Mensagem genérica para não revelar se o usuário existe
-      return NextResponse.json(
-        { error: 'Usuário ou senha incorretos' },
-        { status: 401 }
-      );
-    }
 
-    // Verificar senha com timing constante
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
-
-    if (!isValidPassword) {
-      if (!isE2ERateLimitBypassEnabled()) {
-        recordFailedAttempt(ip);
-      }
-      await logAudit('LOGIN', username, ip, false, { reason: 'Senha incorreta', userId: user.id });
-      
+      recordFailedAttempt(ip);
+      await logAuditServer({
+        action: 'LOGIN',
+        table_name: 'auth',
+        user_name: normalizedEmail,
+        details: {
+          success: false,
+          reason: error ? 'Credenciais inválidas' : 'Usuário sem permissão de administrador',
+        },
+      }, request);
       logSecurityEvent({
         type: 'auth_failure',
         ip,
         path: '/api/admin/auth',
-        details: { username, userId: user.id }
+        details: { email: normalizedEmail, reason: error?.code || 'not_admin' }
       });
-      
+
+      // Mensagem genérica para não revelar se a conta existe
       return NextResponse.json(
-        { error: 'Usuário ou senha incorretos' },
+        { error: 'E-mail ou senha incorretos' },
         { status: 401 }
       );
     }
 
-    // Login bem-sucedido - limpar tentativas
-    clearAttempts(ip);
+    loginAttempts.delete(ip);
 
-    // =========================================
-    // CRIAÇÃO DE SESSÃO SEGURA COM TOKEN
-    // =========================================
-    
-    const sessionToken = generateSessionToken();
-    const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+    await logAuditServer({
+      action: 'LOGIN',
+      table_name: 'auth',
+      user_id: admin.id,
+      user_name: admin.name,
+      details: { success: true, email: admin.email },
+    }, request);
 
-    // Limitar número de sessões ativas por admin (remove as antigas)
-    const { data: existingSessions } = await supabaseAdmin
-      .from('admin_sessions')
-      .select('id, created_at')
-      .eq('admin_id', user.id)
-      .order('created_at', { ascending: true });
-
-    if (existingSessions && existingSessions.length >= 3) {
-      const sessionsToRemove = existingSessions.slice(0, existingSessions.length - 2);
-      if (sessionsToRemove.length > 0) {
-        const idsToRemove = sessionsToRemove.map(s => s.id);
-        await supabaseAdmin
-          .from('admin_sessions')
-          .delete()
-          .in('id', idsToRemove);
-      }
-    }
-
-    // Inserir nova sessão no banco
-    const { error: sessionError } = await supabaseAdmin
-      .from('admin_sessions')
-      .insert({
-        token: sessionToken,
-        admin_id: user.id,
-        ip_address: ip,
-        user_agent: userAgent,
-        expires_at: expiresAt.toISOString(),
-      });
-
-    if (sessionError) {
-      console.error('Erro ao criar sessão:', sessionError);
-      return NextResponse.json(
-        { error: 'Erro ao criar sessão. Verifique se a tabela admin_sessions existe.' },
-        { status: 500 }
-      );
-    }
-
-    // Atualizar último login
-    await supabaseAdmin
-      .from('admin_users')
-      .update({ last_login: new Date().toISOString() })
-      .eq('id', user.id);
-
-    // Registrar login bem-sucedido na auditoria
-    await logAudit('LOGIN', user.full_name || username, ip, true, { userId: user.id });
-
-    // Gerar token CSRF
-    const csrfToken = generateCSRFToken();
-
-    // Criar cookies de sessão
     const cookieStore = await cookies();
-    
-    // Cookie de sessão com token seguro
-    cookieStore.set('admin_session', sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: SESSION_DURATION_SECONDS,
-      path: '/',
-    });
-    
-    // Cookie CSRF (pode ser lido pelo JavaScript)
-    cookieStore.set('csrf_token', csrfToken, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: SESSION_DURATION_SECONDS,
-      path: '/',
-    });
+    cookieStore.set(CSRF_COOKIE, generateCSRFToken(), CSRF_COOKIE_OPTIONS);
 
-    // Retornar dados do usuário (sem dados sensíveis)
-    const safeUser = {
-      id: user.id,
-      username: user.username,
-      name: user.full_name,
-      email: user.email,
-    };
-
-    return NextResponse.json({
-      success: true,
-      user: safeUser,
-      csrfToken,
-    });
+    return NextResponse.json({ success: true, user: admin });
   } catch (error) {
     console.error('Erro na autenticação:', error);
     logSecurityEvent({

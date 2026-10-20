@@ -12,7 +12,7 @@ const Sidebar = ({ onOpenModal }: SidebarProps) => {
       <h3 className="text-xl sm:text-2xl font-black text-[#003f7f] mb-3 sm:mb-4">
         Quer contratar?
       </h3>
-      <p className="text-sm sm:text-base text-gray-700 mb-5 sm:mb-6 leading-relaxed text-justify">
+      <p className="text-sm sm:text-base text-gray-700 mb-5 sm:mb-6 leading-relaxed text-left sm:text-justify">
         Inicie seu recrutamento completo e preencha suas vagas!
       </p>
       <button
@@ -32,19 +32,19 @@ const Sidebar = ({ onOpenModal }: SidebarProps) => {
         <ul className="space-y-2 sm:space-y-3 text-sm sm:text-base text-gray-700">
           <li className="flex items-start gap-2">
             <span className="text-[#00a859] font-bold shrink-0">✓</span>
-            <span className="text-justify">Acesso a currículos qualificados</span>
+            <span className="text-left sm:text-justify">Acesso a currículos qualificados</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-[#00a859] font-bold shrink-0">✓</span>
-            <span className="text-justify">Divulgação gratuita para associados</span>
+            <span className="text-left sm:text-justify">Divulgação gratuita para associados</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-[#00a859] font-bold shrink-0">✓</span>
-            <span className="text-justify">Processo de recrutamento simplificado</span>
+            <span className="text-left sm:text-justify">Processo de recrutamento simplificado</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-[#00a859] font-bold shrink-0">✓</span>
-            <span className="text-justify">Suporte da equipe CDL</span>
+            <span className="text-left sm:text-justify">Suporte da equipe CDL</span>
           </li>
         </ul>
       </div>

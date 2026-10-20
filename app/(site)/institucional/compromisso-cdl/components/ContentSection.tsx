@@ -8,7 +8,7 @@ const ContentSection = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-xl sm:rounded-2xl p-6 sm:p-8 md:p-10 shadow-lg">
-            <div className="space-y-4 sm:space-y-5 md:space-y-6 text-gray-700 leading-relaxed text-justify">
+            <div className="space-y-4 sm:space-y-5 md:space-y-6 text-gray-700 leading-relaxed text-left sm:text-justify">
               <p className="text-sm xs:text-base sm:text-lg">
                 A <strong className="text-[#003f7f] font-bold">CDL Ipirá</strong> tem como compromisso fundamental representar, defender e fortalecer os interesses do comércio local, sempre trabalhando em prol do desenvolvimento econômico e social de nossa cidade.
               </p>

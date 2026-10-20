@@ -15,7 +15,7 @@ const ContactInfoSection = () => {
       <div className="space-y-6">
         {/* Telefone */}
         <a
-          href="tel:5575999145061"
+          href="tel:+5575999145061"
           className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex items-start gap-4 border-2 border-transparent hover:border-[#003f7f]"
         >
           <div className="bg-[#003f7f] text-white p-4 rounded-xl group-hover:scale-110 transition-transform">

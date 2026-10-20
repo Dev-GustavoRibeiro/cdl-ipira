@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { FaFileAlt, FaCalendarAlt, FaDownload, FaSpinner, FaFilePdf, FaFileWord, FaFileExcel, FaFile } from 'react-icons/fa';
+import { formatDateBR } from '@/lib/date';
 import { Documento } from './types';
 
 interface DocumentsSectionProps {
@@ -46,7 +47,7 @@ const DocumentCard = ({ doc, index, catIndex = 0 }: { doc: Documento; index: num
             <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-500">
               <div className="flex items-center gap-1.5">
                 <FaCalendarAlt className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span>{new Date(doc.date).toLocaleDateString('pt-BR')}</span>
+                <span>{formatDateBR(doc.date)}</span>
               </div>
               <span className={`${bg} ${color} px-2 sm:px-3 py-1 rounded-full font-bold text-xs`}>
                 {doc.type}

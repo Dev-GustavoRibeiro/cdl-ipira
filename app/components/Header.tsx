@@ -1,17 +1,21 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FaPhone, FaSearch, FaChevronRight, FaBuilding, FaNewspaper, FaBox, FaGift, FaHistory, FaUsers, FaBullseye, FaFileAlt, FaVideo, FaImages, FaCalendarAlt, FaEnvelope, FaShieldAlt, FaMobileAlt, FaCertificate, FaBolt, FaHeartbeat, FaTooth, FaCreditCard, FaStore, FaBroadcastTower, FaBriefcase, FaGraduationCap, FaHandshake, FaBalanceScale, FaStoreAlt, FaInfoCircle, FaMusic, FaTimes } from 'react-icons/fa';
+import { FaPhone, FaSearch, FaChevronRight, FaBuilding, FaNewspaper, FaBox, FaGift, FaHistory, FaUsers, FaBullseye, FaFileAlt, FaVideo, FaImages, FaCalendarAlt, FaEnvelope, FaShieldAlt, FaCertificate, FaBroadcastTower, FaBriefcase, FaHandshake, FaBalanceScale, FaStoreAlt, FaTimes, FaBullhorn } from 'react-icons/fa';
+
+type Dropdown = 'institucional' | 'imprensa' | 'produtos' | 'beneficios';
 
 const Header = () => {
   const router = useRouter();
-  const [isInstitucionalOpen, setIsInstitucionalOpen] = useState(false);
-  const [isImprensaOpen, setIsImprensaOpen] = useState(false);
-  const [isProdutosOpen, setIsProdutosOpen] = useState(false);
-  const [isBeneficiosOpen, setIsBeneficiosOpen] = useState(false);
+  // Apenas um dropdown aberto por vez
+  const [openDropdown, setOpenDropdown] = useState<Dropdown | null>(null);
+  const isInstitucionalOpen = openDropdown === 'institucional';
+  const isImprensaOpen = openDropdown === 'imprensa';
+  const isProdutosOpen = openDropdown === 'produtos';
+  const isBeneficiosOpen = openDropdown === 'beneficios';
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -39,66 +43,105 @@ const Header = () => {
     }
   };
 
-  // Refs para os dropdowns (para melhor controle)
-  const institucionalRef = useRef<HTMLDivElement>(null);
-  const imprensaRef = useRef<HTMLDivElement>(null);
-  const produtosRef = useRef<HTMLDivElement>(null);
-  const beneficiosRef = useRef<HTMLDivElement>(null);
+  const stickyRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+
+  // Publica a altura real do header fixo em --header-height (usada pelas barras de filtro sticky)
+  useEffect(() => {
+    const el = stickyRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const update = () => root.style.setProperty('--header-height', `${el.offsetHeight}px`);
+    update();
+    // iOS < 13.4 não tem ResizeObserver: fica com a medida inicial
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--header-height');
+    };
+  }, []);
+
+  // Fecha o dropdown ao clicar/tocar fora do menu
+  useEffect(() => {
+    if (!openDropdown) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (!navRef.current?.contains(e.target as Node)) setOpenDropdown(null);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [openDropdown]);
 
   // Timeouts para delay no fechamento
   const closeTimeouts = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  // Tipo do último ponteiro que pressionou um botão do menu (mouse, touch, pen)
+  const lastPointerType = useRef('');
 
-  // Função para abrir dropdown com delay no fechamento
-  const handleMouseEnter = (dropdown: string) => {
-    // Cancela qualquer timeout de fechamento pendente
+  const cancelClose = (dropdown: Dropdown) => {
     if (closeTimeouts.current[dropdown]) {
       clearTimeout(closeTimeouts.current[dropdown]);
       delete closeTimeouts.current[dropdown];
     }
+  };
 
-    switch (dropdown) {
-      case 'institucional':
-        setIsInstitucionalOpen(true);
-        break;
-      case 'imprensa':
-        setIsImprensaOpen(true);
-        break;
-      case 'produtos':
-        setIsProdutosOpen(true);
-        break;
-      case 'beneficios':
-        setIsBeneficiosOpen(true);
-        break;
+  const closeDropdown = (dropdown: Dropdown) => {
+    setOpenDropdown((current) => (current === dropdown ? null : current));
+  };
+
+  // Cada dropdown identifica seu wrapper com data-dropdown (handlers únicos para os 4 menus)
+  const dropdownOf = (el: Element) => el.closest<HTMLElement>('[data-dropdown]')?.dataset.dropdown as Dropdown;
+
+  // Hover só para mouse: no toque o dropdown abre/fecha pelo clique
+  const handlePointerEnter = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse') return;
+    const dropdown = dropdownOf(e.currentTarget);
+    cancelClose(dropdown);
+    setOpenDropdown(dropdown);
+  };
+
+  // Fecha com delay ao tirar o mouse
+  const handlePointerLeave = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse') return;
+    const dropdown = dropdownOf(e.currentTarget);
+    closeTimeouts.current[dropdown] = setTimeout(() => {
+      closeDropdown(dropdown);
+      delete closeTimeouts.current[dropdown];
+    }, 200); // 200ms de delay
+  };
+
+  // Esc fecha e devolve o foco ao botão do menu
+  const handleDropdownKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const dropdown = dropdownOf(e.currentTarget);
+    if (e.key === 'Escape' && openDropdown === dropdown) {
+      closeDropdown(dropdown);
+      e.currentTarget.querySelector('button')?.focus();
     }
   };
 
-  // Função para fechar dropdown com delay
-  const handleMouseLeave = (dropdown: string) => {
-    const timeout = setTimeout(() => {
-      switch (dropdown) {
-        case 'institucional':
-          setIsInstitucionalOpen(false);
-          break;
-        case 'imprensa':
-          setIsImprensaOpen(false);
-          break;
-        case 'produtos':
-          setIsProdutosOpen(false);
-          break;
-        case 'beneficios':
-          setIsBeneficiosOpen(false);
-          break;
-      }
-      delete closeTimeouts.current[dropdown];
-    }, 200); // 200ms de delay
+  // Fecha quando o foco vai para outro elemento fora do dropdown (Tab para fora).
+  // Sem relatedTarget (clique em área sem foco) quem fecha é o pointerdown externo.
+  const handleDropdownBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) closeDropdown(dropdownOf(e.currentTarget));
+  };
 
-    closeTimeouts.current[dropdown] = timeout;
+  const handleButtonPointerDown = (e: React.PointerEvent) => {
+    lastPointerType.current = e.pointerType;
+  };
+
+  // Clique: com mouse o hover já abriu, então mantém aberto; toque e teclado alternam
+  const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const dropdown = dropdownOf(e.currentTarget);
+    const keepOpen = lastPointerType.current === 'mouse';
+    lastPointerType.current = '';
+    cancelClose(dropdown);
+    setOpenDropdown((current) => (current === dropdown && !keepOpen ? null : dropdown));
   };
 
   return (
     <>
       {/* Wrapper sticky para mobile e desktop */}
-      <div className="sticky top-0 z-50">
+      <div ref={stickyRef} className="sticky top-0 z-50">
       {/* Barra azul superior */}
       <div className="bg-[#003f7f] text-white py-2 sm:py-2.5">
         <div className="container mx-auto px-3 sm:px-4">
@@ -115,7 +158,7 @@ const Header = () => {
       {/* Header Principal */}
       <header className="bg-white shadow-md" suppressHydrationWarning>
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
-          <div className="flex items-center justify-between gap-2 sm:gap-4 md:gap-6 lg:gap-8">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 lg:gap-6">
             {/* Logos */}
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0">
               <Link href="/" className="hover:opacity-80 transition-opacity flex items-center h-14 sm:h-20 md:h-24 lg:h-28 xl:h-32">
@@ -146,25 +189,33 @@ const Header = () => {
             </div>
 
             {/* Menu Desktop - Tablet e Desktop */}
-            <nav className="hidden md:flex items-center gap-3 lg:gap-4 xl:gap-6 flex-wrap" suppressHydrationWarning>
+            <nav ref={navRef} aria-label="Menu principal" className="hidden lg:flex items-center gap-1 xl:gap-2 2xl:gap-4 shrink-0" suppressHydrationWarning>
               <div
-                ref={institucionalRef}
                 className="relative group"
-                onMouseEnter={() => handleMouseEnter('institucional')}
-                onMouseLeave={() => handleMouseLeave('institucional')}
+                data-dropdown="institucional"
+                onPointerEnter={handlePointerEnter}
+                onPointerLeave={handlePointerLeave}
+                onKeyDown={handleDropdownKeyDown}
+                onBlur={handleDropdownBlur}
                 suppressHydrationWarning
               >
-                <button className={`text-gray-700 font-medium text-sm lg:text-base flex items-center gap-2 transition-all whitespace-nowrap px-2 py-1 rounded-md ${isInstitucionalOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
-                  <FaBuilding className="w-3.5 h-3.5" />
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={openDropdown === 'institucional'}
+                  onPointerDown={handleButtonPointerDown}
+                  onClick={handleButtonClick}
+                  className={`text-gray-700 font-medium text-sm 2xl:text-base flex items-center gap-1.5 transition-all whitespace-nowrap px-2 py-1.5 rounded-md ${isInstitucionalOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
+                  <FaBuilding className="hidden xl:block w-3.5 h-3.5 shrink-0" />
                   <span>Institucional</span>
-                  <svg className={`w-3 h-3 lg:w-4 lg:h-4 transition-transform duration-200 ${isInstitucionalOpen ? 'rotate-180 text-[#003f7f]' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                  <svg className={`w-3 h-3 2xl:w-4 2xl:h-4 transition-transform duration-200 ${isInstitucionalOpen ? 'rotate-180 text-[#003f7f]' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
 
                 {/* Dropdown Menu */}
                 {isInstitucionalOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden">
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden" onClick={() => setOpenDropdown(null)}>
                     <div className="bg-linear-to-r from-[#003f7f] to-[#0066cc] px-4 py-2 mb-1">
                       <h4 className="text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                         <FaBuilding className="w-3 h-3" />
@@ -216,23 +267,31 @@ const Header = () => {
               </div>
 
               <div
-                ref={imprensaRef}
                 className="relative group"
-                onMouseEnter={() => handleMouseEnter('imprensa')}
-                onMouseLeave={() => handleMouseLeave('imprensa')}
+                data-dropdown="imprensa"
+                onPointerEnter={handlePointerEnter}
+                onPointerLeave={handlePointerLeave}
+                onKeyDown={handleDropdownKeyDown}
+                onBlur={handleDropdownBlur}
                 suppressHydrationWarning
               >
-                <button className={`text-gray-700 font-medium text-sm lg:text-base flex items-center gap-2 transition-all whitespace-nowrap px-2 py-1 rounded-md ${isImprensaOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
-                  <FaNewspaper className="w-3.5 h-3.5" />
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={openDropdown === 'imprensa'}
+                  onPointerDown={handleButtonPointerDown}
+                  onClick={handleButtonClick}
+                  className={`text-gray-700 font-medium text-sm 2xl:text-base flex items-center gap-1.5 transition-all whitespace-nowrap px-2 py-1.5 rounded-md ${isImprensaOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
+                  <FaNewspaper className="hidden xl:block w-3.5 h-3.5 shrink-0" />
                   <span>Imprensa</span>
-                  <svg className={`w-3 h-3 lg:w-4 lg:h-4 transition-transform duration-200 ${isImprensaOpen ? 'rotate-180 text-[#003f7f]' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                  <svg className={`w-3 h-3 2xl:w-4 2xl:h-4 transition-transform duration-200 ${isImprensaOpen ? 'rotate-180 text-[#003f7f]' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
 
                 {/* Dropdown Menu Imprensa */}
                 {isImprensaOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden">
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden" onClick={() => setOpenDropdown(null)}>
                     <div className="bg-linear-to-r from-[#00a859] to-[#00d670] px-4 py-2 mb-1">
                       <h4 className="text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                         <FaNewspaper className="w-3 h-3" />
@@ -245,6 +304,14 @@ const Header = () => {
                     >
                       <FaFileAlt className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
                       <span className="flex-1">Notícias</span>
+                      <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                    </Link>
+                    <Link
+                      href="/imprensa/campanhas"
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#00a859] hover:text-white transition-all group/item"
+                    >
+                      <FaBullhorn className="w-4 h-4 text-[#00a859] group-hover/item:text-white transition-colors" />
+                      <span className="flex-1">Campanhas</span>
                       <FaChevronRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
                     </Link>
                     <Link
@@ -291,28 +358,36 @@ const Header = () => {
                 )}
               </div>
 
-              <a href="https://app.higestor.com.br/inscricao/empresa/cdl-ipira" target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-[#003f7f] font-medium text-sm lg:text-base transition-colors whitespace-nowrap">
+              <a href="https://app.higestor.com.br/inscricao/empresa/cdl-ipira" target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-[#003f7f] hover:bg-gray-50 font-medium text-sm 2xl:text-base transition-colors whitespace-nowrap px-2 py-1.5 rounded-md">
                 Filie-se
               </a>
 
               <div
-                ref={produtosRef}
                 className="relative group"
-                onMouseEnter={() => handleMouseEnter('produtos')}
-                onMouseLeave={() => handleMouseLeave('produtos')}
+                data-dropdown="produtos"
+                onPointerEnter={handlePointerEnter}
+                onPointerLeave={handlePointerLeave}
+                onKeyDown={handleDropdownKeyDown}
+                onBlur={handleDropdownBlur}
                 suppressHydrationWarning
               >
-                <button className={`text-gray-700 font-medium text-sm lg:text-base flex items-center gap-2 transition-all whitespace-nowrap px-2 py-1 rounded-md ${isProdutosOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
-                  <FaBox className="w-3.5 h-3.5" />
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={openDropdown === 'produtos'}
+                  onPointerDown={handleButtonPointerDown}
+                  onClick={handleButtonClick}
+                  className={`text-gray-700 font-medium text-sm 2xl:text-base flex items-center gap-1.5 transition-all whitespace-nowrap px-2 py-1.5 rounded-md ${isProdutosOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
+                  <FaBox className="hidden xl:block w-3.5 h-3.5 shrink-0" />
                   <span>Produtos</span>
-                  <svg className={`w-3 h-3 lg:w-4 lg:h-4 transition-transform duration-200 ${isProdutosOpen ? 'rotate-180 text-[#003f7f]' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                  <svg className={`w-3 h-3 2xl:w-4 2xl:h-4 transition-transform duration-200 ${isProdutosOpen ? 'rotate-180 text-[#003f7f]' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
 
                 {/* Dropdown Menu Produtos */}
                 {isProdutosOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 max-h-[500px] overflow-y-auto animate-blur-fade-in scrollbar-thin scrollbar-thumb-[#003f7f] scrollbar-track-gray-100">
+                  <div className="absolute top-full left-0 mt-1 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 max-h-[500px] overflow-y-auto animate-blur-fade-in scrollbar-thin scrollbar-thumb-[#003f7f] scrollbar-track-gray-100" onClick={() => setOpenDropdown(null)}>
                     <div className="bg-linear-to-r from-[#ffd000] to-[#ffed4e] px-4 py-2 mb-1 sticky top-0">
                       <h4 className="text-[#003f7f] text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                         <FaBox className="w-3 h-3" />
@@ -356,23 +431,31 @@ const Header = () => {
               </div>
 
               <div
-                ref={beneficiosRef}
                 className="relative group"
-                onMouseEnter={() => handleMouseEnter('beneficios')}
-                onMouseLeave={() => handleMouseLeave('beneficios')}
+                data-dropdown="beneficios"
+                onPointerEnter={handlePointerEnter}
+                onPointerLeave={handlePointerLeave}
+                onKeyDown={handleDropdownKeyDown}
+                onBlur={handleDropdownBlur}
                 suppressHydrationWarning
               >
-                <button className={`text-gray-700 font-medium text-sm lg:text-base flex items-center gap-2 transition-all whitespace-nowrap px-2 py-1 rounded-md ${isBeneficiosOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
-                  <FaGift className="w-3.5 h-3.5" />
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={openDropdown === 'beneficios'}
+                  onPointerDown={handleButtonPointerDown}
+                  onClick={handleButtonClick}
+                  className={`text-gray-700 font-medium text-sm 2xl:text-base flex items-center gap-1.5 transition-all whitespace-nowrap px-2 py-1.5 rounded-md ${isBeneficiosOpen ? 'text-[#003f7f] bg-blue-50' : 'hover:text-[#003f7f] hover:bg-gray-50'}`}>
+                  <FaGift className="hidden xl:block w-3.5 h-3.5 shrink-0" />
                   <span>Benefícios</span>
-                  <svg className={`w-3 h-3 lg:w-4 lg:h-4 transition-transform duration-200 ${isBeneficiosOpen ? 'rotate-180 text-[#003f7f]' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                  <svg className={`w-3 h-3 2xl:w-4 2xl:h-4 transition-transform duration-200 ${isBeneficiosOpen ? 'rotate-180 text-[#003f7f]' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
 
                 {/* Dropdown Menu Benefícios */}
                 {isBeneficiosOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden">
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-blur-fade-in overflow-hidden" onClick={() => setOpenDropdown(null)}>
                     <div className="bg-linear-to-r from-[#ff6b6b] to-[#ff8787] px-4 py-2 mb-1">
                       <h4 className="text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                         <FaGift className="w-3 h-3" />
@@ -401,14 +484,15 @@ const Header = () => {
             </nav>
 
             {/* Campo de Busca - Desktop */}
-            <form onSubmit={handleSearch} className="hidden xl:flex items-center gap-2 bg-gray-100 rounded-full px-3 lg:px-4 py-1.5 lg:py-2 flex-1 max-w-md ml-4">
+            <form onSubmit={handleSearch} className="hidden 2xl:flex items-center gap-2 bg-gray-100 rounded-full px-4 py-2 flex-1 max-w-md min-w-0">
               <input
                 type="text"
                 name="search"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Pesquise em cdlipira.com.br"
-                className="bg-transparent outline-none flex-1 text-xs lg:text-sm"
+                aria-label="Pesquisar no site"
+                className="bg-transparent outline-none flex-1 min-w-0 text-sm"
               />
               <button
                 type="submit"
@@ -422,7 +506,7 @@ const Header = () => {
             <button
               suppressHydrationWarning
               onClick={toggleMobileSearch}
-              className="xl:hidden text-[#003f7f] text-lg sm:text-xl p-2 hover:bg-gray-100 rounded-full transition-colors"
+              className="2xl:hidden shrink-0 text-[#003f7f] text-lg sm:text-xl p-2 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Pesquisar"
             >
               <FaSearch />
@@ -432,7 +516,7 @@ const Header = () => {
 
         {/* Barra de Pesquisa Mobile */}
         {isMobileSearchOpen && (
-          <div className="xl:hidden border-t border-gray-200 bg-white px-3 sm:px-4 py-3 animate-slide-down">
+          <div className="2xl:hidden border-t border-gray-200 bg-white px-3 sm:px-4 py-3 animate-slide-down">
             <form onSubmit={handleSearch} className="flex items-center gap-2">
               <div className="flex-1 relative">
                 <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -443,6 +527,7 @@ const Header = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="O que você está procurando?"
+                  aria-label="Pesquisar no site"
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-100 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#003f7f]/30 transition-all"
                   autoFocus
                 />

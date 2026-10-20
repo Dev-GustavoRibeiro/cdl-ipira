@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaImage, FaSave, FaCloudUploadAlt, FaUsers } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaCloudUploadAlt, FaUsers, FaBullhorn } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/app/components/Modal';
 import RegistrationListModal from '@/app/admin/components/RegistrationListModal';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import { formatDateBR, isTodayOrFuture, todayISO } from '@/lib/date';
+import type { Campaign } from '@/lib/campaigns';
 
 interface Evento {
   id: number;
@@ -21,6 +23,7 @@ interface Evento {
   gradient?: string;
   attendees?: number;
   registrations_count?: number;
+  campaign_id?: number | null;
 }
 
 const CATEGORIES = ['Networking', 'Capacitação', 'Feira', 'Palestra', 'Institucional', 'Reunião'];
@@ -40,6 +43,7 @@ const GRADIENTS = [
 
 export default function AdminEventosPage() {
   const [eventos, setEventos] = useState<Evento[]>([]);
+  const [campanhas, setCampanhas] = useState<Pick<Campaign, 'id' | 'title'>[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -54,7 +58,7 @@ export default function AdminEventosPage() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayISO(),
     time: '19:00',
     location: '',
     category: '',
@@ -62,6 +66,7 @@ export default function AdminEventosPage() {
     image: '',
     gradient: 'from-[#003f7f] to-[#0066cc]',
     attendees: 0,
+    campaign_id: '',
   });
 
   // Delete modal state
@@ -70,6 +75,11 @@ export default function AdminEventosPage() {
 
   useEffect(() => {
     fetchEventos();
+    // Campanhas para o select (se falhar, o formulário segue só com "Nenhuma")
+    fetch('/api/admin/campanhas')
+      .then((response) => (response.ok ? response.json() : []))
+      .then(setCampanhas)
+      .catch(() => setCampanhas([]));
   }, []);
 
   async function fetchEventos() {
@@ -81,7 +91,7 @@ export default function AdminEventosPage() {
       if (!response.ok) throw new Error(data.error || 'Erro ao carregar eventos');
 
       if (data) {
-        const mappedEventos = data.map((item: any) => ({
+        const mappedEventos = data.map((item: Evento) => ({
           id: item.id,
           title: item.title,
           date: item.date,
@@ -93,7 +103,8 @@ export default function AdminEventosPage() {
           image: item.image,
           gradient: item.gradient,
           attendees: item.attendees || 0,
-          registrations_count: item.registrations_count || 0
+          registrations_count: item.registrations_count || 0,
+          campaign_id: item.campaign_id ?? null
         }));
         setEventos(mappedEventos as Evento[]);
       }
@@ -146,13 +157,14 @@ export default function AdminEventosPage() {
         image: evento.image || '',
         gradient: evento.gradient || 'from-[#003f7f] to-[#0066cc]',
         attendees: evento.attendees || 0,
+        campaign_id: evento.campaign_id ? String(evento.campaign_id) : '',
       });
     } else {
       setEditingId(null);
       setFormData({
         title: '',
         description: '',
-        date: new Date().toISOString().split('T')[0],
+        date: todayISO(),
         time: '19:00',
         location: '',
         category: '',
@@ -160,6 +172,7 @@ export default function AdminEventosPage() {
         image: '',
         gradient: 'from-[#003f7f] to-[#0066cc]',
         attendees: 0,
+        campaign_id: '',
       });
     }
     setIsModalOpen(true);
@@ -183,19 +196,19 @@ export default function AdminEventosPage() {
       uploadFormData.append('file', file);
       uploadFormData.append('bucket', 'events');
 
-      const response = await fetchWithCSRF('/api/admin/upload', {
+      const response = await fetchWithCSRF('/api/upload', {
         method: 'POST',
         body: uploadFormData
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao enviar imagem');
+      if (!response.ok || !data.url) throw new Error(data.error || 'Erro ao enviar imagem');
 
-      setFormData({ ...formData, image: data.url });
+      setFormData((current) => ({ ...current, image: data.url }));
       toast.success('Imagem enviada com sucesso!');
     } catch (error) {
       console.error('Erro ao enviar imagem:', error);
-      toast.error('Erro ao enviar imagem. Verifique se o bucket "events" existe.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao enviar imagem.');
     } finally {
       setIsUploading(false);
     }
@@ -217,7 +230,8 @@ export default function AdminEventosPage() {
         status: formData.status,
         image: formData.image,
         gradient: formData.gradient,
-        attendees: formData.attendees
+        attendees: formData.attendees,
+        campaign_id: formData.campaign_id ? Number(formData.campaign_id) : null
       };
 
       const response = await fetchWithCSRF('/api/admin/eventos', {
@@ -291,6 +305,7 @@ export default function AdminEventosPage() {
           <input
             type="text"
             placeholder="Buscar eventos..."
+            aria-label="Buscar eventos"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-11 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -316,7 +331,7 @@ export default function AdminEventosPage() {
             <tbody className="divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8">
+                  <td colSpan={8} className="text-center py-8">
                     <div className="flex justify-center items-center gap-2 text-[#00a859]">
                       <FaSpinner className="animate-spin" />
                       <span>Carregando eventos...</span>
@@ -325,22 +340,30 @@ export default function AdminEventosPage() {
                 </tr>
               ) : filteredEventos.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-gray-500">
+                  <td colSpan={8} className="text-center py-8 text-gray-500">
                     Nenhum evento encontrado.
                   </td>
                 </tr>
               ) : (
                 filteredEventos.map((evento) => {
-                  const statusBadge = getStatusBadge(evento.status);
+                  // A coluna status não é atualizada sozinha: evento com data passada é "Realizado"
+                  const statusBadge = getStatusBadge(isTodayOrFuture(evento.date) ? evento.status : 'past');
+                  const campanha = campanhas.find((c) => c.id === evento.campaign_id);
                   return (
                     <tr key={evento.id} className="hover:bg-gray-50">
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
                         <div className="text-sm sm:text-base font-semibold text-gray-900">
                           {evento.title}
                         </div>
+                        {campanha && (
+                          <span className="inline-flex items-center gap-1 mt-1 bg-[#ffd000]/20 text-[#003f7f] px-2 py-0.5 rounded-full text-xs font-bold">
+                            <FaBullhorn className="w-3 h-3" aria-hidden="true" />
+                            {campanha.title}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
-                        {new Date(evento.date).toLocaleDateString('pt-BR')}
+                        {formatDateBR(evento.date)}
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
                         {evento.location}
@@ -359,6 +382,7 @@ export default function AdminEventosPage() {
                         <button
                           onClick={() => handleOpenRegistrationList(evento)}
                           className="flex items-center gap-1 text-[#003f7f] hover:underline font-medium text-sm"
+                          aria-label={`Ver inscritos de ${evento.title}`}
                         >
                           <FaUsers className="w-4 h-4" />
                           {evento.registrations_count || 0}
@@ -374,6 +398,7 @@ export default function AdminEventosPage() {
                             target="_blank"
                             className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
                             title="Visualizar"
+                            aria-label={`Visualizar ${evento.title} no site`}
                           >
                             <FaEye className="w-4 h-4" />
                           </Link>
@@ -381,6 +406,7 @@ export default function AdminEventosPage() {
                             onClick={() => handleOpenModal(evento)}
                             className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
                             title="Editar"
+                            aria-label={`Editar ${evento.title}`}
                           >
                             <FaEdit className="w-4 h-4" />
                           </button>
@@ -388,6 +414,7 @@ export default function AdminEventosPage() {
                             onClick={() => handleDelete(evento.id)}
                             className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
                             title="Excluir"
+                            aria-label={`Excluir ${evento.title}`}
                           >
                             <FaTrash className="w-4 h-4" />
                           </button>
@@ -411,11 +438,12 @@ export default function AdminEventosPage() {
           {/* ... (Mesmo formulário anterior) ... */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-title" className="block text-sm font-bold text-gray-700 mb-2">
                 Título do Evento *
               </label>
               <input
                 type="text"
+                id="evento-title"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
@@ -426,11 +454,12 @@ export default function AdminEventosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-date" className="block text-sm font-bold text-gray-700 mb-2">
                 Data *
               </label>
               <input
                 type="date"
+                id="evento-date"
                 name="date"
                 value={formData.date}
                 onChange={handleChange}
@@ -440,11 +469,12 @@ export default function AdminEventosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-time" className="block text-sm font-bold text-gray-700 mb-2">
                 Horário *
               </label>
               <input
                 type="time"
+                id="evento-time"
                 name="time"
                 value={formData.time}
                 onChange={handleChange}
@@ -454,11 +484,12 @@ export default function AdminEventosPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-location" className="block text-sm font-bold text-gray-700 mb-2">
                 Local *
               </label>
               <input
                 type="text"
+                id="evento-location"
                 name="location"
                 value={formData.location}
                 onChange={handleChange}
@@ -469,10 +500,11 @@ export default function AdminEventosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-category" className="block text-sm font-bold text-gray-700 mb-2">
                 Categoria *
               </label>
               <select
+                id="evento-category"
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
@@ -487,10 +519,11 @@ export default function AdminEventosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-status" className="block text-sm font-bold text-gray-700 mb-2">
                 Status *
               </label>
               <select
+                id="evento-status"
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
@@ -505,11 +538,12 @@ export default function AdminEventosPage() {
 
             {/* Nova entrada para número de participantes */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-attendees" className="block text-sm font-bold text-gray-700 mb-2">
                 Inscritos (Exibido no Site)
               </label>
               <input
                 type="number"
+                id="evento-attendees"
                 name="attendees"
                 value={formData.attendees || 0}
                 onChange={handleChange}
@@ -523,10 +557,11 @@ export default function AdminEventosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-gradient" className="block text-sm font-bold text-gray-700 mb-2">
                 Cor de Fundo (Card)
               </label>
               <select
+                id="evento-gradient"
                 name="gradient"
                 value={formData.gradient}
                 onChange={handleChange}
@@ -539,10 +574,29 @@ export default function AdminEventosPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-campaign" className="block text-sm font-bold text-gray-700 mb-2">
+                Campanha
+              </label>
+              <select
+                id="evento-campaign"
+                name="campaign_id"
+                value={formData.campaign_id}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+              >
+                <option value="">Nenhuma</option>
+                {campanhas.map(campanha => (
+                  <option key={campanha.id} value={campanha.id}>{campanha.title}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="evento-description" className="block text-sm font-bold text-gray-700 mb-2">
                 Descrição *
               </label>
               <textarea
+                id="evento-description"
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
@@ -554,7 +608,7 @@ export default function AdminEventosPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="evento-image-file" className="block text-sm font-bold text-gray-700 mb-2">
                 Imagem de Capa
               </label>
 
@@ -562,7 +616,7 @@ export default function AdminEventosPage() {
                 <div className="flex items-center gap-4">
                   {/* Opção 1: Upload de Arquivo */}
                   <div className="flex-1">
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors focus-within:ring-2 focus-within:ring-[#003f7f]">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
                         {isUploading ? (
                           <FaSpinner className="w-8 h-8 text-gray-400 animate-spin mb-2" />
@@ -575,8 +629,9 @@ export default function AdminEventosPage() {
                         <p className="text-xs text-gray-500">PNG, JPG ou WEBP</p>
                       </div>
                       <input
+                        id="evento-image-file"
                         type="file"
-                        className="hidden"
+                        className="sr-only"
                         accept="image/*"
                         onChange={handleImageUpload}
                         disabled={isUploading}
@@ -597,6 +652,7 @@ export default function AdminEventosPage() {
                         onClick={() => setFormData({ ...formData, image: '' })}
                         className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                         title="Remover imagem"
+                        aria-label="Remover imagem"
                       >
                         <FaTrash className="w-3 h-3" />
                       </button>
@@ -606,8 +662,9 @@ export default function AdminEventosPage() {
 
                 {/* Opção 2: URL Direta */}
                 <div className="flex gap-3 items-center">
-                  <span className="text-sm text-gray-500">Ou cole a URL:</span>
+                  <label htmlFor="evento-image-url" className="text-sm text-gray-500">Ou cole a URL:</label>
                   <input
+                    id="evento-image-url"
                     type="url"
                     name="image"
                     value={formData.image}

@@ -38,7 +38,7 @@ const ContentTypesSection = () => {
               <FaFileAlt className="w-12 h-12 text-[#ffd000] mb-4" />
               <h3 className="text-xl font-bold text-gray-900 mb-3">Histórias Inspiradoras</h3>
               <p className="text-gray-600">
-                Conte a trajetória da sua empresa no projeto "Minha Empresa Faz História".
+                Conte a trajetória da sua empresa no projeto &quot;Minha Empresa Faz História&quot;.
               </p>
             </div>
           </div>

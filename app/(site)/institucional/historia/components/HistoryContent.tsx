@@ -51,15 +51,15 @@ const HistoryContent = () => {
             </h2>
 
             <div className="space-y-5 text-gray-700 leading-relaxed">
-              <p className="text-base sm:text-lg text-justify">
+              <p className="text-base sm:text-lg text-left sm:text-justify">
                 A <strong className="text-[#003f7f]">Câmara de Dirigentes Lojistas de Ipirá (CDL Ipirá)</strong> nasceu do sonho de um grupo de empresários visionários que acreditavam no poder da união para fortalecer o comércio local.
               </p>
 
-              <p className="text-base sm:text-lg text-justify">
+              <p className="text-base sm:text-lg text-left sm:text-justify">
                 Desde sua fundação, a CDL Ipirá tem sido uma instituição fundamental para o <strong className="text-[#00a859]">desenvolvimento econômico e social</strong> de nossa cidade, oferecendo serviços essenciais como o SPC Brasil, assessoria jurídica, certificado digital e muito mais.
               </p>
 
-              <p className="text-base sm:text-lg text-justify">
+              <p className="text-base sm:text-lg text-left sm:text-justify">
                 Ao longo dos anos, expandimos nossa atuação, sempre inovando e buscando as melhores soluções para nossos associados. Promovemos eventos, cursos e ações que fortalecem não apenas o setor comercial, mas toda a comunidade.
               </p>
             </div>

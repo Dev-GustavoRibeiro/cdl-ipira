@@ -66,7 +66,7 @@ const JobsGrid = ({ jobs, isLoading, onJobClick }: JobsGridProps) => {
             </div>
           </div>
 
-          <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-5 leading-relaxed text-justify line-clamp-3">
+          <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-5 leading-relaxed text-left sm:text-justify line-clamp-3">
             {job.description}
           </p>
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
 import { isValidEmail, sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
+import { todayISO } from '@/lib/date';
 
 function sanitizePhone(value: string | undefined): string | null {
   if (!value) return null;
@@ -53,6 +55,10 @@ function validateJobPayload(payload: ReturnType<typeof sanitizeJobPayload>) {
 }
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('jobs')
@@ -71,6 +77,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizeJobPayload(body);
@@ -85,7 +95,7 @@ export async function POST(request: NextRequest) {
       .insert([
         {
           ...payload,
-          date: payload.date || new Date().toISOString().split('T')[0],
+          date: payload.date || todayISO(),
         },
       ])
       .select()
@@ -105,6 +115,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const id = Number(body.id);
@@ -144,6 +158,10 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));

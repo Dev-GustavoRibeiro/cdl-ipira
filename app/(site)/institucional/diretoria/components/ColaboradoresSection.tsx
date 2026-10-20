@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { FaUser } from 'react-icons/fa';
-import { TeamMember } from './types';
+import { TeamMember, isStorageImage } from './types';
 
 interface ColaboradoresSectionProps {
   colaboradores: TeamMember[];
@@ -23,7 +23,7 @@ const ColaboradoresSection = ({ colaboradores }: ColaboradoresSectionProps) => {
             Colaboradores
           </h2>
           <div className="w-20 sm:w-24 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-3 sm:mb-4"></div>
-          <p className="text-gray-700 text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4 text-justify">
+          <p className="text-gray-700 text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4 text-left sm:text-justify">
             Profissionais dedicados que trabalham diariamente para oferecer o melhor atendimento e serviços aos associados
           </p>
         </div>
@@ -45,7 +45,7 @@ const ColaboradoresSection = ({ colaboradores }: ColaboradoresSectionProps) => {
                     className="object-cover object-top"
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     quality={100}
-                    unoptimized
+                    unoptimized={!isStorageImage(colaborador.photo_url)}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full bg-gray-200">
@@ -96,7 +96,7 @@ const ColaboradoresSection = ({ colaboradores }: ColaboradoresSectionProps) => {
                         Contribuição
                       </span>
                     </div>
-                    <p className="text-gray-600 text-xs xs:text-sm leading-relaxed text-justify">
+                    <p className="text-gray-600 text-xs xs:text-sm leading-relaxed text-left sm:text-justify">
                       {colaborador.contribution}
                     </p>
                   </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   FaUniversalAccess, 
@@ -21,6 +21,7 @@ import {
   FaKeyboard,
   FaSearchPlus
 } from 'react-icons/fa';
+import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 
 interface AccessibilitySettings {
   fontSize: number;
@@ -52,27 +53,168 @@ const defaultSettings: AccessibilitySettings = {
   zoom: 100,
 };
 
+const STORAGE_KEY = 'accessibility-settings';
+
+// Lê as preferências salvas (no servidor e sem storage, usa o padrão)
+function loadSettings(): AccessibilitySettings {
+  if (typeof window === 'undefined') return defaultSettings;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+  } catch {
+    return defaultSettings;
+  }
+}
+
+// Aplicar configurações ao DOM
+function applySettings(newSettings: AccessibilitySettings) {
+  const root = document.documentElement;
+  
+  // Tamanho da fonte - aplicado apenas se não estiver usando zoom
+  if (newSettings.zoom === 100) {
+    root.style.fontSize = `${newSettings.fontSize}%`;
+  }
+  
+  // Destacar links
+  root.classList.toggle('highlight-links', newSettings.highlightLinks);
+  
+  // Cursor grande
+  root.classList.toggle('large-cursor', newSettings.largeCursor);
+  
+  // Espaçamento de linha
+  root.style.setProperty('--line-height-multiplier', `${newSettings.lineHeight / 100}`);
+  
+  // Fonte para dislexia (OpenDyslexic via cdn.jsdelivr.net, ver globals.css)
+  root.classList.toggle('dyslexic-font', newSettings.dyslexicFont);
+  
+  // Pausar animações
+  root.classList.toggle('pause-animations', newSettings.pauseAnimations);
+  
+  // Guia de leitura
+  root.classList.toggle('reading-guide-active', newSettings.readingGuide);
+  
+  // Espaçamento de letras
+  root.style.setProperty('--letter-spacing', `${newSettings.letterSpacing}px`);
+  root.classList.toggle('custom-letter-spacing', newSettings.letterSpacing > 0);
+  
+  // Espaçamento de palavras
+  root.style.setProperty('--word-spacing', `${newSettings.wordSpacing}px`);
+  root.classList.toggle('custom-word-spacing', newSettings.wordSpacing > 0);
+  
+  // Destaque de foco
+  root.classList.toggle('focus-highlight', newSettings.focusHighlight);
+  
+  // Zoom - usando font-size para não quebrar responsividade
+  root.style.setProperty('--page-zoom', `${newSettings.zoom / 100}`);
+  root.classList.toggle('custom-zoom', newSettings.zoom !== 100);
+}
+
+// Componente de slider ajustável
+const AdjustableSlider = ({ 
+  label, 
+  value, 
+  unit, 
+  icon: Icon, 
+  onDecrease, 
+  onIncrease,
+  min,
+  max 
+}: { 
+  label: string; 
+  value: number; 
+  unit: string; 
+  icon: React.ElementType; 
+  onDecrease: () => void; 
+  onIncrease: () => void;
+  min: number;
+  max: number;
+}) => (
+  <div className="bg-gray-50 rounded-xl p-3 md:p-4">
+    <div className="flex items-center justify-between mb-2 md:mb-3">
+      <div className="flex items-center gap-2">
+        <Icon className="w-4 h-4 md:w-5 md:h-5 text-[var(--cdl-blue)]" />
+        <span className="font-semibold text-gray-700 text-xs md:text-sm">{label}</span>
+      </div>
+      <span className="text-xs md:text-sm font-medium text-[var(--cdl-blue)]" aria-live="polite">{value}{unit}</span>
+    </div>
+    <div className="flex items-center justify-center gap-2 md:gap-3">
+      <button
+        type="button"
+        onClick={onDecrease}
+        disabled={value <= min}
+        className="w-8 h-8 md:w-10 md:h-10 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center hover:border-[var(--cdl-blue)] hover:text-[var(--cdl-blue)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-label={`Diminuir ${label.toLowerCase()}`}
+      >
+        <FaMinus className="w-2.5 h-2.5 md:w-3 md:h-3" />
+      </button>
+      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div 
+          className="h-full bg-[var(--cdl-blue)] transition-all duration-300"
+          style={{ width: `${((value - min) / (max - min)) * 100}%` }}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onIncrease}
+        disabled={value >= max}
+        className="w-8 h-8 md:w-10 md:h-10 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center hover:border-[var(--cdl-blue)] hover:text-[var(--cdl-blue)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-label={`Aumentar ${label.toLowerCase()}`}
+      >
+        <FaPlus className="w-2.5 h-2.5 md:w-3 md:h-3" />
+      </button>
+    </div>
+  </div>
+);
+
+// Componente de toggle
+const ToggleButton = ({ 
+  label, 
+  description,
+  active, 
+  icon: Icon, 
+  onClick 
+}: { 
+  label: string; 
+  description?: string;
+  active: boolean; 
+  icon: React.ElementType; 
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={active}
+    className={`w-full flex items-center justify-between p-2 md:p-3 rounded-xl border-2 transition-all text-left ${
+      active 
+        ? 'border-[var(--cdl-green)] bg-green-50' 
+        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+    }`}
+  >
+    <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+      <Icon className={`w-4 h-4 md:w-5 md:h-5 flex-shrink-0 ${active ? 'text-[var(--cdl-green)]' : 'text-gray-500'}`} />
+      <div className="min-w-0">
+        <span className="font-medium text-gray-700 text-xs md:text-sm block truncate">{label}</span>
+        {description && <p className="text-[10px] md:text-xs text-gray-500 truncate">{description}</p>}
+      </div>
+    </div>
+    <div className={`w-9 h-5 md:w-11 md:h-6 rounded-full transition-all flex-shrink-0 ml-2 ${active ? 'bg-[var(--cdl-green)]' : 'bg-gray-300'}`}>
+      <div className={`w-3.5 h-3.5 md:w-4 md:h-4 bg-white rounded-full shadow-md transform transition-transform mt-0.5 md:mt-1 ${active ? 'translate-x-4 md:translate-x-6' : 'translate-x-1'}`} />
+    </div>
+  </button>
+);
+
 export default function AccessibilityWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [settings, setSettings] = useState<AccessibilitySettings>(defaultSettings);
+  const isClient = useIsClient();
+  const [settings, setSettings] = useState<AccessibilitySettings>(loadSettings);
   const [activeTab, setActiveTab] = useState<'visual' | 'content' | 'navigation'>('visual');
   const [readingGuideY, setReadingGuideY] = useState(0);
+  const dialogRef = useModalBehavior<HTMLDivElement>(isOpen, () => setIsOpen(false));
 
-  // Carregar configurações salvas
+  // Aplica as configurações (salvas ou alteradas) ao documento
   useEffect(() => {
-    setMounted(true);
-    const savedSettings = localStorage.getItem('accessibility-settings');
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        setSettings({ ...defaultSettings, ...parsed });
-        applySettings({ ...defaultSettings, ...parsed });
-      } catch (e) {
-        console.error('Erro ao carregar configurações de acessibilidade:', e);
-      }
-    }
-  }, []);
+    applySettings(settings);
+  }, [settings]);
 
   // Reading Guide - seguir o mouse
   useEffect(() => {
@@ -86,55 +228,14 @@ export default function AccessibilityWidget() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, [settings.readingGuide]);
 
-  // Aplicar configurações ao DOM
-  const applySettings = useCallback((newSettings: AccessibilitySettings) => {
-    const root = document.documentElement;
-    
-    // Tamanho da fonte - aplicado apenas se não estiver usando zoom
-    if (newSettings.zoom === 100) {
-      root.style.fontSize = `${newSettings.fontSize}%`;
-    }
-    
-    // Destacar links
-    root.classList.toggle('highlight-links', newSettings.highlightLinks);
-    
-    // Cursor grande
-    root.classList.toggle('large-cursor', newSettings.largeCursor);
-    
-    // Espaçamento de linha
-    root.style.setProperty('--line-height-multiplier', `${newSettings.lineHeight / 100}`);
-    
-    // Fonte para dislexia
-    root.classList.toggle('dyslexic-font', newSettings.dyslexicFont);
-    
-    // Pausar animações
-    root.classList.toggle('pause-animations', newSettings.pauseAnimations);
-    
-    // Guia de leitura
-    root.classList.toggle('reading-guide-active', newSettings.readingGuide);
-    
-    // Espaçamento de letras
-    root.style.setProperty('--letter-spacing', `${newSettings.letterSpacing}px`);
-    root.classList.toggle('custom-letter-spacing', newSettings.letterSpacing > 0);
-    
-    // Espaçamento de palavras
-    root.style.setProperty('--word-spacing', `${newSettings.wordSpacing}px`);
-    root.classList.toggle('custom-word-spacing', newSettings.wordSpacing > 0);
-    
-    // Destaque de foco
-    root.classList.toggle('focus-highlight', newSettings.focusHighlight);
-    
-    // Zoom - usando font-size para não quebrar responsividade
-    root.style.setProperty('--page-zoom', `${newSettings.zoom / 100}`);
-    root.classList.toggle('custom-zoom', newSettings.zoom !== 100);
-    
-  }, []);
-
-  // Salvar e aplicar configurações
+  // Salvar configurações (a aplicação ao DOM acontece no effect acima)
   const updateSettings = (newSettings: AccessibilitySettings) => {
     setSettings(newSettings);
-    localStorage.setItem('accessibility-settings', JSON.stringify(newSettings));
-    applySettings(newSettings);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+    } catch {
+      // Sem storage as configurações valem só nesta página
+    }
   };
 
   // Ajustar valores numéricos
@@ -166,103 +267,14 @@ export default function AccessibilityWidget() {
     }
   };
 
-  if (!mounted) return null;
-
-  // Componente de slider ajustável
-  const AdjustableSlider = ({ 
-    label, 
-    value, 
-    unit, 
-    icon: Icon, 
-    onDecrease, 
-    onIncrease,
-    min,
-    max 
-  }: { 
-    label: string; 
-    value: number; 
-    unit: string; 
-    icon: React.ElementType; 
-    onDecrease: () => void; 
-    onIncrease: () => void;
-    min: number;
-    max: number;
-  }) => (
-    <div className="bg-gray-50 rounded-xl p-3 md:p-4">
-      <div className="flex items-center justify-between mb-2 md:mb-3">
-        <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4 md:w-5 md:h-5 text-[var(--cdl-blue)]" />
-          <span className="font-semibold text-gray-700 text-xs md:text-sm">{label}</span>
-        </div>
-        <span className="text-xs md:text-sm font-medium text-[var(--cdl-blue)]">{value}{unit}</span>
-      </div>
-      <div className="flex items-center justify-center gap-2 md:gap-3">
-        <button
-          onClick={onDecrease}
-          disabled={value <= min}
-          className="w-8 h-8 md:w-10 md:h-10 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center hover:border-[var(--cdl-blue)] hover:text-[var(--cdl-blue)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label={`Diminuir ${label.toLowerCase()}`}
-        >
-          <FaMinus className="w-2.5 h-2.5 md:w-3 md:h-3" />
-        </button>
-        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-[var(--cdl-blue)] transition-all duration-300"
-            style={{ width: `${((value - min) / (max - min)) * 100}%` }}
-          />
-        </div>
-        <button
-          onClick={onIncrease}
-          disabled={value >= max}
-          className="w-8 h-8 md:w-10 md:h-10 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center hover:border-[var(--cdl-blue)] hover:text-[var(--cdl-blue)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label={`Aumentar ${label.toLowerCase()}`}
-        >
-          <FaPlus className="w-2.5 h-2.5 md:w-3 md:h-3" />
-        </button>
-      </div>
-    </div>
-  );
-
-  // Componente de toggle
-  const ToggleButton = ({ 
-    label, 
-    description,
-    active, 
-    icon: Icon, 
-    onClick 
-  }: { 
-    label: string; 
-    description?: string;
-    active: boolean; 
-    icon: React.ElementType; 
-    onClick: () => void;
-  }) => (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center justify-between p-2 md:p-3 rounded-xl border-2 transition-all text-left ${
-        active 
-          ? 'border-[var(--cdl-green)] bg-green-50' 
-          : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-      }`}
-    >
-      <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
-        <Icon className={`w-4 h-4 md:w-5 md:h-5 flex-shrink-0 ${active ? 'text-[var(--cdl-green)]' : 'text-gray-500'}`} />
-        <div className="min-w-0">
-          <span className="font-medium text-gray-700 text-xs md:text-sm block truncate">{label}</span>
-          {description && <p className="text-[10px] md:text-xs text-gray-500 truncate">{description}</p>}
-        </div>
-      </div>
-      <div className={`w-9 h-5 md:w-11 md:h-6 rounded-full transition-all flex-shrink-0 ml-2 ${active ? 'bg-[var(--cdl-green)]' : 'bg-gray-300'}`}>
-        <div className={`w-3.5 h-3.5 md:w-4 md:h-4 bg-white rounded-full shadow-md transform transition-transform mt-0.5 md:mt-1 ${active ? 'translate-x-4 md:translate-x-6' : 'translate-x-1'}`} />
-      </div>
-    </button>
-  );
+  if (!isClient) return null;
 
   return (
     <>
       {/* Guia de leitura */}
       {settings.readingGuide && (
         <div 
+          aria-hidden="true"
           className="fixed left-0 right-0 h-12 bg-yellow-300/30 pointer-events-none z-[9999] transition-all duration-75"
           style={{ top: `${readingGuideY - 24}px` }}
         />
@@ -270,8 +282,11 @@ export default function AccessibilityWidget() {
 
       {/* Botão flutuante de acessibilidade */}
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed left-3 bottom-20 md:left-4 md:bottom-6 z-40 w-12 h-12 md:w-14 md:h-14 bg-[var(--cdl-blue)] hover:bg-[var(--cdl-blue-light)] text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-4 focus:ring-[var(--cdl-yellow)]"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        className="fixed left-3 bottom-20 md:left-4 lg:bottom-6 z-40 w-12 h-12 md:w-14 md:h-14 bg-[var(--cdl-blue)] hover:bg-[var(--cdl-blue-light)] text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-4 focus:ring-[var(--cdl-yellow)]"
         aria-label="Abrir menu de acessibilidade"
         title="Acessibilidade"
       >
@@ -281,15 +296,17 @@ export default function AccessibilityWidget() {
       {/* Modal de acessibilidade */}
       {isOpen && createPortal(
         <div 
-          className="fixed inset-0 z-[9998] flex items-end md:items-center justify-center md:p-4 bg-black/50"
+          className="fixed inset-0 z-100 flex items-end md:items-center justify-center md:p-4 bg-black/50"
           onClick={(e) => e.target === e.currentTarget && setIsOpen(false)}
           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
         >
           <div 
+            ref={dialogRef}
             className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-md max-h-[85vh] md:max-h-[80vh] overflow-hidden"
             role="dialog"
             aria-modal="true"
             aria-labelledby="accessibility-title"
+            tabIndex={-1}
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-[var(--cdl-blue)] to-[var(--cdl-blue-light)] text-white p-3 md:p-4 flex items-center justify-between">
@@ -298,6 +315,7 @@ export default function AccessibilityWidget() {
                 <h2 id="accessibility-title" className="text-base md:text-lg font-bold">Acessibilidade</h2>
               </div>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
                 className="p-2 rounded-lg hover:bg-white/20 transition-colors"
                 aria-label="Fechar menu de acessibilidade"
@@ -309,6 +327,8 @@ export default function AccessibilityWidget() {
             {/* Tabs */}
             <div className="flex border-b bg-gray-50">
               <button
+                type="button"
+                aria-pressed={activeTab === 'visual'}
                 onClick={() => setActiveTab('visual')}
                 className={`flex-1 py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium transition-all ${
                   activeTab === 'visual' 
@@ -320,6 +340,8 @@ export default function AccessibilityWidget() {
                 Visual
               </button>
               <button
+                type="button"
+                aria-pressed={activeTab === 'content'}
                 onClick={() => setActiveTab('content')}
                 className={`flex-1 py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium transition-all ${
                   activeTab === 'content' 
@@ -331,6 +353,8 @@ export default function AccessibilityWidget() {
                 Conteúdo
               </button>
               <button
+                type="button"
+                aria-pressed={activeTab === 'navigation'}
                 onClick={() => setActiveTab('navigation')}
                 className={`flex-1 py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium transition-all ${
                   activeTab === 'navigation' 
@@ -431,6 +455,7 @@ export default function AccessibilityWidget() {
 
                   {/* Botão de Leitura */}
                   <button
+                    type="button"
                     onClick={speakSelectedText}
                     className="w-full flex items-center justify-center gap-2 p-2 md:p-3 rounded-xl border-2 border-[var(--cdl-blue)] bg-[var(--cdl-blue)]/10 text-[var(--cdl-blue)] hover:bg-[var(--cdl-blue)]/20 transition-all font-medium text-xs md:text-sm"
                   >
@@ -478,6 +503,7 @@ export default function AccessibilityWidget() {
             {/* Botão Resetar */}
             <div className="p-3 md:p-4 border-t">
               <button
+                type="button"
                 onClick={resetSettings}
                 className="w-full flex items-center justify-center gap-2 p-2 md:p-3 rounded-xl border-2 border-red-200 bg-red-50 text-red-600 hover:border-red-300 hover:bg-red-100 transition-all font-medium text-xs md:text-sm"
               >

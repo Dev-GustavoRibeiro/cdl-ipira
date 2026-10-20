@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
 import { sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 
 const VALID_ROLES = new Set(['presidente', 'vice_presidente', 'diretor', 'suplente', 'colaborador']);
 
@@ -36,6 +37,10 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
 }
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('team_members')
@@ -55,6 +60,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizePayload(body);
@@ -84,6 +93,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const id = Number(body.id);
@@ -120,6 +133,10 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));

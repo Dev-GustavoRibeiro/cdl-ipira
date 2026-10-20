@@ -8,6 +8,24 @@ interface ResultCardProps {
   result: SearchResult;
 }
 
+const storageHost = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').host;
+  } catch {
+    return '';
+  }
+})();
+
+// next/image só otimiza o Storage do Supabase (next.config); URLs coladas no admin vão direto, senão a imagem quebra
+function isOptimizable(src: string): boolean {
+  if (src.startsWith('/')) return !src.startsWith('//');
+  try {
+    return Boolean(storageHost) && new URL(src).host === storageHost;
+  } catch {
+    return false;
+  }
+}
+
 const ResultCard = ({ result }: ResultCardProps) => {
   const config = typeConfig[result.type] || typeConfig.page;
   const Icon = config.icon;
@@ -24,6 +42,8 @@ const ResultCard = ({ result }: ResultCardProps) => {
                 src={result.image}
                 alt={result.title}
                 fill
+                sizes="(min-width: 1024px) 256px, (min-width: 768px) 224px, (min-width: 640px) 192px, 100vw"
+                unoptimized={!isOptimizable(result.image)}
                 className="object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>

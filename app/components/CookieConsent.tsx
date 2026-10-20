@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
+import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 import { 
   FaCookieBite, 
-  FaTimes, 
   FaCheck, 
   FaCog,
   FaShieldAlt,
@@ -31,30 +32,38 @@ const defaultPreferences: CookiePreferences = {
 export default function CookieConsent() {
   const [isOpen, setIsOpen] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const isClient = useIsClient();
   const [preferences, setPreferences] = useState<CookiePreferences>(defaultPreferences);
+  // Escolha obrigatória: sem fechar com Esc, mas com foco preso no diálogo
+  const dialogRef = useModalBehavior<HTMLDivElement>(isOpen);
 
   useEffect(() => {
-    setMounted(true);
-    
-    // Verificar se já aceitou os cookies
-    const consent = localStorage.getItem('cookie-consent');
-    if (!consent) {
-      // Mostrar o banner após 1 segundo
-      const timer = setTimeout(() => {
-        setIsOpen(true);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      // Carregar preferências salvas
-      try {
-        const savedPreferences = JSON.parse(consent);
-        setPreferences(savedPreferences);
-      } catch (e) {
-        console.error('Erro ao carregar preferências de cookies:', e);
-      }
+    // Verificar se já escolheu (se já escolheu, o banner não abre e as preferências não são usadas)
+    let consent: string | null = null;
+    try {
+      consent = localStorage.getItem('cookie-consent');
+    } catch {
+      // Storage bloqueado: mostra o banner
     }
+    if (consent) return;
+
+    // Mostra só depois da tela de carregamento (~900ms), para os avisos não se sobreporem
+    const timer = setTimeout(() => {
+      setIsOpen(true);
+    }, 1200);
+    return () => clearTimeout(timer);
   }, []);
+
+  // Salva a escolha (o convite de instalar o app só aparece depois dela)
+  const saveConsent = (value: CookiePreferences) => {
+    try {
+      localStorage.setItem('cookie-consent', JSON.stringify(value));
+      localStorage.setItem('cookie-consent-date', new Date().toISOString());
+    } catch {
+      // Sem storage o banner volta na próxima visita
+    }
+    setIsOpen(false);
+  };
 
   const handleAcceptAll = () => {
     const allAccepted: CookiePreferences = {
@@ -64,9 +73,7 @@ export default function CookieConsent() {
       preferences: true,
     };
     setPreferences(allAccepted);
-    localStorage.setItem('cookie-consent', JSON.stringify(allAccepted));
-    localStorage.setItem('cookie-consent-date', new Date().toISOString());
-    setIsOpen(false);
+    saveConsent(allAccepted);
   };
 
   const handleAcceptNecessary = () => {
@@ -77,15 +84,11 @@ export default function CookieConsent() {
       preferences: false,
     };
     setPreferences(onlyNecessary);
-    localStorage.setItem('cookie-consent', JSON.stringify(onlyNecessary));
-    localStorage.setItem('cookie-consent-date', new Date().toISOString());
-    setIsOpen(false);
+    saveConsent(onlyNecessary);
   };
 
   const handleSavePreferences = () => {
-    localStorage.setItem('cookie-consent', JSON.stringify(preferences));
-    localStorage.setItem('cookie-consent-date', new Date().toISOString());
-    setIsOpen(false);
+    saveConsent(preferences);
   };
 
   const togglePreference = (key: keyof CookiePreferences) => {
@@ -96,15 +99,17 @@ export default function CookieConsent() {
     }));
   };
 
-  if (!mounted || !isOpen) return null;
+  if (!isClient || !isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center bg-black/30 backdrop-blur-sm">
+    <div className="fixed inset-0 z-100 flex items-end justify-center sm:items-center bg-black/30 backdrop-blur-sm">
       <div 
+        ref={dialogRef}
         className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="cookie-consent-title"
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-[var(--cdl-blue)] to-[var(--cdl-blue-light)] text-white p-5">
@@ -133,7 +138,9 @@ export default function CookieConsent() {
 
           {/* Botão para mostrar/ocultar detalhes */}
           <button
+            type="button"
             onClick={() => setShowDetails(!showDetails)}
+            aria-expanded={showDetails}
             className="flex items-center gap-2 text-[var(--cdl-blue)] font-medium text-sm hover:underline"
           >
             <FaCog className="w-4 h-4" />
@@ -168,7 +175,9 @@ export default function CookieConsent() {
 
               {/* Cookies de Análise */}
               <button
+                type="button"
                 onClick={() => togglePreference('analytics')}
+                aria-pressed={preferences.analytics}
                 className={`w-full bg-gray-50 rounded-xl p-4 border-2 text-left transition-all ${
                   preferences.analytics ? 'border-[var(--cdl-green)]' : 'border-gray-200 hover:border-gray-300'
                 }`}
@@ -197,7 +206,9 @@ export default function CookieConsent() {
 
               {/* Cookies de Marketing */}
               <button
+                type="button"
                 onClick={() => togglePreference('marketing')}
+                aria-pressed={preferences.marketing}
                 className={`w-full bg-gray-50 rounded-xl p-4 border-2 text-left transition-all ${
                   preferences.marketing ? 'border-[var(--cdl-green)]' : 'border-gray-200 hover:border-gray-300'
                 }`}
@@ -226,7 +237,9 @@ export default function CookieConsent() {
 
               {/* Cookies de Preferências */}
               <button
+                type="button"
                 onClick={() => togglePreference('preferences')}
+                aria-pressed={preferences.preferences}
                 className={`w-full bg-gray-50 rounded-xl p-4 border-2 text-left transition-all ${
                   preferences.preferences ? 'border-[var(--cdl-green)]' : 'border-gray-200 hover:border-gray-300'
                 }`}
@@ -295,12 +308,15 @@ export default function CookieConsent() {
 
         {/* Link para política de privacidade */}
         <div className="px-4 pb-4 text-center">
-          <a 
-            href="/politica-privacidade" 
+          {/* Ainda não existe página de política de privacidade: dúvidas vão para o contato */}
+          <Link 
+            href="/imprensa/contato" 
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-xs text-gray-500 hover:text-[var(--cdl-blue)] hover:underline"
           >
-            Leia nossa Política de Privacidade
-          </a>
+            Dúvidas sobre privacidade? Fale conosco
+          </Link>
         </div>
       </div>
     </div>,

@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 import { FaTimes, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCheckCircle } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
+import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 
 interface JobModalProps {
   isOpen: boolean;
@@ -20,33 +21,32 @@ interface JobModalProps {
 }
 
 export default function JobModal({ isOpen, onClose, job }: JobModalProps) {
-  const [mounted, setMounted] = React.useState(false);
+  const isClient = useIsClient();
+  const titleId = useId();
+  const dialogRef = useModalBehavior<HTMLDivElement>(isOpen && !!job, onClose);
 
-  React.useEffect(() => {
-    setMounted(true);
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
-
-  if (!mounted || !isOpen || !job) return null;
+  if (!isClient || !isOpen || !job) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6">
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
       ></div>
       
-      <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl relative z-10 flex flex-col animate-scale-in">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl relative z-10 flex flex-col animate-scale-in"
+      >
         {/* Header com Gradiente */}
         <div className="relative bg-linear-to-br from-[#003f7f] to-[#0066cc] p-6 sm:p-8 text-white shrink-0">
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Fechar vaga"
             className="absolute top-4 right-4 z-20 p-2 bg-white/20 hover:bg-white/30 backdrop-blur text-white rounded-full transition-all"
           >
             <FaTimes className="w-5 h-5" />
@@ -57,7 +57,7 @@ export default function JobModal({ isOpen, onClose, job }: JobModalProps) {
               <FaBriefcase className="w-4 h-4 text-[#ffd000]" />
               <span>{job.category || 'Vaga de Emprego'}</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black leading-tight mb-2">
+            <h2 id={titleId} className="text-2xl sm:text-3xl md:text-4xl font-black leading-tight mb-2">
               {job.title}
             </h2>
             <div className="flex items-center gap-2 text-white/90 text-lg font-medium">
@@ -102,7 +102,7 @@ export default function JobModal({ isOpen, onClose, job }: JobModalProps) {
             </div>
           </div>
 
-          <div className="prose prose-lg text-gray-600 text-justify mb-8">
+          <div className="prose prose-lg text-gray-600 text-left sm:text-justify mb-8">
             <h3 className="text-[#003f7f] font-bold text-xl mb-4">Descrição da Vaga</h3>
             <div className="whitespace-pre-wrap leading-relaxed">
               {job.description}

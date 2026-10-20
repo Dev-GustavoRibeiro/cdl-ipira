@@ -2,143 +2,153 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { FaMapMarkerAlt, FaClock, FaUsers } from 'react-icons/fa';
+import { FaArrowRight, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaUsers } from 'react-icons/fa';
+import { formatDateBR } from '@/lib/date';
+import { isOptimizableImage } from '@/lib/images';
+import { CardsSkeleton, StateBlock, cardClass, primaryButton, staggerDelay } from '../../noticias/components/LoadStates';
 import { Event, getStatusBadge } from './types';
 
 interface EventsGridProps {
   events: Event[];
   isLoading: boolean;
   onOpenModal: (event: Event) => void;
+  /** Limpa status e categoria quando a combinação escolhida não tem eventos */
+  onResetFilters?: () => void;
 }
 
-const EventsGrid = ({ events, isLoading, onOpenModal }: EventsGridProps) => {
+const EventsGrid = ({ events, isLoading, onOpenModal, onResetFilters }: EventsGridProps) => {
   return (
-    <section className="py-8 sm:py-12 md:py-16 bg-white">
+    <section className="py-10 sm:py-12 md:py-16 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {isLoading ? (
-          <div className="text-center py-12 sm:py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003f7f] mx-auto mb-4"></div>
-            <p className="text-gray-600 text-lg sm:text-xl">Carregando eventos...</p>
-          </div>
+          <CardsSkeleton label="Carregando eventos" />
         ) : events.length === 0 ? (
-          <div className="text-center py-12 sm:py-16">
-            <p className="text-gray-600 text-lg sm:text-xl">Nenhum evento encontrado com os filtros selecionados.</p>
-          </div>
+          <StateBlock
+            icon={FaCalendarAlt}
+            title="Nenhum evento encontrado"
+            description="Não há eventos com os filtros selecionados. Novas datas são divulgadas aqui assim que confirmadas."
+          >
+            {onResetFilters && (
+              <button type="button" onClick={onResetFilters} className={primaryButton}>
+                Ver todos os eventos
+              </button>
+            )}
+          </StateBlock>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 md:gap-8">
+          <div className="cards-grid gap-5 sm:gap-6 md:gap-8">
             {events.map((event, index) => {
               const statusBadge = getStatusBadge(event.status);
+              // Data vem formatada (DD/MM/YYYY) ou crua do banco (YYYY-MM-DD)
+              const [day, month, year] = (formatDateBR(event.date) || event.date || '').split('/');
+              const isUpcoming = event.status === 'upcoming';
+              const ctaLabel = isUpcoming ? 'Inscrever-se' : 'Ver Detalhes';
               return (
-                <article
-                  key={event.id}
-                  className="group bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 flex flex-col h-full animate-scale-in"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  {/* Imagem do Evento */}
-                  <div 
+                <article key={event.id} className={cardClass} style={staggerDelay(index)}>
+                  {/* Botão cobrindo o cartão inteiro: clique, toque e teclado abrem o evento */}
+                  <button
+                    type="button"
                     onClick={() => onOpenModal(event)}
-                    className={`relative h-48 xs:h-52 sm:h-56 md:h-64 bg-linear-to-br ${event.gradient} overflow-hidden cursor-pointer`}
-                  >
+                    aria-label={`${ctaLabel}: ${event.title}`}
+                    className="absolute inset-0 z-20 w-full cursor-pointer rounded-2xl focus-inset"
+                  />
+
+                  {/* Imagem do Evento */}
+                  <div className={`relative h-48 sm:h-56 md:h-60 bg-linear-to-br ${event.gradient} overflow-hidden shrink-0`}>
                     {event.image ? (
                       <Image
                         src={event.image}
                         alt={event.title}
                         fill
-                        className="object-cover group-hover:scale-110 transition-transform duration-700"
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        unoptimized={!isOptimizableImage(event.image)}
+                        className="object-cover transition-transform duration-700 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 384px"
                       />
                     ) : (
-                      <div className="absolute inset-0 bg-black/10"></div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <FaCalendarAlt className="w-14 h-14 text-white/30" aria-hidden="true" />
+                      </div>
                     )}
-                    {/* Overlay gradiente */}
-                    <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/30 to-transparent"></div>
-                    
+                    {/* Overlay para os selos ficarem legíveis sobre qualquer imagem */}
+                    <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/10 to-black/20"></div>
+
                     {/* Badge Status */}
                     <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10">
-                      <span className={`${statusBadge.color} px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] xs:text-xs font-black shadow-lg`}>
+                      <span className={`${statusBadge.color} px-3 py-1.5 rounded-full text-[11px] font-black shadow-lg`}>
                         {statusBadge.text}
                       </span>
                     </div>
 
                     {/* Badge Categoria */}
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
-                      <span className="bg-white/90 backdrop-blur-sm text-[#003f7f] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] xs:text-xs font-black shadow-lg">
+                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 max-w-[50%]">
+                      <span className="block truncate bg-white/95 backdrop-blur-sm text-[#003f7f] px-3 py-1.5 rounded-full text-[11px] font-black shadow-lg">
                         {event.category}
                       </span>
                     </div>
 
                     {/* Calendário */}
-                    <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-10">
-                      <div className="bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 shadow-lg">
-                        <div className="text-[#003f7f] text-base sm:text-lg font-bold text-center leading-none">
-                          {event.date.split('/')[0]}
-                        </div>
-                        <div className="text-[#00a859] text-xs font-semibold mt-1">
-                          {event.date.split('/')[1]}/{event.date.split('/')[2]}
+                    {day && month && (
+                      <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-10">
+                        <div className="bg-white rounded-xl px-2.5 py-2 shadow-lg text-center">
+                          <div className="text-[#003f7f] text-lg font-black leading-none">{day}</div>
+                          <div className="text-[#00a859] text-[10px] font-bold mt-1">
+                            {month}/{year}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Conteúdo */}
-                  <div className="p-4 sm:p-5 md:p-6 relative flex flex-col grow bg-white">
-                    <h3 
-                      onClick={() => onOpenModal(event)}
-                      className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors line-clamp-2 leading-tight cursor-pointer"
-                    >
+                  <div className="p-5 sm:p-6 flex flex-col grow">
+                    <h3 className="text-lg sm:text-xl font-extrabold tracking-[-0.015em] text-gray-900 mb-2 group-hover:text-[#003f7f] transition-colors line-clamp-2 leading-snug">
                       {event.title}
                     </h3>
-                    
-                    <p className="text-xs xs:text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 md:mb-6 leading-relaxed line-clamp-3 grow text-justify">
-                      {event.description}
-                    </p>
+
+                    {event.description && (
+                      <p className="text-sm sm:text-[15px] text-gray-600 mb-4 leading-relaxed line-clamp-3">
+                        {event.description}
+                      </p>
+                    )}
 
                     {/* Informações do Evento */}
-                    <div className="space-y-2 sm:space-y-2.5 mb-3 sm:mb-4">
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-                        <FaClock className="w-3 h-3 sm:w-4 sm:h-4 text-[#00a859] shrink-0" />
-                        <span>{event.time}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-                        <FaMapMarkerAlt className="w-3 h-3 sm:w-4 sm:h-4 text-[#ffd000] shrink-0" />
-                        <span className="line-clamp-1">{event.location}</span>
-                      </div>
-                      {event.attendees && (
-                        <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-                          <FaUsers className="w-3 h-3 sm:w-4 sm:h-4 text-[#003f7f] shrink-0" />
-                          <span>{event.attendees} participantes</span>
-                        </div>
+                    <ul className="space-y-2 mb-5 text-sm text-gray-600">
+                      {event.time && (
+                        <li className="flex items-center gap-2">
+                          <FaClock className="w-3.5 h-3.5 text-[#00a859] shrink-0" aria-hidden="true" />
+                          <span>{event.time.slice(0, 5)}</span>
+                        </li>
                       )}
-                    </div>
-                    
-                    <div className="mt-auto pt-3 sm:pt-4 border-t border-gray-100">
-                      <button 
-                        onClick={() => onOpenModal(event)}
-                        className={`w-full inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-bold transition-all duration-300 text-sm sm:text-base group/btn ${
-                          event.status === 'upcoming' 
-                            ? 'bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white hover:shadow-lg hover:scale-105'
-                            : 'border-2 border-[#003f7f] text-[#003f7f] hover:bg-[#003f7f] hover:text-white'
+                      {event.location && (
+                        <li className="flex items-center gap-2 min-w-0">
+                          <FaMapMarkerAlt className="w-3.5 h-3.5 text-[#0066cc] shrink-0" aria-hidden="true" />
+                          <span className="truncate">{event.location}</span>
+                        </li>
+                      )}
+                      {!!event.attendees && (
+                        <li className="flex items-center gap-2">
+                          <FaUsers className="w-3.5 h-3.5 text-[#003f7f] shrink-0" aria-hidden="true" />
+                          <span>{event.attendees} participantes</span>
+                        </li>
+                      )}
+                    </ul>
+
+                    {/* Ação (visual): o botão que cobre o cartão é quem recebe o clique */}
+                    <div className="mt-auto pt-4 border-t border-gray-100">
+                      <span
+                        className={`w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-[background-color,color,gap] duration-300 ${
+                          isUpcoming
+                            ? 'bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white group-hover:gap-3'
+                            : 'border-2 border-[#003f7f] text-[#003f7f] group-hover:bg-[#003f7f] group-hover:text-white'
                         }`}
                       >
-                        {event.status === 'upcoming' ? 'Inscrever-se' : 'Ver Detalhes'}
-                        {event.status === 'upcoming' && (
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 transform group-hover/btn:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </button>
+                        {ctaLabel}
+                        {isUpcoming && <FaArrowRight className="w-3.5 h-3.5" aria-hidden="true" />}
+                      </span>
                     </div>
                   </div>
                 </article>
               );
             })}
-          </div>
-        )}
-
-        {/* Paginação (Opcional para o futuro) */}
-        {events.length > 9 && (
-          <div className="mt-8 sm:mt-12 flex items-center justify-center gap-2 sm:gap-3">
-             {/* Lógica de paginação aqui */}
           </div>
         )}
       </div>
@@ -147,6 +157,3 @@ const EventsGrid = ({ events, isLoading, onOpenModal }: EventsGridProps) => {
 };
 
 export default EventsGrid;
-
-
-

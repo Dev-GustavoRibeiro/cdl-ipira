@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { validateAndSanitize } from '@/lib/security';
+import { validateAndSanitize, isSafeLink } from '@/lib/security';
 import { auditServer } from '@/lib/audit-server';
+import { getAdminUser } from '@/lib/supabase-server';
+import { todayISO } from '@/lib/date';
+
+const UNAUTHORIZED = { error: 'Não autorizado' };
+const INVALID_LINK = { error: 'URL do vídeo e da thumbnail devem ser endereços http(s)://' };
 
 // Helper para extrair ID do YouTube
 function getYoutubeId(url: string): string | null {
@@ -22,6 +27,10 @@ function getYoutubeId(url: string): string | null {
 
 // GET - Listar todos os vídeos (incluindo inativos para admin)
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const { data: videos, error } = await supabaseAdmin
       .from('videos')
@@ -30,7 +39,7 @@ export async function GET() {
 
     if (error) {
       console.error('Erro ao buscar vídeos:', error);
-      return NextResponse.json({ error: 'Erro ao buscar vídeos', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao buscar vídeos' }, { status: 500 });
     }
 
     return NextResponse.json(videos || []);
@@ -42,6 +51,10 @@ export async function GET() {
 
 // POST - Criar novo vídeo
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     
@@ -63,6 +76,10 @@ export async function POST(request: NextRequest) {
     if (!valid) {
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
     }
+
+    if (!isSafeLink(sanitized.video_url) || (sanitized.thumbnail && !isSafeLink(sanitized.thumbnail))) {
+      return NextResponse.json(INVALID_LINK, { status: 400 });
+    }
     
     // Extrair YouTube ID
     const youtubeId = getYoutubeId(sanitized.video_url as string);
@@ -78,7 +95,7 @@ export async function POST(request: NextRequest) {
           thumbnail: sanitized.thumbnail || null,
           category: sanitized.category,
           duration: sanitized.duration || '00:00',
-          date: new Date().toISOString().split('T')[0],
+          date: todayISO(),
           views: '0',
           is_active: true
         }
@@ -88,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao criar vídeo:', error);
-      return NextResponse.json({ error: 'Erro ao criar vídeo', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao criar vídeo' }, { status: 500 });
     }
 
     // Registrar auditoria
@@ -109,6 +126,10 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar vídeo existente
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     
@@ -136,6 +157,10 @@ export async function PUT(request: NextRequest) {
     if (!valid) {
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
     }
+
+    if (!isSafeLink(sanitized.video_url) || (sanitized.thumbnail && !isSafeLink(sanitized.thumbnail))) {
+      return NextResponse.json(INVALID_LINK, { status: 400 });
+    }
     
     // Extrair YouTube ID
     const youtubeId = getYoutubeId(sanitized.video_url as string);
@@ -158,7 +183,7 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao atualizar vídeo:', error);
-      return NextResponse.json({ error: 'Erro ao atualizar vídeo', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao atualizar vídeo' }, { status: 500 });
     }
 
     // Registrar auditoria
@@ -179,6 +204,10 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Excluir vídeo
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -201,7 +230,7 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao excluir vídeo:', error);
-      return NextResponse.json({ error: 'Erro ao excluir vídeo', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao excluir vídeo' }, { status: 500 });
     }
 
     // Registrar auditoria

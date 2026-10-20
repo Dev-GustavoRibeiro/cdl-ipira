@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useId } from 'react';
 import { FaTimes, FaExclamationTriangle, FaCheckCircle, FaEdit, FaTrash, FaInfoCircle } from 'react-icons/fa';
+import { useModalBehavior } from '@/lib/hooks/useModalBehavior';
 
 type DialogType = 'delete' | 'success' | 'edit' | 'warning' | 'info';
 
@@ -70,33 +71,35 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   const config = typeConfig[type];
   const Icon = config.icon;
-
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+  const titleId = useId();
+  const messageId = useId();
+  // Esc não fecha enquanto a ação está em andamento (mesma regra do botão fechar)
+  const dialogRef = useModalBehavior<HTMLDivElement>(isOpen, isLoading ? undefined : onClose);
 
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       style={{ animation: 'fadeIn 0.2s ease-out' }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={messageId}
+        tabIndex={-1}
         className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
         style={{ animation: 'scaleIn 0.2s ease-out' }}
       >
         {/* Header com gradiente */}
         <div className={`${config.headerBg} p-4 relative`}>
           <button
+            type="button"
             onClick={onClose}
             disabled={isLoading}
+            aria-label="Fechar"
             className="absolute top-3 right-3 p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-full transition-colors disabled:opacity-50"
           >
             <FaTimes className="w-4 h-4" />
@@ -105,19 +108,20 @@ export default function ConfirmDialog({
             <div className={`${config.iconBg} p-3 rounded-xl`}>
               <Icon className={`w-6 h-6 ${config.iconColor}`} />
             </div>
-            <h3 className="text-xl font-bold text-white">{title}</h3>
+            <h3 id={titleId} className="text-xl font-bold text-white">{title}</h3>
           </div>
         </div>
 
         {/* Conteúdo */}
         <div className="p-6">
-          <p className="text-gray-600 text-base leading-relaxed">{message}</p>
+          <p id={messageId} className="text-gray-600 text-base leading-relaxed">{message}</p>
         </div>
 
         {/* Botões */}
         <div className="px-6 pb-6 flex flex-col-reverse sm:flex-row gap-3">
           {showCancel && (
             <button
+              type="button"
               onClick={onClose}
               disabled={isLoading}
               className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -127,6 +131,7 @@ export default function ConfirmDialog({
           )}
           {onConfirm && (
             <button
+              type="button"
               onClick={onConfirm}
               disabled={isLoading}
               className={`flex-1 px-5 py-3 ${config.confirmBg} text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}

@@ -55,7 +55,7 @@ const HeroSection = ({ onOpenModal }: HeroSectionProps) => {
               
               <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mb-6 sm:mb-8"></div>
 
-              <p className="text-gray-700 text-sm xs:text-base sm:text-lg leading-relaxed text-justify mb-6 sm:mb-8">
+              <p className="text-gray-700 text-sm xs:text-base sm:text-lg leading-relaxed text-left sm:text-justify mb-6 sm:mb-8">
                 Com o CDL Balcão de Empregos, você terá acesso aos currículos dos melhores profissionais da cidade!
               </p>
 
@@ -68,7 +68,7 @@ const HeroSection = ({ onOpenModal }: HeroSectionProps) => {
                     <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-1">
                       Acesso a Talentos
                     </h3>
-                    <p className="text-sm sm:text-base text-gray-600 text-justify">
+                    <p className="text-sm sm:text-base text-gray-600 text-left sm:text-justify">
                       Encontre profissionais qualificados e prontos para contribuir com seu negócio.
                     </p>
                   </div>
@@ -82,7 +82,7 @@ const HeroSection = ({ onOpenModal }: HeroSectionProps) => {
                     <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-1">
                       Processo Simplificado
                     </h3>
-                    <p className="text-sm sm:text-base text-gray-600 text-justify">
+                    <p className="text-sm sm:text-base text-gray-600 text-left sm:text-justify">
                       Cadastre suas vagas e receba currículos de candidatos interessados.
                     </p>
                   </div>
@@ -96,7 +96,7 @@ const HeroSection = ({ onOpenModal }: HeroSectionProps) => {
                     <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-1">
                       Gratuito para Associados
                     </h3>
-                    <p className="text-sm sm:text-base text-gray-600 text-justify">
+                    <p className="text-sm sm:text-base text-gray-600 text-left sm:text-justify">
                       Serviço exclusivo e gratuito para associados da CDL Ipirá.
                     </p>
                   </div>

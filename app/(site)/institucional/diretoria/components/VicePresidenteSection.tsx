@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { FaUser } from 'react-icons/fa';
-import { TeamMember } from './types';
+import { TeamMember, isStorageImage } from './types';
 
 interface VicePresidenteSectionProps {
   vicePresidentes: TeamMember[];
@@ -37,7 +37,7 @@ const VicePresidenteSection = ({ vicePresidentes }: VicePresidenteSectionProps) 
                     <div className="w-20 h-1 bg-[#ffd000] rounded-full mb-6"></div>
 
                     {vice.function_description && (
-                      <p className="text-white/90 text-base sm:text-lg leading-relaxed mb-6 text-justify">
+                      <p className="text-white/90 text-base sm:text-lg leading-relaxed mb-6 text-left sm:text-justify">
                         {vice.function_description}
                       </p>
                     )}
@@ -47,7 +47,7 @@ const VicePresidenteSection = ({ vicePresidentes }: VicePresidenteSectionProps) 
                         <h3 className="text-[#ffd000] font-bold text-sm uppercase tracking-wide mb-3 flex items-center gap-2">
                           <span>⭐</span> Contribuição
                         </h3>
-                        <p className="text-white/95 text-sm sm:text-base leading-relaxed text-justify">
+                        <p className="text-white/95 text-sm sm:text-base leading-relaxed text-left sm:text-justify">
                           {vice.contribution}
                         </p>
                       </div>
@@ -65,7 +65,7 @@ const VicePresidenteSection = ({ vicePresidentes }: VicePresidenteSectionProps) 
                           className="object-cover object-top"
                           sizes="(max-width: 1024px) 100vw, 50vw"
                           quality={100}
-                          unoptimized
+                          unoptimized={!isStorageImage(vice.photo_url)}
                         />
                       ) : (
                         <div className="flex items-center justify-center h-full bg-linear-to-br from-[#003f7f] to-[#0066cc]">

@@ -16,9 +16,13 @@ export default function ConditionalLayout({
 }) {
   return (
     <>
+      {/* Visível só ao receber foco pelo teclado (.skip-link em globals.css) */}
+      <a href="#conteudo" className="skip-link">
+        Pular para o conteúdo
+      </a>
       <LoadingScreen />
       <Header />
-      <main className="pb-20 md:pb-0">
+      <main id="conteudo" tabIndex={-1} className="scroll-mt-[var(--header-height,0px)]">
         {children}
       </main>
       <Footer />

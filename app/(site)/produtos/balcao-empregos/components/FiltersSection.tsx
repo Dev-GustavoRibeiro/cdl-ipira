@@ -28,6 +28,7 @@ const FiltersSection = ({
               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
               <input
                 type="text"
+                aria-label="Buscar vagas"
                 placeholder="Buscar vagas..."
                 value={searchTerm}
                 onChange={(e) => onSearchChange(e.target.value)}

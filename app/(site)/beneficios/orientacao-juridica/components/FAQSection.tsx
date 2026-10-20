@@ -52,7 +52,7 @@ const FAQSection = ({ faqs, selectedFaq, onFaqToggle }: FAQSectionProps) => {
                 </button>
                 {selectedFaq === faq.id && (
                   <div className="px-4 sm:px-5 md:px-6 pb-4 sm:pb-5 md:pb-6 pl-12 sm:pl-14 md:pl-16">
-                    <p className="text-sm sm:text-base text-gray-700 leading-relaxed text-justify">
+                    <p className="text-sm sm:text-base text-gray-700 leading-relaxed text-left sm:text-justify">
                       {faq.answer}
                     </p>
                   </div>

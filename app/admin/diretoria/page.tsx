@@ -346,9 +346,11 @@ export default function AdminDiretoriaPage() {
 
       {/* Cards de estatísticas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div
+        <button
+          type="button"
           onClick={() => setActiveTab('presidente')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'presidente' ? 'border-[#ffd000] ring-2 ring-[#ffd000]/20' : 'border-transparent hover:border-gray-200'}`}
+          aria-pressed={activeTab === 'presidente'}
+          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'presidente' ? 'border-[#ffd000] ring-2 ring-[#ffd000]/20' : 'border-transparent hover:border-gray-200'}`}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#ffd000] rounded-lg flex items-center justify-center">
@@ -359,10 +361,12 @@ export default function AdminDiretoriaPage() {
               <div className="text-xl font-black text-gray-900">{presidente ? '1' : '0'}</div>
             </div>
           </div>
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('vice_presidente')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'vice_presidente' ? 'border-[#e6b800] ring-2 ring-[#e6b800]/20' : 'border-transparent hover:border-gray-200'}`}
+          aria-pressed={activeTab === 'vice_presidente'}
+          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'vice_presidente' ? 'border-[#e6b800] ring-2 ring-[#e6b800]/20' : 'border-transparent hover:border-gray-200'}`}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#e6b800] rounded-lg flex items-center justify-center">
@@ -373,10 +377,12 @@ export default function AdminDiretoriaPage() {
               <div className="text-xl font-black text-gray-900">{vicePresidenteCount}</div>
             </div>
           </div>
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('diretor')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'diretor' ? 'border-[#003f7f] ring-2 ring-[#003f7f]/20' : 'border-transparent hover:border-gray-200'}`}
+          aria-pressed={activeTab === 'diretor'}
+          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'diretor' ? 'border-[#003f7f] ring-2 ring-[#003f7f]/20' : 'border-transparent hover:border-gray-200'}`}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#003f7f] rounded-lg flex items-center justify-center">
@@ -387,10 +393,12 @@ export default function AdminDiretoriaPage() {
               <div className="text-xl font-black text-gray-900">{diretoresCount}</div>
             </div>
           </div>
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('suplente')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'suplente' ? 'border-[#0066cc] ring-2 ring-[#0066cc]/20' : 'border-transparent hover:border-gray-200'}`}
+          aria-pressed={activeTab === 'suplente'}
+          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'suplente' ? 'border-[#0066cc] ring-2 ring-[#0066cc]/20' : 'border-transparent hover:border-gray-200'}`}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#0066cc] rounded-lg flex items-center justify-center">
@@ -401,10 +409,12 @@ export default function AdminDiretoriaPage() {
               <div className="text-xl font-black text-gray-900">{suplentesCount}</div>
             </div>
           </div>
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('colaborador')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'colaborador' ? 'border-[#00a859] ring-2 ring-[#00a859]/20' : 'border-transparent hover:border-gray-200'}`}
+          aria-pressed={activeTab === 'colaborador'}
+          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'colaborador' ? 'border-[#00a859] ring-2 ring-[#00a859]/20' : 'border-transparent hover:border-gray-200'}`}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#00a859] rounded-lg flex items-center justify-center">
@@ -415,15 +425,16 @@ export default function AdminDiretoriaPage() {
               <div className="text-xl font-black text-gray-900">{colaboradoresCount}</div>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Busca */}
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
         <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
           <input
             type="text"
+            aria-label={`Buscar ${roleConfig[activeTab].label.toLowerCase()}`}
             placeholder={`Buscar ${roleConfig[activeTab].label.toLowerCase()}...`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -495,6 +506,7 @@ export default function AdminDiretoriaPage() {
                           disabled={index === 0}
                           className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
                           title="Mover para cima"
+                          aria-label={`Mover ${member.name} para cima`}
                         >
                           <FaArrowUp className="w-4 h-4" />
                         </button>
@@ -503,6 +515,7 @@ export default function AdminDiretoriaPage() {
                           disabled={index === filteredMembers.length - 1}
                           className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
                           title="Mover para baixo"
+                          aria-label={`Mover ${member.name} para baixo`}
                         >
                           <FaArrowDown className="w-4 h-4" />
                         </button>
@@ -515,6 +528,7 @@ export default function AdminDiretoriaPage() {
                         : 'text-gray-500 hover:bg-gray-100'
                         }`}
                       title={member.is_active ? 'Ocultar' : 'Ativar'}
+                      aria-label={`${member.is_active ? 'Ocultar' : 'Ativar'} ${member.name}`}
                     >
                       {member.is_active ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
                     </button>
@@ -522,6 +536,7 @@ export default function AdminDiretoriaPage() {
                       onClick={() => openModal(member)}
                       className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
                       title="Editar"
+                      aria-label={`Editar ${member.name}`}
                     >
                       <FaEdit className="w-4 h-4" />
                     </button>
@@ -529,6 +544,7 @@ export default function AdminDiretoriaPage() {
                       onClick={() => openDeleteDialog(member)}
                       className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
                       title="Excluir"
+                      aria-label={`Excluir ${member.name}`}
                     >
                       <FaTrash className="w-4 h-4" />
                     </button>
@@ -549,8 +565,9 @@ export default function AdminDiretoriaPage() {
         <form onSubmit={handleSave} className="space-y-5">
           {/* Foto */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Foto</label>
+            <label htmlFor="member-photo" className="block text-sm font-bold text-gray-700 mb-2">Foto</label>
             <input
+              id="member-photo"
               ref={photoInputRef}
               type="file"
               accept="image/*"
@@ -598,10 +615,11 @@ export default function AdminDiretoriaPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Nome *</label>
+              <label htmlFor="member-name" className="block text-sm font-bold text-gray-700 mb-2">Nome *</label>
               <input
                 type="text"
                 required
+                id="member-name"
                 value={currentMember.name || ''}
                 onChange={(e) => setCurrentMember({ ...currentMember, name: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -609,8 +627,9 @@ export default function AdminDiretoriaPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Tipo *</label>
+              <label htmlFor="member-role" className="block text-sm font-bold text-gray-700 mb-2">Tipo *</label>
               <select
+                id="member-role"
                 value={currentMember.role || activeTab}
                 onChange={(e) => setCurrentMember({ ...currentMember, role: e.target.value as 'presidente' | 'vice_presidente' | 'diretor' | 'suplente' | 'colaborador' })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -625,10 +644,11 @@ export default function AdminDiretoriaPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Cargo *</label>
+            <label htmlFor="member-position" className="block text-sm font-bold text-gray-700 mb-2">Cargo *</label>
             <input
               type="text"
               required
+              id="member-position"
               value={currentMember.position || ''}
               onChange={(e) => setCurrentMember({ ...currentMember, position: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -638,8 +658,9 @@ export default function AdminDiretoriaPage() {
 
           {currentMember.role === 'presidente' && (
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Biografia</label>
+              <label htmlFor="member-bio" className="block text-sm font-bold text-gray-700 mb-2">Biografia</label>
               <textarea
+                id="member-bio"
                 value={currentMember.bio || ''}
                 onChange={(e) => setCurrentMember({ ...currentMember, bio: e.target.value })}
                 rows={3}
@@ -650,9 +671,10 @@ export default function AdminDiretoriaPage() {
           )}
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Função</label>
+            <label htmlFor="member-function" className="block text-sm font-bold text-gray-700 mb-2">Função</label>
             <input
               type="text"
+              id="member-function"
               value={currentMember.function_description || ''}
               onChange={(e) => setCurrentMember({ ...currentMember, function_description: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -661,8 +683,9 @@ export default function AdminDiretoriaPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Contribuição</label>
+            <label htmlFor="member-contribution" className="block text-sm font-bold text-gray-700 mb-2">Contribuição</label>
             <textarea
+              id="member-contribution"
               value={currentMember.contribution || ''}
               onChange={(e) => setCurrentMember({ ...currentMember, contribution: e.target.value })}
               rows={2}

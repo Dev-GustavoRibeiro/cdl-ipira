@@ -1,4 +1,5 @@
-import { FaNewspaper, FaCalendarAlt, FaBriefcase, FaVideo, FaFileAlt } from 'react-icons/fa';
+import { FaNewspaper, FaCalendarAlt, FaBriefcase, FaVideo, FaFileAlt, FaBullhorn } from 'react-icons/fa';
+import { parseDateOnly } from '@/lib/date';
 
 export interface SearchResult {
   type: string;
@@ -51,6 +52,12 @@ export const typeConfig: Record<string, TypeConfig> = {
     color: 'text-red-600',
     bgColor: 'bg-red-100'
   },
+  campanha: {
+    label: 'Campanha',
+    icon: FaBullhorn,
+    color: 'text-[#00a859]',
+    bgColor: 'bg-[#00a859]/10'
+  },
   page: { 
     label: 'Página', 
     icon: FaFileAlt, 
@@ -59,18 +66,15 @@ export const typeConfig: Record<string, TypeConfig> = {
   }
 };
 
+// parseDateOnly evita que '2026-10-20' apareça como dia 19 no fuso do Brasil
 export function formatDate(dateString: string | undefined): string {
-  if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
-  } catch {
-    return dateString;
-  }
+  const date = parseDateOnly(dateString);
+  if (!date) return dateString || '';
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
 }
 
 

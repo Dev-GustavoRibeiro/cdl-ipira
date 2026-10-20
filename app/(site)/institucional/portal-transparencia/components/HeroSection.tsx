@@ -14,7 +14,7 @@ const HeroSection = () => {
             Portal Transparência
           </h1>
           <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-4 sm:mb-6"></div>
-          <p className="text-gray-700 text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4 text-justify">
+          <p className="text-gray-700 text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4 text-left sm:text-justify">
             Acesse informações sobre transparência, prestação de contas e gestão da CDL Ipirá. Compromisso com a transparência e a prestação de contas aos nossos associados.
           </p>
         </div>

@@ -16,12 +16,7 @@ const Breadcrumb = () => {
             <span>Início</span>
           </Link>
           <span className="text-white/40">/</span>
-          <Link 
-            href="#" 
-            className="hover:text-[#ffd000] transition-colors"
-          >
-            Benefícios
-          </Link>
+          <span>Benefícios</span>
           <span className="text-white/40">/</span>
           <span className="text-white font-semibold">Orientação Jurídica</span>
         </nav>

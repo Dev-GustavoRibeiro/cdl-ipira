@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { FaArrowLeft, FaImage, FaTh, FaHandshake } from 'react-icons/fa';
+import { FaArrowLeft, FaImage, FaHandshake } from 'react-icons/fa';
 
 export default function AdminConteudoPage() {
   const sections = [
@@ -27,6 +27,7 @@ export default function AdminConteudoPage() {
       <div className="flex items-center gap-4">
         <Link
           href="/admin/dashboard"
+          aria-label="Voltar ao painel"
           className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <FaArrowLeft className="w-5 h-5" />

@@ -22,7 +22,7 @@ const InfoSection = () => {
               <h3 className="text-lg sm:text-xl md:text-2xl font-bold mb-2 sm:mb-3">
                 Indicadores de Gestão
               </h3>
-              <p className="text-sm sm:text-base text-white/80 leading-relaxed text-justify">
+              <p className="text-sm sm:text-base text-white/80 leading-relaxed text-left sm:text-justify">
                 Acompanhe os principais indicadores de gestão e desempenho da CDL Ipirá. Nosso compromisso é manter você informado sobre todas as atividades.
               </p>
             </div>
@@ -34,7 +34,7 @@ const InfoSection = () => {
               <h3 className="text-lg sm:text-xl md:text-2xl font-bold mb-2 sm:mb-3">
                 Prestação de Contas
               </h3>
-              <p className="text-sm sm:text-base text-white/80 leading-relaxed text-justify">
+              <p className="text-sm sm:text-base text-white/80 leading-relaxed text-left sm:text-justify">
                 Acesse os demonstrativos financeiros e relatórios de prestação de contas. Transparência total na gestão dos recursos da entidade.
               </p>
             </div>

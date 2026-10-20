@@ -29,7 +29,7 @@ const CTASection = () => {
               <FaArrowRight className="w-5 h-5" />
             </a>
             <a
-              href="tel:557532541599"
+              href="tel:+557532541599"
               className="bg-white/10 backdrop-blur-sm text-white border-2 border-white px-8 py-4 rounded-full font-bold hover:bg-white hover:text-[#003f7f] transition-all duration-300 flex items-center gap-3"
             >
               <FaPhone className="w-5 h-5" />

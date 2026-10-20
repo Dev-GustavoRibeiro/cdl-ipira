@@ -23,7 +23,7 @@ const BenefitsSection = () => {
                   <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-2">
                     Gratuito para Associados
                   </h3>
-                  <p className="text-sm sm:text-base text-gray-600 text-justify">
+                  <p className="text-sm sm:text-base text-gray-600 text-left sm:text-justify">
                     Serviço totalmente gratuito para associados em dia com suas obrigações.
                   </p>
                 </div>
@@ -39,7 +39,7 @@ const BenefitsSection = () => {
                   <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-2">
                     Profissionais Qualificados
                   </h3>
-                  <p className="text-sm sm:text-base text-gray-600 text-justify">
+                  <p className="text-sm sm:text-base text-gray-600 text-left sm:text-justify">
                     Equipe de advogados especializados em direito comercial e empresarial.
                   </p>
                 </div>
@@ -55,7 +55,7 @@ const BenefitsSection = () => {
                   <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-2">
                     Atendimento Rápido
                   </h3>
-                  <p className="text-sm sm:text-base text-gray-600 text-justify">
+                  <p className="text-sm sm:text-base text-gray-600 text-left sm:text-justify">
                     Respostas ágeis para suas dúvidas jurídicas, sem burocracia.
                   </p>
                 </div>
@@ -71,7 +71,7 @@ const BenefitsSection = () => {
                   <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-2">
                     Proteção do Seu Negócio
                   </h3>
-                  <p className="text-sm sm:text-base text-gray-600 text-justify">
+                  <p className="text-sm sm:text-base text-gray-600 text-left sm:text-justify">
                     Orientações para proteger seus direitos e evitar problemas jurídicos.
                   </p>
                 </div>

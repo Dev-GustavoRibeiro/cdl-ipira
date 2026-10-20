@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { FaPlus, FaEdit, FaTrash, FaDownload, FaFileAlt, FaSearch, FaSpinner, FaSave, FaEye, FaEyeSlash, FaFilePdf, FaFileWord, FaFileExcel, FaFile, FaUpload, FaLink, FaCloudUploadAlt, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaDownload, FaSearch, FaSpinner, FaSave, FaEye, FaEyeSlash, FaFilePdf, FaFileWord, FaFileExcel, FaFile, FaUpload, FaLink, FaCloudUploadAlt, FaTimes } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import { formatDateBR, todayISO } from '@/lib/date';
 
 interface Documento {
   id: number;
@@ -205,7 +206,7 @@ export default function AdminPortalTransparenciaPage() {
       });
     } catch (error) {
       console.error('Erro ao salvar documento:', error);
-      toast.error('Erro ao salvar documento. Verifique se o bucket de storage foi criado.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar documento.');
     } finally {
       setIsSaving(false);
     }
@@ -281,7 +282,7 @@ export default function AdminPortalTransparenciaPage() {
       setUploadMode('url'); // Em edição, mostra a URL existente
     } else {
       setCurrentDocumento({ 
-        date: new Date().toISOString().split('T')[0],
+        date: todayISO(),
         type: 'PDF',
         is_active: true
       });
@@ -360,9 +361,10 @@ export default function AdminPortalTransparenciaPage() {
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
-            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
             <input
               type="text"
+              aria-label="Buscar documentos"
               placeholder="Buscar documentos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -370,6 +372,7 @@ export default function AdminPortalTransparenciaPage() {
             />
           </div>
           <select
+            aria-label="Filtrar por categoria"
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             className="px-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent bg-white"
@@ -440,7 +443,7 @@ export default function AdminPortalTransparenciaPage() {
                       </span>
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
-                      {new Date(doc.date).toLocaleDateString('pt-BR')}
+                      {formatDateBR(doc.date)}
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4">
                       <button 
@@ -471,6 +474,7 @@ export default function AdminPortalTransparenciaPage() {
                           rel="noopener noreferrer"
                           className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors" 
                           title="Download"
+                          aria-label={`Baixar ${doc.title}`}
                         >
                           <FaDownload className="w-4 h-4" />
                         </a>
@@ -478,6 +482,7 @@ export default function AdminPortalTransparenciaPage() {
                           onClick={() => openModal(doc)}
                           className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
                           title="Editar"
+                          aria-label={`Editar ${doc.title}`}
                         >
                           <FaEdit className="w-4 h-4" />
                         </button>
@@ -485,6 +490,7 @@ export default function AdminPortalTransparenciaPage() {
                           onClick={() => openDeleteDialog(doc)}
                           className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
                           title="Excluir"
+                          aria-label={`Excluir ${doc.title}`}
                         >
                           <FaTrash className="w-4 h-4" />
                         </button>
@@ -506,10 +512,11 @@ export default function AdminPortalTransparenciaPage() {
       >
         <form onSubmit={handleSave} className="space-y-5">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Título do Documento *</label>
+            <label htmlFor="doc-title" className="block text-sm font-bold text-gray-700 mb-2">Título do Documento *</label>
             <input
               type="text"
               required
+              id="doc-title"
               value={currentDocumento.title || ''}
               onChange={(e) => setCurrentDocumento({ ...currentDocumento, title: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -518,8 +525,9 @@ export default function AdminPortalTransparenciaPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+            <label htmlFor="doc-description" className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
             <textarea
+              id="doc-description"
               value={currentDocumento.description || ''}
               onChange={(e) => setCurrentDocumento({ ...currentDocumento, description: e.target.value })}
               rows={2}
@@ -530,8 +538,9 @@ export default function AdminPortalTransparenciaPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
+              <label htmlFor="doc-category" className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
               <select
+                id="doc-category"
                 value={currentDocumento.category || ''}
                 onChange={(e) => setCurrentDocumento({ ...currentDocumento, category: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -543,8 +552,9 @@ export default function AdminPortalTransparenciaPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Tipo de Arquivo</label>
+              <label htmlFor="doc-type" className="block text-sm font-bold text-gray-700 mb-2">Tipo de Arquivo</label>
               <select
+                id="doc-type"
                 value={currentDocumento.type || 'PDF'}
                 onChange={(e) => setCurrentDocumento({ ...currentDocumento, type: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -555,10 +565,11 @@ export default function AdminPortalTransparenciaPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
+              <label htmlFor="doc-date" className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
               <input
                 type="date"
                 required
+                id="doc-date"
                 value={currentDocumento.date ? currentDocumento.date.split('T')[0] : ''}
                 onChange={(e) => setCurrentDocumento({ ...currentDocumento, date: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -568,7 +579,7 @@ export default function AdminPortalTransparenciaPage() {
 
           {/* Seleção de modo de upload */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-3">Arquivo *</label>
+            <label htmlFor={uploadMode === 'file' ? 'doc-file' : 'doc-file-url'} className="block text-sm font-bold text-gray-700 mb-3">Arquivo *</label>
             
             {/* Tabs para alternar entre upload e URL */}
             <div className="flex gap-2 mb-4">
@@ -602,6 +613,7 @@ export default function AdminPortalTransparenciaPage() {
               <div>
                 {/* Input hidden para o arquivo */}
                 <input
+                  id="doc-file"
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
@@ -611,18 +623,19 @@ export default function AdminPortalTransparenciaPage() {
                 
                 {/* Área de drop/seleção */}
                 {!selectedFile ? (
-                  <div
+                  <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
+                    className="w-full border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
                   >
                     <FaCloudUploadAlt className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600 font-medium mb-1">
+                    <span className="block text-gray-600 font-medium mb-1">
                       Clique para selecionar um arquivo
-                    </p>
-                    <p className="text-xs text-gray-500">
+                    </span>
+                    <span className="block text-xs text-gray-500">
                       PDF, Word, Excel ou Imagens (máx. 50MB)
-                    </p>
-                  </div>
+                    </span>
+                  </button>
                 ) : (
                   <div className="bg-gray-50 rounded-xl p-4">
                     <div className="flex items-center gap-4">
@@ -640,6 +653,7 @@ export default function AdminPortalTransparenciaPage() {
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                         className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                        aria-label="Remover arquivo selecionado"
                       >
                         <FaTimes className="w-4 h-4" />
                       </button>
@@ -673,6 +687,7 @@ export default function AdminPortalTransparenciaPage() {
             ) : (
               <div>
                 <input
+                  id="doc-file-url"
                   type="url"
                   value={currentDocumento.file_url || ''}
                   onChange={(e) => setCurrentDocumento({ ...currentDocumento, file_url: e.target.value })}

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import JobModal from '@/app/components/JobModal';
+import { formatDateBR } from '@/lib/date';
 import {
   Breadcrumb,
   HeroSection,
@@ -24,6 +25,10 @@ interface Job {
 
 const categories = ['Todas', 'Administrativo', 'Vendas', 'Gestão', 'Serviços Gerais'];
 
+// Busca sem diferenciar acentos/maiúsculas e tolerante a campos vazios ("gestao" encontra "Gestão")
+const normalize = (value?: string | null) =>
+  (value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 export default function BalcaoEmpregosPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,7 +48,7 @@ export default function BalcaoEmpregosPage() {
           const data = await response.json();
           const mappedData = data.map((item: { id: number; title: string; company: string; quantity: number; description: string; location?: string; date?: string; category?: string }) => ({
             ...item,
-            date: item.date ? new Date(item.date).toLocaleDateString('pt-BR') : ''
+            date: formatDateBR(item.date)
           }));
           setJobs(mappedData);
         } else {
@@ -60,26 +65,15 @@ export default function BalcaoEmpregosPage() {
     fetchJobs();
   }, []);
 
+  const term = normalize(searchTerm.trim());
   const filteredJobs = jobs.filter(job => {
     const categoryMatch = selectedCategory === 'Todas' || job.category === selectedCategory;
-    const searchMatch = searchTerm === '' || 
-      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchMatch = term === '' ||
+      normalize(job.title).includes(term) ||
+      normalize(job.company).includes(term) ||
+      normalize(job.description).includes(term);
     return categoryMatch && searchMatch;
   });
-
-  useEffect(() => {
-    if (isModalOpen || isJobModalOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-    
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, [isModalOpen, isJobModalOpen]);
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaImage, FaSave, FaSpinner } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Slide {
@@ -46,6 +47,8 @@ export default function AdminHeroCarouselPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [slideToDelete, setSlideToDelete] = useState<Slide | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,7 +63,7 @@ export default function AdminHeroCarouselPage() {
       if (!response.ok) throw new Error(data.error || 'Erro ao carregar slides');
 
       if (data) {
-        const mappedSlides = data.map((item: any) => ({
+        const mappedSlides = data.map((item: Record<string, string | number | null>) => ({
           id: item.id,
           title: item.title,
           subtitle: item.subtitle,
@@ -123,7 +126,7 @@ export default function AdminHeroCarouselPage() {
         subtitle: formData.subtitle,
         description: formData.description,
         buttonText: formData.buttonText,
-        buttonLink: formData.buttonLink,
+        buttonLink: (formData.buttonLink || '').trim(),
         gradient: formData.gradient,
         accentColor: formData.accentColor,
         image: formData.image,
@@ -142,7 +145,8 @@ export default function AdminHeroCarouselPage() {
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) throw new Error('Erro ao salvar');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar slide');
 
       toast.success(isAdding ? 'Slide criado!' : 'Slide atualizado!');
       fetchSlides();
@@ -151,24 +155,28 @@ export default function AdminHeroCarouselPage() {
       setIsAdding(false);
     } catch (error) {
       console.error('Erro ao salvar slide:', error);
-      toast.error('Erro ao salvar slide');
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar slide');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este slide?')) return;
+  const handleConfirmDelete = async () => {
+    if (!slideToDelete) return;
 
+    setIsDeleting(true);
     try {
-      const response = await fetchWithCSRF(`/api/admin/hero?id=${id}`, { method: 'DELETE' });
+      const response = await fetchWithCSRF(`/api/admin/hero?id=${slideToDelete.id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Erro ao excluir');
       
       toast.success('Slide excluído!');
+      setSlideToDelete(null);
       fetchSlides();
     } catch (error) {
       console.error('Erro ao excluir slide:', error);
       toast.error('Erro ao excluir slide');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -201,9 +209,9 @@ export default function AdminHeroCarouselPage() {
       const data = await response.json();
       handleChange('image', data.url);
       toast.success('Imagem enviada com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao enviar imagem:', error);
-      toast.error(`Erro ao enviar imagem: ${error.message}`);
+      toast.error(`Erro ao enviar imagem: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -218,6 +226,7 @@ export default function AdminHeroCarouselPage() {
         <div className="flex items-center gap-4">
           <Link
             href="/admin/dashboard"
+            aria-label="Voltar ao painel"
             className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <FaArrowLeft className="w-5 h-5" />
@@ -247,9 +256,10 @@ export default function AdminHeroCarouselPage() {
       >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Título *</label>
+              <label htmlFor="hero-title" className="block text-sm font-bold text-gray-700 mb-2">Título *</label>
               <input
                 type="text"
+                id="hero-title"
                 value={formData.title}
                 onChange={(e) => handleChange('title', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -258,9 +268,10 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Subtítulo</label>
+              <label htmlFor="hero-subtitle" className="block text-sm font-bold text-gray-700 mb-2">Subtítulo</label>
               <input
                 type="text"
+                id="hero-subtitle"
                 value={formData.subtitle}
                 onChange={(e) => handleChange('subtitle', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -269,9 +280,10 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Ordem</label>
+              <label htmlFor="hero-order" className="block text-sm font-bold text-gray-700 mb-2">Ordem</label>
               <input
                 type="number"
+                id="hero-order"
                 value={formData.order}
                 onChange={(e) => handleChange('order', parseInt(e.target.value))}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -280,8 +292,9 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Descrição *</label>
+              <label htmlFor="hero-description" className="block text-sm font-bold text-gray-700 mb-2">Descrição *</label>
               <textarea
+                id="hero-description"
                 value={formData.description}
                 onChange={(e) => handleChange('description', e.target.value)}
                 rows={3}
@@ -291,9 +304,10 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Texto do Botão *</label>
+              <label htmlFor="hero-button-text" className="block text-sm font-bold text-gray-700 mb-2">Texto do Botão *</label>
               <input
                 type="text"
+                id="hero-button-text"
                 value={formData.buttonText}
                 onChange={(e) => handleChange('buttonText', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -302,19 +316,25 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Link do Botão *</label>
+              <label htmlFor="hero-button-link" className="block text-sm font-bold text-gray-700 mb-2">Link do Botão *</label>
               <input
                 type="text"
+                id="hero-button-link"
                 value={formData.buttonLink}
                 onChange={(e) => handleChange('buttonLink', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
                 placeholder="/pagina ou https://..."
+                aria-describedby="hero-button-link-hint"
               />
+              <p id="hero-button-link-hint" className="mt-1 text-xs text-gray-500">
+                Use um caminho do site começando com / (ex: /eventos) ou um endereço completo com https://
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Gradiente</label>
+              <label htmlFor="hero-gradient" className="block text-sm font-bold text-gray-700 mb-2">Gradiente</label>
               <select
+                id="hero-gradient"
                 value={formData.gradient}
                 onChange={(e) => handleChange('gradient', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -359,8 +379,9 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Cor do Botão</label>
+              <label htmlFor="hero-accent" className="block text-sm font-bold text-gray-700 mb-2">Cor do Botão</label>
               <select
+                id="hero-accent"
                 value={formData.accentColor}
                 onChange={(e) => handleChange('accentColor', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -396,10 +417,11 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">URL da Imagem</label>
+              <label htmlFor="hero-image" className="block text-sm font-bold text-gray-700 mb-2">URL da Imagem</label>
               <div className="flex gap-3">
                 <input
                   type="text"
+                  id="hero-image"
                   value={formData.image}
                   onChange={(e) => handleChange('image', e.target.value)}
                   className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -418,6 +440,7 @@ export default function AdminHeroCarouselPage() {
                   disabled={isUploading}
                   className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
                   title="Fazer upload de imagem"
+                  aria-label="Fazer upload de imagem"
                 >
                   {isUploading ? <FaSpinner className="animate-spin w-5 h-5" /> : <FaImage className="w-5 h-5" />}
                 </button>
@@ -425,8 +448,9 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Posição da Imagem</label>
+              <label htmlFor="hero-image-position" className="block text-sm font-bold text-gray-700 mb-2">Posição da Imagem</label>
               <select
+                id="hero-image-position"
                 value={formData.imagePosition}
                 onChange={(e) => handleChange('imagePosition', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -452,8 +476,9 @@ export default function AdminHeroCarouselPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Ajuste da Imagem</label>
+              <label htmlFor="hero-image-fit" className="block text-sm font-bold text-gray-700 mb-2">Ajuste da Imagem</label>
               <select
+                id="hero-image-fit"
                 value={formData.imageFit}
                 onChange={(e) => handleChange('imageFit', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -515,8 +540,10 @@ export default function AdminHeroCarouselPage() {
                     Editar
                   </button>
                   <button
-                    onClick={() => handleDelete(slide.id)}
+                    onClick={() => setSlideToDelete(slide)}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Excluir"
+                    aria-label={`Excluir slide ${slide.title}`}
                   >
                     <FaTrash className="w-4 h-4" />
                   </button>
@@ -526,6 +553,18 @@ export default function AdminHeroCarouselPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!slideToDelete}
+        onClose={() => setSlideToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir Slide"
+        message={`Tem certeza que deseja excluir o slide "${slideToDelete?.title ?? ''}"? Esta ação não pode ser desfeita.`}
+        type="delete"
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

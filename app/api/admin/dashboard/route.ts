@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const [
       { count: newsCount, error: newsError },
@@ -10,6 +15,7 @@ export async function GET() {
       { count: heroCount, error: heroError },
       { count: partnersCount, error: partnersError },
       { count: jobsCount, error: jobsError },
+      { count: campaignsCount, error: campaignsError },
     ] = await Promise.all([
       supabaseAdmin.from('news').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('events').select('*', { count: 'exact', head: true }),
@@ -17,6 +23,7 @@ export async function GET() {
       supabaseAdmin.from('hero_slides').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('partners').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('jobs').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('campaigns').select('*', { count: 'exact', head: true }),
     ]);
 
     const firstError =
@@ -31,6 +38,11 @@ export async function GET() {
       throw firstError;
     }
 
+    // Tabela nova: se a migração ainda não rodou, mostra 0 em vez de derrubar o dashboard inteiro
+    if (campaignsError) {
+      console.error('Erro ao contar campanhas:', campaignsError);
+    }
+
     return NextResponse.json({
       news: newsCount || 0,
       events: eventsCount || 0,
@@ -38,6 +50,7 @@ export async function GET() {
       hero_slides: heroCount || 0,
       partners: partnersCount || 0,
       jobs: jobsCount || 0,
+      campaigns: campaignsCount || 0,
     });
   } catch (error) {
     console.error('Erro ao carregar estatísticas do dashboard:', error);

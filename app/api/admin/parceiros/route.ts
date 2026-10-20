@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { auditServer } from '@/lib/audit-server';
-import { validateAndSanitize, scanForThreats, getClientIP, logSecurityEvent } from '@/lib/security';
+import { validateAndSanitize, getClientIP, logSecurityEvent, isSafeLink } from '@/lib/security';
+import { getAdminUser } from '@/lib/supabase-server';
+
+const UNAUTHORIZED = { error: 'Não autorizado' };
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('partners')
@@ -20,21 +27,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const ip = getClientIP(request);
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
 
   try {
     const body = await request.json();
-
-    const { safe, threats } = scanForThreats(body, request);
-    if (!safe) {
-      logSecurityEvent({
-        type: 'suspicious_activity',
-        ip,
-        path: '/api/admin/parceiros',
-        details: { threats, method: 'POST' }
-      });
-      return NextResponse.json({ error: 'Dados inválidos detectados' }, { status: 400 });
-    }
 
     const { valid, errors, sanitized } = validateAndSanitize(body, {
       name: { type: 'string', required: true, maxLength: 100, minLength: 2 },
@@ -45,6 +43,10 @@ export async function POST(request: NextRequest) {
 
     if (!valid) {
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+    }
+
+    if (sanitized.website && !isSafeLink(sanitized.website)) {
+      return NextResponse.json({ error: 'Website deve ser um endereço http(s):// ou um caminho do site (ex: /associados)' }, { status: 400 });
     }
 
     if (sanitized.logo && !sanitized.logo.toString().includes('supabase.co')) {
@@ -82,21 +84,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const ip = getClientIP(request);
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
 
   try {
     const body = await request.json();
-
-    const { safe, threats } = scanForThreats(body, request);
-    if (!safe) {
-      logSecurityEvent({
-        type: 'suspicious_activity',
-        ip,
-        path: '/api/admin/parceiros',
-        details: { threats, method: 'PUT' }
-      });
-      return NextResponse.json({ error: 'Dados inválidos detectados' }, { status: 400 });
-    }
 
     if (!body.id || typeof body.id !== 'number' || body.id < 1) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
@@ -112,6 +105,10 @@ export async function PUT(request: NextRequest) {
 
     if (!valid) {
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+    }
+
+    if (sanitized.website && !isSafeLink(sanitized.website)) {
+      return NextResponse.json({ error: 'Website deve ser um endereço http(s):// ou um caminho do site (ex: /associados)' }, { status: 400 });
     }
 
     if (sanitized.logo && !sanitized.logo.toString().includes('supabase.co')) {
@@ -158,6 +155,10 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   const ip = getClientIP(request);
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');

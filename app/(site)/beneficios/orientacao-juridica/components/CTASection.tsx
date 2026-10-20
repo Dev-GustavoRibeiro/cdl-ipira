@@ -9,19 +9,19 @@ const CTASection = () => {
           <h2 className="text-2xl xs:text-3xl sm:text-4xl font-black mb-4 sm:mb-6">
             Precisa de Ajuda Imediata?
           </h2>
-          <p className="text-white/90 text-sm sm:text-base mb-6 sm:mb-8 text-justify">
+          <p className="text-white/90 text-sm sm:text-base mb-6 sm:mb-8 text-left sm:text-justify">
             Entre em contato conosco através dos canais abaixo para atendimento rápido.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center">
             <a
-              href="tel:+5575999999999"
+              href="tel:+5575999145061"
               className="inline-flex items-center justify-center gap-2 bg-white text-[#003f7f] px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold hover:bg-[#ffd000] hover:text-[#003f7f] transition-all duration-300 hover:scale-105 shadow-xl group"
             >
               <FaPhone className="w-4 h-4 sm:w-5 sm:h-5" />
               Ligar Agora
             </a>
             <a
-              href="mailto:juridico@cdlipira.com.br"
+              href="mailto:cdlipira@ipiratech.com.br"
               className="inline-flex items-center justify-center gap-2 border-2 border-white text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold hover:bg-white hover:text-[#003f7f] transition-all duration-300 group"
             >
               <FaEnvelope className="w-4 h-4 sm:w-5 sm:h-5" />

@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { FaUser } from 'react-icons/fa';
-import { TeamMember } from './types';
+import { TeamMember, isStorageImage } from './types';
 
 interface PresidenteSectionProps {
   presidente: TeamMember;
@@ -36,7 +36,7 @@ const PresidenteSection = ({ presidente }: PresidenteSectionProps) => {
                         priority
                         sizes="(max-width: 1024px) 100vw, 50vw"
                         quality={100}
-                        unoptimized
+                        unoptimized={!isStorageImage(presidente.photo_url)}
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full bg-linear-to-br from-[#002855] to-[#003f7f]">
@@ -96,7 +96,7 @@ const PresidenteSection = ({ presidente }: PresidenteSectionProps) => {
                   </p>
 
                   {presidente.bio && (
-                    <p className="text-white/90 text-base sm:text-lg leading-relaxed mb-8 text-justify">
+                    <p className="text-white/90 text-base sm:text-lg leading-relaxed mb-8 text-left sm:text-justify">
                       {presidente.bio}
                     </p>
                   )}
@@ -113,7 +113,7 @@ const PresidenteSection = ({ presidente }: PresidenteSectionProps) => {
                             Contribuição
                           </h3>
                         </div>
-                        <p className="text-white text-sm sm:text-base leading-relaxed text-justify">
+                        <p className="text-white text-sm sm:text-base leading-relaxed text-left sm:text-justify">
                           {presidente.contribution}
                         </p>
                       </div>

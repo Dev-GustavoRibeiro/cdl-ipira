@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { usePathname } from 'next/navigation';
 import {
   FaTimes,
-  FaShareAlt,
   FaPlusSquare,
   FaEllipsisV,
   FaChrome,
@@ -13,17 +13,33 @@ import {
   FaHome
 } from 'react-icons/fa';
 import { IoShareOutline } from 'react-icons/io5';
+import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 
 type DeviceType = 'ios' | 'android' | 'unknown';
 
 export default function InstallAppPrompt() {
   const [isOpen, setIsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const isClient = useIsClient();
   const [deviceType, setDeviceType] = useState<DeviceType>('unknown');
   const [currentStep, setCurrentStep] = useState(1);
+  const pathname = usePathname();
+  const firstPathname = useRef(pathname);
 
   useEffect(() => {
-    setMounted(true);
+    // Avisos de primeira visita em sequência: nunca na primeira página vista,
+    // só depois que o visitante navegou e já respondeu ao aviso de cookies
+    if (pathname === firstPathname.current) return;
+
+    let shouldShow = false;
+    try {
+      const lastShown = localStorage.getItem('install-prompt-shown');
+      const weekInMs = 24 * 60 * 60 * 1000 * 7; // 7 dias
+      shouldShow = Boolean(localStorage.getItem('cookie-consent'))
+        && (!lastShown || (Date.now() - parseInt(lastShown)) > weekInMs);
+    } catch {
+      // Storage bloqueado: não insiste com o convite
+    }
+    if (!shouldShow) return;
 
     // Detectar tipo de dispositivo
     const userAgent = navigator.userAgent.toLowerCase();
@@ -34,30 +50,35 @@ export default function InstallAppPrompt() {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-    // Verificar se já foi exibido recentemente
-    const lastShown = localStorage.getItem('install-prompt-shown');
-    const dayInMs = 24 * 60 * 60 * 1000 * 7; // 7 dias
-    const shouldShow = !lastShown || (Date.now() - parseInt(lastShown)) > dayInMs;
+    if (isStandalone || !(isIOS || isAndroid)) return;
 
-    if (!isStandalone && shouldShow && (isIOS || isAndroid)) {
+    // Mostrar após 3 segundos na nova página
+    const timer = setTimeout(() => {
       setDeviceType(isIOS ? 'ios' : 'android');
-      // Mostrar após 3 segundos
-      const timer = setTimeout(() => {
-        setIsOpen(true);
-      }, 3000);
-      return () => clearTimeout(timer);
+      setIsOpen(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [pathname]);
+
+  const remember = (timestamp: number) => {
+    try {
+      localStorage.setItem('install-prompt-shown', timestamp.toString());
+    } catch {
+      // Sem storage o convite pode voltar em outra visita
     }
-  }, []);
+  };
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('install-prompt-shown', Date.now().toString());
+    remember(Date.now());
   };
+
+  const dialogRef = useModalBehavior<HTMLDivElement>(isOpen, handleClose);
 
   const handleNeverShow = () => {
     setIsOpen(false);
     // Marcar para não mostrar mais (data muito no futuro)
-    localStorage.setItem('install-prompt-shown', (Date.now() + 365 * 24 * 60 * 60 * 1000 * 10).toString());
+    remember(Date.now() + 365 * 24 * 60 * 60 * 1000 * 10);
   };
 
   const nextStep = () => {
@@ -74,12 +95,12 @@ export default function InstallAppPrompt() {
     }
   };
 
-  if (!mounted || !isOpen) return null;
+  if (!isClient || !isOpen) return null;
 
   const totalSteps = 3;
 
   // Conteúdo para iOS
-  const IOSContent = () => (
+  const iosContent = (
     <div className="space-y-4">
       {/* Ícone do dispositivo */}
       <div className="flex justify-center">
@@ -169,7 +190,7 @@ export default function InstallAppPrompt() {
   );
 
   // Conteúdo para Android
-  const AndroidContent = () => (
+  const androidContent = (
     <div className="space-y-4">
       {/* Ícone do dispositivo */}
       <div className="flex justify-center">
@@ -248,8 +269,9 @@ export default function InstallAppPrompt() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <button className="flex-1 py-2 text-gray-600">Cancelar</button>
-                <button className="flex-1 py-2 bg-[var(--cdl-blue)] text-white rounded-lg font-semibold">Adicionar</button>
+                {/* Ilustração da tela do Android (não são botões reais) */}
+                <span className="flex-1 py-2 text-center text-gray-600">Cancelar</span>
+                <span className="flex-1 py-2 text-center bg-[var(--cdl-blue)] text-white rounded-lg font-semibold">Adicionar</span>
               </div>
             </div>
           </div>
@@ -260,14 +282,16 @@ export default function InstallAppPrompt() {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-100 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && handleClose()}
     >
       <div
-        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden animate-slide-up"
+        ref={dialogRef}
+        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="install-prompt-title"
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-[var(--cdl-blue)] to-[var(--cdl-blue-light)] text-white p-5">
@@ -291,7 +315,7 @@ export default function InstallAppPrompt() {
 
         {/* Conteúdo baseado no dispositivo */}
         <div className="p-5">
-          {deviceType === 'ios' ? <IOSContent /> : <AndroidContent />}
+          {deviceType === 'ios' ? iosContent : androidContent}
         </div>
 
         {/* Indicador de passos */}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FaSearch, FaGavel, FaCheckCircle, FaClock, FaEnvelope, FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { FaSearch, FaGavel, FaCheckCircle, FaClock, FaEnvelope, FaPhone, FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
 import Modal from '@/app/components/Modal';
 import { fetchWithCSRF } from '@/lib/csrf-client';
 
@@ -13,6 +13,10 @@ interface Solicitacao {
   data: string; // Será usado created_at
   status: 'pending' | 'in_progress' | 'completed';
   created_at?: string;
+  // Enviados pelo formulário público (/api/juridico)
+  telefone?: string | null;
+  email?: string | null;
+  descricao?: string | null;
 }
 
 export default function AdminOrientacaoJuridicaPage() {
@@ -23,7 +27,11 @@ export default function AdminOrientacaoJuridicaPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  const fetchSolicitacoes = async () => {
+  useEffect(() => {
+    fetchSolicitacoes();
+  }, []);
+
+  async function fetchSolicitacoes() {
     try {
       const response = await fetch('/api/admin/legal-requests');
       const data = await response.json();
@@ -36,11 +44,7 @@ export default function AdminOrientacaoJuridicaPage() {
     } catch (error) {
       console.error('Erro ao carregar solicitações:', error);
     }
-  };
-
-  useEffect(() => {
-    fetchSolicitacoes();
-  }, []);
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,7 +135,8 @@ export default function AdminOrientacaoJuridicaPage() {
   const filteredSolicitacoes = solicitacoes.filter(solicitacao =>
     solicitacao.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     solicitacao.empresa?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    solicitacao.assunto?.toLowerCase().includes(searchTerm.toLowerCase())
+    solicitacao.assunto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    solicitacao.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -189,12 +194,27 @@ export default function AdminOrientacaoJuridicaPage() {
                       <div className="text-sm sm:text-base font-semibold text-gray-900">
                         {solicitacao.nome}
                       </div>
+                      {solicitacao.email && (
+                        <a href={`mailto:${solicitacao.email}`} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#003f7f] mt-1 break-all">
+                          <FaEnvelope className="w-3 h-3 shrink-0" />
+                          {solicitacao.email}
+                        </a>
+                      )}
+                      {solicitacao.telefone && (
+                        <a href={`tel:${solicitacao.telefone.replace(/[^\d+]/g, '')}`} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#003f7f] mt-1">
+                          <FaPhone className="w-3 h-3 shrink-0" />
+                          {solicitacao.telefone}
+                        </a>
+                      )}
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
                       {solicitacao.empresa}
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
                       {solicitacao.assunto}
+                      {solicitacao.descricao && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 max-w-xs">{solicitacao.descricao}</p>
+                      )}
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
                       {solicitacao.created_at ? new Date(solicitacao.created_at).toLocaleDateString('pt-BR') : '-'}
@@ -211,6 +231,7 @@ export default function AdminOrientacaoJuridicaPage() {
                           onClick={() => openModal(solicitacao)}
                           className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors" 
                           title="Editar"
+                          aria-label={`Editar solicitação de ${solicitacao.nome}`}
                         >
                           <FaEdit className="w-4 h-4" />
                         </button>
@@ -218,6 +239,7 @@ export default function AdminOrientacaoJuridicaPage() {
                           onClick={() => handleDelete(solicitacao.id)}
                           className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors" 
                           title="Excluir"
+                          aria-label={`Excluir solicitação de ${solicitacao.nome}`}
                         >
                           <FaTrash className="w-4 h-4" />
                         </button>
@@ -245,8 +267,9 @@ export default function AdminOrientacaoJuridicaPage() {
       >
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Solicitante</label>
+            <label htmlFor="solicitacao-nome" className="block text-sm font-medium text-gray-700 mb-1">Nome do Solicitante</label>
             <input
+              id="solicitacao-nome"
               type="text"
               required
               value={currentSolicitacao.nome || ''}
@@ -256,8 +279,9 @@ export default function AdminOrientacaoJuridicaPage() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+            <label htmlFor="solicitacao-empresa" className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
             <input
+              id="solicitacao-empresa"
               type="text"
               required
               value={currentSolicitacao.empresa || ''}
@@ -267,8 +291,9 @@ export default function AdminOrientacaoJuridicaPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Assunto</label>
+            <label htmlFor="solicitacao-assunto" className="block text-sm font-medium text-gray-700 mb-1">Assunto</label>
             <input
+              id="solicitacao-assunto"
               type="text"
               required
               value={currentSolicitacao.assunto || ''}
@@ -278,10 +303,11 @@ export default function AdminOrientacaoJuridicaPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <label htmlFor="solicitacao-status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
             <select
+              id="solicitacao-status"
               value={currentSolicitacao.status || 'pending'}
-              onChange={(e) => setCurrentSolicitacao({ ...currentSolicitacao, status: e.target.value as any })}
+              onChange={(e) => setCurrentSolicitacao({ ...currentSolicitacao, status: e.target.value as Solicitacao['status'] })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#003f7f] focus:border-[#003f7f]"
             >
               <option value="pending">Pendente</option>
@@ -289,6 +315,23 @@ export default function AdminOrientacaoJuridicaPage() {
               <option value="completed">Concluída</option>
             </select>
           </div>
+
+          {(currentSolicitacao.email || currentSolicitacao.telefone || currentSolicitacao.descricao) && (
+            <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-2 text-sm text-gray-700">
+              {currentSolicitacao.email && (
+                <p className="flex items-center gap-2 break-all"><FaEnvelope className="text-[#003f7f] shrink-0" /> {currentSolicitacao.email}</p>
+              )}
+              {currentSolicitacao.telefone && (
+                <p className="flex items-center gap-2"><FaPhone className="text-[#003f7f] shrink-0" /> {currentSolicitacao.telefone}</p>
+              )}
+              {currentSolicitacao.descricao && (
+                <div>
+                  <p className="font-medium text-gray-900 mb-1">Descrição da situação</p>
+                  <p className="whitespace-pre-line">{currentSolicitacao.descricao}</p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 mt-6">
             <button

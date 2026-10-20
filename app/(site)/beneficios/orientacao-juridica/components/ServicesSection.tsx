@@ -31,7 +31,7 @@ const ServicesSection = ({ services }: ServicesSectionProps) => {
               <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-[#003f7f] mb-2 sm:mb-3">
                 {service.title}
               </h3>
-              <p className="text-sm sm:text-base text-gray-600 leading-relaxed text-justify">
+              <p className="text-sm sm:text-base text-gray-600 leading-relaxed text-left sm:text-justify">
                 {service.description}
               </p>
             </div>

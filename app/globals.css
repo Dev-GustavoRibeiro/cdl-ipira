@@ -26,6 +26,30 @@ html {
 
 body {
   overflow-x: hidden;
+  /* Fundo explícito: sem ele, seções transparentes herdam o fundo escuro do navegador */
+  background-color: #ffffff;
+  color: #111827;
+}
+
+/* Títulos sem palavra solitária na última linha; parágrafos sem órfãs (não muda tamanhos nem cores) */
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+/* Grade de cartões: 1 a 3 colunas conforme a largura e centralizada quando há poucos itens
+   (2 notícias não deixam uma coluna vazia à direita). Use com gap-5 sm:gap-6 md:gap-8. */
+@utility cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.75rem), 24rem));
+  justify-content: center;
 }
 
 /* Otimização de Performance Global */
@@ -36,9 +60,7 @@ video {
   shape-rendering: geometricPrecision;
 }
 
-/* Hardware Acceleration para Transições Comuns */
-a,
-button,
+/* Hardware Acceleration só para elementos que animam (não em todo link/botão) */
 .transition-all,
 .transition-transform {
   will-change: transform, opacity;
@@ -79,33 +101,7 @@ button,
   align-items: center;
 }
 
-/* Animações suaves */
-.swiper-slide {
-  opacity: 0.6;
-  transition: opacity 0.3s;
-}
-
-.swiper-slide-active {
-  opacity: 1;
-}
-
 /* Line clamp utilities */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 /* Animações inspiradas no Magic UI */
 @keyframes border-beam {
   0% {
@@ -154,11 +150,12 @@ button,
 }
 
 .animate-blur-fade-in {
-  animation: blur-fade-in 0.6s ease-out;
+  animation: blur-fade-in 0.6s ease-out backwards;
 }
 
+/* backwards: com animation-delay o item fica oculto até entrar (sem piscar antes) e o transform do hover segue livre depois */
 .animate-scale-in {
-  animation: scale-in 0.4s ease-out;
+  animation: scale-in 0.4s ease-out backwards;
 }
 
 @keyframes slide-down {
@@ -247,6 +244,15 @@ button,
   background: #0066cc;
 }
 
+/* Esconde a barra de rolagem (listas horizontais roláveis por toque) */
+.scrollbar-hide {
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Estilos para conteúdo de notícias (prose) */
 .prose {
   color: #374151;
@@ -273,7 +279,15 @@ button,
 .prose p {
   margin-bottom: 1.25rem;
   line-height: 1.8;
-  text-align: justify;
+}
+
+/* Justificado só a partir de telas médias: no celular gera espaços grandes entre palavras */
+@media (min-width: 640px) {
+  .prose p {
+    text-align: justify;
+    /* Hifenização (lang="pt-BR") evita os "rios" de espaço do texto justificado */
+    hyphens: auto;
+  }
 }
 
 .prose ul,
@@ -602,10 +616,23 @@ html.focus-highlight *:focus-visible {
 
 /* ========================================
    FOCUS VISÍVEL PADRÃO
+   Contorno azul CDL (visível no branco) com anel amarelo (visível no azul).
+   Elementos com tabindex="-1" (diálogos, <main>) recebem foco por código e não mostram o contorno.
    ======================================== */
-:focus-visible {
-  outline: 3px solid var(--cdl-yellow) !important;
+:focus-visible:not([tabindex="-1"]) {
+  outline: 3px solid var(--cdl-blue) !important;
   outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px var(--cdl-yellow) !important;
+}
+
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* Botões que cobrem um card com overflow-hidden: o contorno vai para dentro para não ser cortado */
+.focus-inset:focus-visible {
+  outline-offset: -4px !important;
+  box-shadow: inset 0 0 0 7px var(--cdl-yellow) !important;
 }
 
 /* ========================================
@@ -624,6 +651,26 @@ html.focus-highlight *:focus-visible {
 
 .skip-link:focus {
   top: 0;
+}
+
+/* ========================================
+   MOVIMENTO REDUZIDO (preferência do sistema)
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ========================================

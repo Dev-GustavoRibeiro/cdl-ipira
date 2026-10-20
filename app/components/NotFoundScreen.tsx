@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FaHome, FaArrowLeft } from 'react-icons/fa';
+import { useIsClient, useScrollLock } from '@/lib/hooks/useModalBehavior';
 
 // Keyframes e classes com hover — injetados inline para escapar da cascata CSS global.
 const CSS = `
@@ -133,19 +133,10 @@ const NUM_BASE: React.CSSProperties = {
 };
 
 export default function NotFoundScreen() {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
 
-  useEffect(() => {
-    setMounted(true);
-    const prevHtml = document.documentElement.style.overflow;
-    const prevBody = document.body.style.overflow;
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.documentElement.style.overflow = prevHtml;
-      document.body.style.overflow = prevBody;
-    };
-  }, []);
+  // A tela cobre tudo: trava o scroll da página por baixo
+  useScrollLock(true);
 
   if (!mounted) {
     return (
@@ -158,7 +149,6 @@ export default function NotFoundScreen() {
 
   return createPortal(
     <>
-      {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       <div

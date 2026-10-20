@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { FaUser } from 'react-icons/fa';
-import { TeamMember } from './types';
+import { TeamMember, isStorageImage } from './types';
 
 interface SuplentesSectionProps {
   suplentes: TeamMember[];
@@ -43,7 +43,7 @@ const SuplentesSection = ({ suplentes }: SuplentesSectionProps) => {
                       className="object-cover object-top"
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                       quality={100}
-                      unoptimized
+                      unoptimized={!isStorageImage(suplente.photo_url)}
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full bg-gray-200">
@@ -80,7 +80,7 @@ const SuplentesSection = ({ suplentes }: SuplentesSectionProps) => {
                         Função
                       </span>
                     </div>
-                    <p className="text-gray-700 text-xs xs:text-sm sm:text-base font-medium leading-snug text-justify">
+                    <p className="text-gray-700 text-xs xs:text-sm sm:text-base font-medium leading-snug text-left sm:text-justify">
                       {suplente.function_description}
                     </p>
                   </div>
@@ -95,7 +95,7 @@ const SuplentesSection = ({ suplentes }: SuplentesSectionProps) => {
                         Contribuição
                       </span>
                     </div>
-                    <p className="text-gray-600 text-xs xs:text-sm leading-relaxed text-justify">
+                    <p className="text-gray-600 text-xs xs:text-sm leading-relaxed text-left sm:text-justify">
                       {suplente.contribution}
                     </p>
                   </div>

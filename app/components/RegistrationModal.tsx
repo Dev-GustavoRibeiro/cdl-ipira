@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { FaTimes, FaSpinner, FaCheckCircle } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 
 interface RegistrationModalProps {
   isOpen: boolean;
@@ -16,8 +16,28 @@ interface RegistrationModalProps {
   } | null;
 }
 
+const inputClass = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent';
+
+// Máscara de CPF: 000.000.000-00
+function maskCPF(value: string): string {
+  return value
+    .replace(/\D/g, '')
+    .slice(0, 11)
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
 export default function RegistrationModal({ isOpen, onClose, event }: RegistrationModalProps) {
-  const [mounted, setMounted] = React.useState(false);
+  const isClient = useIsClient();
+
+  if (!isClient || !isOpen || !event) return null;
+
+  // O formulário só existe enquanto o modal está aberto: ao fechar, os dados são descartados
+  return createPortal(<RegistrationDialog onClose={onClose} event={event} />, document.body);
+}
+
+function RegistrationDialog({ onClose, event }: { onClose: () => void; event: NonNullable<RegistrationModalProps['event']> }) {
   const [isSuccess, setIsSuccess] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -27,22 +47,11 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
     company: ''
   });
   const [isLoading, setIsLoading] = useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Reset states when modal closes or opens
-  React.useEffect(() => {
-    if (!isOpen) {
-      setIsSuccess(false);
-      setFormData({ name: '', email: '', cpf: '', phone: '', company: '' });
-    }
-  }, [isOpen]);
+  const id = useId();
+  const dialogRef = useModalBehavior<HTMLDivElement>(true, onClose);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!event) return;
 
     setIsLoading(true);
     try {
@@ -61,41 +70,43 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        if (response.status === 409 || data.code === 'DUPLICATE_CPF') {
-          throw { code: '23505', message: 'CPF duplicado' };
-        }
-        throw new Error(data.error || 'Erro ao realizar inscrição');
-      }
-
-      setIsSuccess(true);
-      toast.success('Inscrição realizada com sucesso!');
-    } catch (error: any) {
-      console.error('Erro ao realizar inscrição:', error);
-      if (error.code === '23505' || error.message?.includes('CPF duplicado')) {
+      if (response.ok) {
+        setIsSuccess(true);
+        toast.success('Inscrição realizada com sucesso!');
+      } else if (response.status === 409) {
         toast.error('Você já está inscrito neste evento!');
       } else {
-        toast.error('Erro ao realizar inscrição. Tente novamente.');
+        // Erros de validação (4xx) trazem uma mensagem amigável do servidor
+        toast.error(response.status < 500 && typeof data.error === 'string' ? data.error : 'Erro ao realizar inscrição. Tente novamente.');
       }
+    } catch {
+      toast.error('Não foi possível enviar sua inscrição. Verifique sua conexão e tente novamente.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!mounted || !isOpen || !event) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
+  return (
+    <div className="fixed inset-0 z-110 flex items-center justify-center p-4 sm:p-6">
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
       ></div>
 
-      <div className="bg-white w-full max-w-md overflow-y-auto rounded-2xl shadow-2xl relative z-10 flex flex-col animate-scale-in">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${id}-title`}
+        tabIndex={-1}
+        className="bg-white w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl relative z-10 flex flex-col animate-scale-in"
+      >
         {/* Botão Fechar */}
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Fechar inscrição"
           className="absolute top-4 right-4 z-20 p-2 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
         >
           <FaTimes className="w-4 h-4" />
@@ -103,27 +114,30 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
 
         <div className="p-6 sm:p-8">
           {isSuccess ? (
-            <div className="text-center py-4 animate-fade-in">
+            <div className="text-center py-4">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FaCheckCircle className="w-8 h-8" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">Inscrição Confirmada!</h3>
+              <h3 id={`${id}-title`} className="text-2xl font-bold text-gray-900 mb-2">Inscrição Confirmada!</h3>
               <p className="text-gray-600 mb-6">
                 Sua presença no evento <br />
                 <span className="font-bold text-[#003f7f]">{event.title}</span><br />
                 foi registrada com sucesso.
               </p>
+              {/* O botão de envio some ao confirmar: o foco vai para cá para não cair fora do diálogo */}
               <button
+                type="button"
                 onClick={onClose}
+                autoFocus
                 className="w-full bg-[#00a859] text-white py-3 rounded-lg font-bold hover:bg-[#008f4c] transition-colors shadow-lg"
               >
                 Fechar
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-5 animate-fade-in">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-black text-[#003f7f] mb-2">Inscreva-se</h3>
+                <h3 id={`${id}-title`} className="text-2xl font-black text-[#003f7f] mb-2">Inscreva-se</h3>
                 <p className="text-sm text-gray-600">
                   Preencha os dados para participar do evento<br />
                   <span className="font-bold text-[#003f7f]">{event.title}</span>
@@ -131,74 +145,74 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Nome Completo *</label>
+                <label htmlFor={`${id}-name`} className="block text-sm font-bold text-gray-700 mb-1">Nome Completo *</label>
                 <input
+                  id={`${id}-name`}
                   type="text"
                   required
+                  autoComplete="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+                  className={inputClass}
                   placeholder="Seu nome completo"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">CPF *</label>
+                <label htmlFor={`${id}-cpf`} className="block text-sm font-bold text-gray-700 mb-1">CPF *</label>
                 <input
+                  id={`${id}-cpf`}
                   type="text"
+                  inputMode="numeric"
                   required
+                  autoComplete="off"
+                  aria-describedby={`${id}-cpf-hint`}
                   value={formData.cpf}
-                  onChange={(e) => {
-                    // Mascara de CPF
-                    let v = e.target.value.replace(/\D/g, ''); // Remove tudo o que não é dígito
-                    if (v.length > 11) v = v.slice(0, 11); // Limita a 11 dígitos
-
-                    // Coloca ponto entre o terceiro e o quarto dígitos
-                    v = v.replace(/(\d{3})(\d)/, '$1.$2');
-                    // Coloca ponto entre o sexto e o sétimo dígitos
-                    v = v.replace(/(\d{3})(\d)/, '$1.$2');
-                    // Coloca um hífen entre o nono e o décimo dígitos
-                    v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-
-                    setFormData({ ...formData, cpf: v });
-                  }}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+                  onChange={(e) => setFormData({ ...formData, cpf: maskCPF(e.target.value) })}
+                  className={inputClass}
                   placeholder="000.000.000-00"
                 />
-                <p className="text-xs text-gray-500 mt-1">Necessário para garantir inscrição única.</p>
+                <p id={`${id}-cpf-hint`} className="text-xs text-gray-500 mt-1">Necessário para garantir inscrição única.</p>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">E-mail *</label>
+                <label htmlFor={`${id}-email`} className="block text-sm font-bold text-gray-700 mb-1">E-mail *</label>
                 <input
+                  id={`${id}-email`}
                   type="email"
                   required
+                  autoComplete="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+                  className={inputClass}
                   placeholder="seu@email.com"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Telefone/WhatsApp *</label>
+                <label htmlFor={`${id}-phone`} className="block text-sm font-bold text-gray-700 mb-1">Telefone/WhatsApp *</label>
                 <input
+                  id={`${id}-phone`}
                   type="tel"
+                  inputMode="numeric"
                   required
+                  autoComplete="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+                  className={inputClass}
                   placeholder="(00) 00000-0000"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Empresa (Opcional)</label>
+                <label htmlFor={`${id}-company`} className="block text-sm font-bold text-gray-700 mb-1">Empresa (Opcional)</label>
                 <input
+                  id={`${id}-company`}
                   type="text"
+                  autoComplete="organization"
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+                  className={inputClass}
                   placeholder="Nome da sua empresa"
                 />
               </div>
@@ -215,12 +229,6 @@ export default function RegistrationModal({ isOpen, onClose, event }: Registrati
           )}
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }
-
-
-
-
-

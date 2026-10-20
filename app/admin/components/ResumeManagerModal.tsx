@@ -4,7 +4,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { FaTimes, FaCloudUploadAlt, FaTrash, FaFilePdf, FaFileAlt, FaSpinner, FaDownload } from 'react-icons/fa';
 import { toast } from 'sonner';
+import { useScrollLock } from '@/lib/hooks/useModalBehavior';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface Resume {
   id: number;
@@ -25,7 +27,6 @@ interface ResumeManagerModalProps {
 }
 
 export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }: ResumeManagerModalProps) {
-  const [mounted, setMounted] = useState(false);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -36,11 +37,8 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
   const [phone, setPhone] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
+  const [resumeToDelete, setResumeToDelete] = useState<Resume | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchResumes = useCallback(async () => {
     if (!jobId) return;
@@ -58,16 +56,12 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
     }
   }, [jobId]);
 
+  useScrollLock(isOpen);
+
   useEffect(() => {
     if (isOpen && jobId) {
       fetchResumes();
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
   }, [isOpen, jobId, fetchResumes]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,9 +136,11 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
     }
   };
 
-  const handleDelete = async (id: number, fileUrl: string) => {
-    if (!confirm('Tem certeza que deseja excluir este currículo?')) return;
+  const handleConfirmDelete = async () => {
+    if (!resumeToDelete) return;
+    const { id, file_url: fileUrl } = resumeToDelete;
 
+    setIsDeleting(true);
     try {
       const path = fileUrl.includes('/resumes/')
         ? fileUrl.split('/resumes/')[1]
@@ -171,14 +167,16 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
 
       toast.success('Currículo excluído.');
       setResumes(prev => prev.filter(r => r.id !== id));
-
+      setResumeToDelete(null);
     } catch (error) {
       console.error('Erro ao excluir:', error);
       toast.error('Erro ao excluir currículo.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  if (!mounted || !isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
     <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
@@ -196,6 +194,7 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
           </div>
           <button
             onClick={onClose}
+            aria-label="Fechar gerenciador de currículos"
             className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all"
           >
             <FaTimes className="w-6 h-6" />
@@ -212,8 +211,9 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
             
             <form onSubmit={handleUpload} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Nome do Candidato *</label>
+                <label htmlFor="resume-name" className="block text-sm font-bold text-gray-700 mb-1">Nome do Candidato *</label>
                 <input
+                  id="resume-name"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -223,8 +223,9 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
               </div>
               
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Email</label>
+                <label htmlFor="resume-email" className="block text-sm font-bold text-gray-700 mb-1">Email</label>
                 <input
+                  id="resume-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -233,8 +234,9 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
+                <label htmlFor="resume-phone" className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
                 <input
+                  id="resume-phone"
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -337,13 +339,15 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
                         rel="noopener noreferrer"
                         className="p-2 text-[#003f7f] hover:bg-blue-50 rounded-lg transition-colors"
                         title="Baixar/Visualizar"
+                        aria-label={`Baixar currículo de ${resume.candidate_name}`}
                       >
                         <FaDownload className="w-4 h-4" />
                       </a>
                       <button
-                        onClick={() => handleDelete(resume.id, resume.file_url)}
+                        onClick={() => setResumeToDelete(resume)}
                         className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         title="Excluir"
+                        aria-label={`Excluir currículo de ${resume.candidate_name}`}
                       >
                         <FaTrash className="w-4 h-4" />
                       </button>
@@ -355,6 +359,19 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
           </div>
         </div>
       </div>
+
+      {/* Fora do card (que usa transform na animação) para o position: fixed cobrir a tela */}
+      <ConfirmDialog
+        isOpen={!!resumeToDelete}
+        onClose={() => setResumeToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir Currículo"
+        message={`Tem certeza que deseja excluir o currículo de ${resumeToDelete?.candidate_name ?? ''}? Esta ação não pode ser desfeita.`}
+        type="delete"
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        isLoading={isDeleting}
+      />
     </div>,
     document.body
   );

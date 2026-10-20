@@ -5,6 +5,7 @@ import { FaTimes, FaSearch, FaFileExport, FaUser, FaEnvelope, FaPhone, FaBuildin
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface RegistrationListModalProps {
   isOpen: boolean;
@@ -23,27 +24,28 @@ interface Registration {
   created_at: string;
 }
 
+// Célula CSV: aspas escapadas e prefixo ' em valores que o Excel executaria como fórmula (=, +, -, @, tab, CR).
+// Telefones (+55 ...) e o marcador '-' não são fórmulas e ficam como estão.
+function toCsvCell(value: string): string {
+  const isPhoneOrPlaceholder = /^[+\d\s()-]+$/.test(value);
+  const safe = !isPhoneOrPlaceholder && /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
 export default function RegistrationListModal({ isOpen, onClose, eventId, eventTitle }: RegistrationListModalProps) {
-  const [mounted, setMounted] = useState(false);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [registrationToDelete, setRegistrationToDelete] = useState<Registration | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    console.log('RegistrationListModal effect triggered:', { isOpen, eventId });
     if (isOpen && eventId) {
       fetchRegistrations();
-    } else {
-      setRegistrations([]);
-      setSearchTerm('');
     }
   }, [isOpen, eventId]);
 
-  const fetchRegistrations = async () => {
+  async function fetchRegistrations() {
     if (!eventId) return;
 
     setIsLoading(true);
@@ -53,21 +55,27 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
 
       if (!response.ok) throw new Error(data.error || 'Erro ao carregar inscrições');
 
-      console.log('API response:', data);
       setRegistrations(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar inscrições:', error);
+    } catch {
       toast.error('Erro ao carregar lista de inscritos');
     } finally {
       setIsLoading(false);
     }
+  }
+
+  // Limpa a lista ao fechar para não exibir/exportar inscritos de outro evento na próxima abertura
+  const handleClose = () => {
+    setRegistrations([]);
+    setSearchTerm('');
+    onClose();
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este inscrito?')) return;
+  const handleConfirmDelete = async () => {
+    if (!registrationToDelete) return;
 
+    setIsDeleting(true);
     try {
-      const response = await fetchWithCSRF(`/api/admin/registrations?id=${id}&eventId=${eventId}`, {
+      const response = await fetchWithCSRF(`/api/admin/registrations?id=${registrationToDelete.id}&eventId=${eventId}`, {
         method: 'DELETE'
       });
 
@@ -76,10 +84,12 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
       if (!response.ok) throw new Error(data.error || 'Erro ao excluir inscrito');
 
       toast.success('Inscrito excluído com sucesso');
+      setRegistrationToDelete(null);
       fetchRegistrations();
-    } catch (error) {
-      console.error('Erro ao excluir inscrito:', error);
+    } catch {
       toast.error('Erro ao excluir inscrito');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -94,17 +104,18 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
 
     const headers = ['Nome', 'E-mail', 'Telefone', 'Empresa', 'Data Inscrição'];
     const csvContent = [
-      headers.join(','),
+      headers.map(toCsvCell).join(','),
       ...registrations.map(reg => [
-        `"${reg.name}"`,
-        `"${reg.email}"`,
-        `"${reg.phone}"`,
-        `"${reg.company || '-'}"`,
-        `"${new Date(reg.created_at).toLocaleString('pt-BR')}"`
-      ].join(','))
-    ].join('\n');
+        reg.name,
+        reg.email,
+        reg.phone,
+        reg.company || '-',
+        new Date(reg.created_at).toLocaleString('pt-BR')
+      ].map(value => toCsvCell(String(value ?? ''))).join(','))
+    ].join('\r\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // BOM UTF-8 para o Excel abrir os acentos corretamente
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
@@ -112,9 +123,10 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  if (!mounted || !isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
@@ -129,7 +141,8 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
             <p className="text-sm text-gray-600 truncate max-w-md">{eventTitle}</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
+            aria-label="Fechar lista de inscritos"
             className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100"
           >
             <FaTimes className="w-5 h-5" />
@@ -139,9 +152,10 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
         <div className="p-6 space-y-6">
           <div className="flex flex-col sm:flex-row gap-4 justify-between">
             <div className="relative flex-1">
-              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
               <input
                 type="text"
+                aria-label="Buscar inscritos"
                 placeholder="Buscar por nome, email ou empresa..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -226,9 +240,10 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
-                            onClick={() => handleDelete(reg.id)}
+                            onClick={() => setRegistrationToDelete(reg)}
                             className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                             title="Excluir inscrito"
+                            aria-label={`Excluir inscrito ${reg.name}`}
                           >
                             <FaTrash className="w-4 h-4" />
                           </button>
@@ -246,6 +261,19 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
           </div>
         </div>
       </div>
+
+      {/* Fora do card (que usa transform na animação) para o position: fixed cobrir a tela */}
+      <ConfirmDialog
+        isOpen={!!registrationToDelete}
+        onClose={() => setRegistrationToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir Inscrito"
+        message={`Tem certeza que deseja excluir a inscrição de ${registrationToDelete?.name ?? ''}? Esta ação não pode ser desfeita.`}
+        type="delete"
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        isLoading={isDeleting}
+      />
     </div>,
     document.body
   );

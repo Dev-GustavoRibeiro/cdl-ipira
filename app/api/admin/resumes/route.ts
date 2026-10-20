@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
 import { isValidEmail, sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 
 function sanitizePhone(value: string | undefined): string | null {
   if (!value) return null;
@@ -43,6 +44,10 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
 }
 
 export async function GET(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const jobId = Number(searchParams.get('jobId'));
@@ -70,6 +75,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizePayload(body);
@@ -99,6 +108,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));

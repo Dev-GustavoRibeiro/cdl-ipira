@@ -15,12 +15,12 @@ const InfoSection = () => {
             <h2 className="text-xl xs:text-2xl sm:text-3xl font-black text-[#003f7f] mb-3 sm:mb-4">
               Compromisso com o Futuro
             </h2>
-            <p className="text-gray-700 text-sm xs:text-base sm:text-lg mb-5 sm:mb-6 leading-relaxed px-2 text-justify">
+            <p className="text-gray-700 text-sm xs:text-base sm:text-lg mb-5 sm:mb-6 leading-relaxed px-2 text-left sm:text-justify">
               A atual diretoria da CDL Ipirá foi eleita para o mandato 2024-2027, com o compromisso de continuar fortalecendo o comércio local e oferecendo serviços de excelência aos associados.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
               <Link
-                href="/historia"
+                href="/institucional/historia"
                 className="inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-bold text-sm sm:text-base hover:bg-[#0066cc] transition-all duration-300 hover:scale-105 shadow-lg group"
               >
                 Conheça Nossa História
@@ -29,7 +29,7 @@ const InfoSection = () => {
                 </svg>
               </Link>
               <Link
-                href="/missao-visao-valores"
+                href="/institucional/missao-visao-valores"
                 className="inline-flex items-center justify-center gap-2 border-2 border-[#003f7f] text-[#003f7f] px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-bold text-sm sm:text-base hover:bg-[#003f7f] hover:text-white transition-all duration-300"
               >
                 Missão, Visão e Valores

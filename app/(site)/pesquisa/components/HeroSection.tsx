@@ -36,6 +36,7 @@ const HeroSection = ({ searchTerm, onSearchTermChange, onSubmit, onClear }: Hero
                 type="text"
                 value={searchTerm}
                 onChange={(e) => onSearchTermChange(e.target.value)}
+                aria-label="Pesquisar no site"
                 placeholder="O que você está procurando?"
                 className="w-full pl-14 pr-32 py-4 sm:py-5 rounded-full text-gray-800 bg-white shadow-2xl outline-none text-base sm:text-lg placeholder:text-gray-400 focus:ring-4 focus:ring-[#ffd000]/50 transition-all"
                 autoFocus

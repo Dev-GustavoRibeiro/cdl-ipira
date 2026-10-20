@@ -32,7 +32,7 @@ const MissaoVisaoSection = () => {
 
               <div className="w-full h-1 bg-linear-to-r from-[#003f7f] via-[#0066cc] to-transparent rounded-full mb-8"></div>
               
-              <p className="text-gray-700 text-lg sm:text-xl leading-relaxed text-justify">
+              <p className="text-gray-700 text-lg sm:text-xl leading-relaxed text-left sm:text-justify">
                 Promover o <strong className="text-[#003f7f]">fortalecimento de nossos associados</strong> através da representatividade e entrega de soluções, defendendo, orientando e contribuindo para o <strong className="text-[#003f7f]">desenvolvimento econômico e social</strong> de Ipirá e região.
               </p>
 
@@ -72,7 +72,7 @@ const MissaoVisaoSection = () => {
 
               <div className="w-full h-1 bg-linear-to-r from-[#00a859] via-[#00d670] to-transparent rounded-full mb-8"></div>
               
-              <p className="text-gray-700 text-lg sm:text-xl leading-relaxed text-justify">
+              <p className="text-gray-700 text-lg sm:text-xl leading-relaxed text-left sm:text-justify">
                 Ser reconhecida como a <strong className="text-[#00a859]">melhor entidade da Bahia até 2030</strong>, destacando-se em práticas de compliance, excelência na fidelização e na entrega de <strong className="text-[#00a859]">soluções inovadoras e eficazes</strong>.
               </p>
 

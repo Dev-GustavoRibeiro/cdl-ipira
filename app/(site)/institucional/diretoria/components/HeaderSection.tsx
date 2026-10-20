@@ -14,7 +14,7 @@ const HeaderSection = () => {
             Diretoria
           </h1>
           <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-4 sm:mb-6"></div>
-          <p className="text-gray-700 text-base sm:text-lg md:text-xl max-w-3xl mx-auto px-4 text-justify">
+          <p className="text-gray-700 text-base sm:text-lg md:text-xl max-w-3xl mx-auto px-4 text-left sm:text-justify">
             Conheça os profissionais que lideram a CDL Ipirá e trabalham pelo fortalecimento do comércio local
           </p>
         </div>

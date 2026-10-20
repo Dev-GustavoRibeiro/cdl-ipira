@@ -8,7 +8,6 @@ const FeatureDetails = () => {
   return (
     <>
       {features.map((feature) => {
-        const IconComponent = feature.icon;
         return (
           <section
             key={feature.id}

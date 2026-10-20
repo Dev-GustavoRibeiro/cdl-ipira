@@ -19,7 +19,7 @@ const Breadcrumb = () => {
           </Link>
           <span className="text-white/40">/</span>
           <Link
-            href="/historia"
+            href="/institucional/historia"
             className="hover:text-[#ffd000] transition-colors"
           >
             Institucional

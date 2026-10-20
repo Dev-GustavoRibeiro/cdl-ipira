@@ -22,47 +22,48 @@ function SearchContent() {
   const query = searchParams.get('q') || '';
   
   const [searchTerm, setSearchTerm] = useState(query);
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  // Resposta da última busca, guardada junto com o termo a que pertence
+  const [response, setResponse] = useState<{ query: string; results: SearchResult[]; total: number; error: string | null } | null>(null);
+
+  // Mantém o campo e o filtro em sincronia com o ?q= atual (voltar/avançar ou nova busca pelo header)
+  const [syncedQuery, setSyncedQuery] = useState(query);
+  if (syncedQuery !== query) {
+    setSyncedQuery(query);
+    setSearchTerm(query);
+    setActiveFilter(null);
+  }
 
   // Buscar quando o query muda
   useEffect(() => {
-    if (query && query.length >= 2) {
-      performSearch(query);
-    } else {
-      setResults([]);
-      setTotal(0);
-    }
+    if (query.length < 2) return;
+
+    // Cancela a busca anterior: uma resposta antiga não pode sobrescrever a mais recente
+    const controller = new AbortController();
+
+    fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
+      .then((res) => res.json() as Promise<SearchResponse>)
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setResponse(data.error
+          ? { query, results: [], total: 0, error: data.error }
+          : { query, results: data.results || [], total: data.total || 0, error: null });
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        console.error('Erro na busca:', err);
+        setResponse({ query, results: [], total: 0, error: 'Ocorreu um erro ao realizar a pesquisa. Tente novamente.' });
+      });
+
+    return () => controller.abort();
   }, [query]);
 
-  const performSearch = async (term: string) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(term)}`);
-      const data: SearchResponse = await response.json();
-      
-      if (data.error) {
-        setError(data.error);
-        setResults([]);
-        setTotal(0);
-      } else {
-        setResults(data.results);
-        setTotal(data.total);
-      }
-    } catch (err) {
-      console.error('Erro na busca:', err);
-      setError('Ocorreu um erro ao realizar a pesquisa. Tente novamente.');
-      setResults([]);
-      setTotal(0);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Só vale a resposta do termo atual
+  const current = query.length >= 2 && response?.query === query ? response : null;
+  const isLoading = query.length >= 2 && !current;
+  const results = current?.results ?? [];
+  const total = current?.total ?? 0;
+  const error = current?.error ?? null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

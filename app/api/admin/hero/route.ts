@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { auditServer } from '@/lib/audit-server';
-import { validateAndSanitize, scanForThreats, getClientIP, logSecurityEvent } from '@/lib/security';
+import { validateAndSanitize, getClientIP, logSecurityEvent, isSafeLink } from '@/lib/security';
+import { getAdminUser } from '@/lib/supabase-server';
+
+const UNAUTHORIZED = { error: 'Não autorizado' };
+const INVALID_LINK = { error: 'Link do botão deve ser um caminho do site (ex: /eventos) ou um endereço http(s)://' };
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('hero_slides')
@@ -20,20 +28,15 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const ip = getClientIP(request);
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
 
   try {
     const body = await request.json();
 
-    const { safe, threats } = scanForThreats(body, request);
-    if (!safe) {
-      logSecurityEvent({
-        type: 'suspicious_activity',
-        ip,
-        path: '/api/admin/hero',
-        details: { threats, method: 'POST' }
-      });
-      return NextResponse.json({ error: 'Dados inválidos detectados' }, { status: 400 });
+    if (body.buttonLink && !isSafeLink(body.buttonLink)) {
+      return NextResponse.json(INVALID_LINK, { status: 400 });
     }
 
     const { valid, errors, sanitized } = validateAndSanitize(body, {
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
       subtitle: { type: 'string', required: false, maxLength: 200 },
       description: { type: 'string', required: false, maxLength: 500 },
       buttonText: { type: 'string', required: false, maxLength: 50 },
-      buttonLink: { type: 'string', required: false, maxLength: 500 },
+      buttonLink: { type: 'url', required: false },
       gradient: { type: 'string', required: false, maxLength: 200 },
       accentColor: { type: 'string', required: false, maxLength: 50 },
       image: { type: 'url', required: false },
@@ -94,24 +97,19 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const ip = getClientIP(request);
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
 
   try {
     const body = await request.json();
 
-    const { safe, threats } = scanForThreats(body, request);
-    if (!safe) {
-      logSecurityEvent({
-        type: 'suspicious_activity',
-        ip,
-        path: '/api/admin/hero',
-        details: { threats, method: 'PUT' }
-      });
-      return NextResponse.json({ error: 'Dados inválidos detectados' }, { status: 400 });
-    }
-
     if (!body.id || typeof body.id !== 'number' || body.id < 1) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    }
+
+    if (body.buttonLink && !isSafeLink(body.buttonLink)) {
+      return NextResponse.json(INVALID_LINK, { status: 400 });
     }
 
     const { id, ...updates } = body;
@@ -120,7 +118,7 @@ export async function PUT(request: NextRequest) {
       subtitle: { type: 'string', required: false, maxLength: 200 },
       description: { type: 'string', required: false, maxLength: 500 },
       buttonText: { type: 'string', required: false, maxLength: 50 },
-      buttonLink: { type: 'string', required: false, maxLength: 500 },
+      buttonLink: { type: 'url', required: false },
       gradient: { type: 'string', required: false, maxLength: 200 },
       accentColor: { type: 'string', required: false, maxLength: 50 },
       image: { type: 'url', required: false },
@@ -171,6 +169,10 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   const ip = getClientIP(request);
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get('id');
