@@ -1,83 +1,85 @@
 'use client';
 
 import React from 'react';
-import { FaUsers, FaFileAlt, FaMicrophone, FaNewspaper } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
+import { FaUsers, FaFileAlt, FaMicrophone, FaNewspaper, FaLightbulb } from 'react-icons/fa';
+import { ACCENTS, type Accent, SectionHeader, anchorOffset, cardLift, cardSurface } from '../../_components/ProductUI';
 
-const initiatives = [
+// tag: resumo curto usado no painel do hero
+export const initiatives: { id: number; title: string; tag: string; icon: IconType; description: string; accent: Accent }[] = [
   {
     id: 1,
     title: 'CDL Conecta',
+    tag: 'Networking digital',
     icon: FaUsers,
     description: 'Conectando empresas e fortalecendo relacionamentos através de conteúdo estratégico e networking digital.',
-    color: 'from-[#003f7f] to-[#0066cc]',
-    iconBg: 'bg-[#003f7f]'
+    accent: 'blue'
   },
   {
     id: 2,
     title: 'Minha Empresa Faz História',
+    tag: 'Histórias inspiradoras',
     icon: FaFileAlt,
     description: 'Destaque a trajetória e os valores da sua empresa através de histórias inspiradoras e conteúdo relevante.',
-    color: 'from-[#00a859] to-[#00d670]',
-    iconBg: 'bg-[#00a859]'
+    accent: 'green'
   },
   {
     id: 3,
     title: 'CDL Cast',
+    tag: 'Podcasts',
     icon: FaMicrophone,
     description: 'Podcasts exclusivos com informações estratégicas, entrevistas e conteúdos que inspiram o empreendedorismo.',
-    color: 'from-[#ffd000] to-[#ffed4e]',
-    iconBg: 'bg-[#ffd000]'
+    accent: 'yellow'
   },
   {
     id: 4,
     title: 'CDL News',
+    tag: 'Notícias do mercado',
     icon: FaNewspaper,
     description: 'Notícias, atualizações e informações relevantes sobre o mercado, economia e oportunidades de negócio.',
-    color: 'from-[#ff6b6b] to-[#ff8787]',
-    iconBg: 'bg-[#ff6b6b]'
+    accent: 'sky'
   }
 ];
 
 const InitiativesSection = () => {
   return (
-    <section className="py-16 bg-gray-50">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-black text-[#003f7f] mb-4">
-            Nossas Iniciativas
-          </h2>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Projetos exclusivos que geram visibilidade e reconhecimento para sua empresa
-          </p>
-        </div>
+    <section aria-labelledby="midia-iniciativas" className="bg-white py-16 md:py-24">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <SectionHeader
+          id="midia-iniciativas"
+          eyebrow="Iniciativas"
+          icon={FaLightbulb}
+          title="Nossas Iniciativas"
+          subtitle="Projetos exclusivos que geram visibilidade e reconhecimento para sua empresa"
+        />
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {initiatives.map((initiative) => {
-            const IconComponent = initiative.icon;
+        <ul className="mt-12 grid gap-5 sm:grid-cols-2 sm:gap-6 md:mt-14 lg:gap-8 xl:grid-cols-4">
+          {initiatives.map((initiative, index) => {
+            const Icon = initiative.icon;
+            const accent = ACCENTS[initiative.accent];
             return (
-              <div
-                key={initiative.id}
-                className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-2 border-gray-100"
-              >
-                <div className={`bg-linear-to-br ${initiative.color} p-6 text-white`}>
-                  <div className={`${initiative.iconBg} w-14 h-14 rounded-full flex items-center justify-center mb-4`}>
-                    <IconComponent className="w-7 h-7 text-white" />
+              <li key={initiative.id} id={`iniciativa-${initiative.id}`} className={anchorOffset}>
+                <article className={`relative flex h-full flex-col overflow-hidden p-6 sm:p-7 ${cardSurface} ${cardLift}`}>
+                  <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 ${accent.bar}`} />
+                  <div className="flex items-start justify-between gap-4">
+                    <span className={`flex h-14 w-14 items-center justify-center rounded-2xl ${accent.tile} shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)]`}>
+                      <Icon aria-hidden="true" className="h-6 w-6" />
+                    </span>
+                    <span aria-hidden="true" className="text-3xl font-black tracking-tight text-[#003f7f]/10">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
                   </div>
-                  <h3 className="text-xl font-black mb-2">{initiative.title}</h3>
-                </div>
-                <div className="p-6">
-                  <p className="text-gray-700 leading-relaxed">{initiative.description}</p>
-                </div>
-              </div>
+                  <h3 className="mt-6 text-xl font-black leading-tight tracking-tight text-balance text-[#003f7f]">{initiative.title}</h3>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-gray-500">{initiative.tag}</p>
+                  <p className="mt-4 leading-relaxed text-gray-600">{initiative.description}</p>
+                </article>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </div>
     </section>
   );
 };
 
 export default InitiativesSection;
-
-
-

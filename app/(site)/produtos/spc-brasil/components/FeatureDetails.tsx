@@ -1,105 +1,102 @@
 'use client';
 
 import React from 'react';
-import { FaCheckCircle, FaInfoCircle, FaUsers, FaArrowRight } from 'react-icons/fa';
+import { FaArrowRight, FaCheck, FaExternalLinkAlt, FaInfoCircle, FaStar, FaUsers } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
+import { ACCENTS, SectionHeader, anchorOffset, btnBlue, cardSurface } from '../../_components/ProductUI';
 import { features } from './FeaturesData';
+
+// Título de cada cartão com ícone em bloco suave
+function CardTitle({ icon: Icon, children, soft }: { icon: IconType; children: React.ReactNode; soft: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ${soft}`}>
+        <Icon aria-hidden="true" className="h-4 w-4" />
+      </span>
+      <h3 className="text-lg font-black tracking-tight text-[#003f7f] sm:text-xl">{children}</h3>
+    </div>
+  );
+}
 
 const FeatureDetails = () => {
   return (
     <>
-      {features.map((feature) => {
+      {features.map((feature, featureIndex) => {
+        const accent = ACCENTS[feature.accent];
         return (
           <section
             key={feature.id}
             id={`detalhes-${feature.id}`}
-            className={`py-16 ${feature.id % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+            aria-labelledby={`detalhes-${feature.id}-titulo`}
+            className={`py-16 md:py-24 ${anchorOffset} ${featureIndex % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
           >
-            <div className="container mx-auto px-4">
-              <div className="max-w-6xl mx-auto">
-                {/* Header da Seção */}
-                <div className="text-center mb-12">
-                  <div className={`inline-block bg-linear-to-br ${feature.color} text-white px-6 py-3 rounded-full text-sm font-black mb-6 shadow-lg`}>
-                    {feature.title}
-                  </div>
-                  <h2 className="text-4xl md:text-5xl font-black text-[#003f7f] mb-4">
-                    {feature.title}
-                  </h2>
-                  <p className="text-xl text-gray-700 max-w-3xl mx-auto">
-                    {feature.description}
-                  </p>
-                </div>
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+                <SectionHeader
+                  id={`detalhes-${feature.id}-titulo`}
+                  align="left"
+                  eyebrow={`Solução ${featureIndex + 1} de ${features.length}`}
+                  icon={feature.icon}
+                  title={feature.title}
+                  subtitle={feature.description}
+                />
+                <a
+                  href="https://www.spcbrasil.org.br"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${btnBlue} shrink-0 self-start md:self-auto`}
+                >
+                  Acessar {feature.title}
+                  <FaExternalLinkAlt aria-hidden="true" className="h-3.5 w-3.5" />
+                  <span className="sr-only">(abre em nova aba)</span>
+                </a>
+              </div>
 
-                <div className="grid lg:grid-cols-2 gap-12">
-                  {/* Benefícios */}
-                  <div className="bg-white rounded-2xl p-8 shadow-lg">
-                    <div className="flex items-center gap-3 mb-6">
-                      <FaCheckCircle className={`w-6 h-6 ${feature.iconBg} text-white p-2 rounded-lg`} />
-                      <h3 className="text-2xl font-bold text-gray-900">Benefícios</h3>
-                    </div>
-                    <ul className="space-y-4">
-                      {feature.benefits.map((benefit, index) => (
-                        <li key={index} className="flex items-start gap-3">
-                          <FaCheckCircle className={`w-5 h-5 ${feature.iconBg} text-white rounded-full flex-shrink-0 mt-0.5`} />
-                          <span className="text-gray-700">{benefit}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Como Funciona */}
-                  <div className="bg-white rounded-2xl p-8 shadow-lg">
-                    <div className="flex items-center gap-3 mb-6">
-                      <FaInfoCircle className={`w-6 h-6 ${feature.iconBg} text-white p-2 rounded-lg`} />
-                      <h3 className="text-2xl font-bold text-gray-900">Como Funciona</h3>
-                    </div>
-                    <ol className="space-y-4">
-                      {feature.howItWorks.map((step, index) => (
-                        <li key={index} className="flex items-start gap-3">
-                          <span className={`${feature.iconBg} text-white w-8 h-8 rounded-full flex items-center justify-center font-bold flex-shrink-0`}>
-                            {index + 1}
-                          </span>
-                          <span className="text-gray-700 pt-1">{step}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                </div>
-
-                {/* Casos de Uso */}
-                <div className="mt-12 bg-white rounded-2xl p-8 shadow-lg">
-                  <div className="flex items-center gap-3 mb-6">
-                    <FaUsers className={`w-6 h-6 ${feature.iconBg} text-white p-2 rounded-lg`} />
-                    <h3 className="text-2xl font-bold text-gray-900">Para Quem é Indicado</h3>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {feature.useCases.map((useCase, index) => (
-                      <div
-                        key={index}
-                        className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                      >
-                        <FaArrowRight className={`w-5 h-5 ${feature.iconBg} text-white rounded-full p-1 flex-shrink-0 mt-0.5`} />
-                        <span className="text-gray-700">{useCase}</span>
-                      </div>
+              <div className="mt-10 grid gap-5 sm:gap-6 md:mt-14 lg:grid-cols-3 lg:gap-8">
+                {/* Benefícios */}
+                <div className={`p-6 sm:p-8 ${cardSurface}`}>
+                  <CardTitle icon={FaStar} soft={accent.soft}>Benefícios</CardTitle>
+                  <ul className="mt-6 space-y-3.5">
+                    {feature.benefits.map((benefit) => (
+                      <li key={benefit} className="flex items-start gap-3 text-gray-700">
+                        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${accent.tile}`}>
+                          <FaCheck aria-hidden="true" className="h-2.5 w-2.5" />
+                        </span>
+                        <span className="leading-snug">{benefit}</span>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
 
-                {/* CTA */}
-                <div className="mt-12 text-center">
-                  <div className={`bg-linear-to-br ${feature.color} rounded-2xl p-8 text-white shadow-2xl`}>
-                    <h3 className="text-2xl font-black mb-4">Pronto para começar?</h3>
-                    <p className="text-white/90 mb-6 max-w-2xl mx-auto">
-                      Acesse o {feature.title} agora mesmo e aproveite todos os benefícios.
-                    </p>
-                    <a
-                      href="https://www.spcbrasil.org.br"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block bg-white text-[#003f7f] px-8 py-4 rounded-full font-bold hover:scale-105 transition-all duration-300 shadow-lg"
-                    >
-                      Acessar {feature.title}
-                    </a>
-                  </div>
+                {/* Como Funciona: passos numerados ligados por uma linha */}
+                <div className={`p-6 sm:p-8 ${cardSurface}`}>
+                  <CardTitle icon={FaInfoCircle} soft={accent.soft}>Como Funciona</CardTitle>
+                  <ol className="mt-6">
+                    {feature.howItWorks.map((step, index) => (
+                      <li key={step} className="relative flex gap-4 pb-5 last:pb-0">
+                        {index < feature.howItWorks.length - 1 && (
+                          <span aria-hidden="true" className="absolute top-9 bottom-1 left-4 w-0.5 -translate-x-1/2 rounded-full bg-[#003f7f]/15" />
+                        )}
+                        <span className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${accent.tile}`}>
+                          {index + 1}
+                        </span>
+                        <span className="pt-1 leading-snug text-gray-700">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                {/* Para Quem é Indicado */}
+                <div className={`p-6 sm:p-8 ${cardSurface}`}>
+                  <CardTitle icon={FaUsers} soft={accent.soft}>Para Quem é Indicado</CardTitle>
+                  <ul className="mt-6 space-y-3">
+                    {feature.useCases.map((useCase) => (
+                      <li key={useCase} className="flex items-start gap-3 rounded-2xl bg-gray-50 p-3.5 text-gray-700 ring-1 ring-gray-100">
+                        <FaArrowRight aria-hidden="true" className="mt-1 h-3 w-3 shrink-0 text-[#003f7f]" />
+                        <span className="leading-snug">{useCase}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </div>
@@ -111,6 +108,3 @@ const FeatureDetails = () => {
 };
 
 export default FeatureDetails;
-
-
-

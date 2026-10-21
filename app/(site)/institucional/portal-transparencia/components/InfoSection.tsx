@@ -1,44 +1,42 @@
 'use client';
 
 import React from 'react';
-import { FaChartLine, FaDollarSign } from 'react-icons/fa';
+import { FaChartLine, FaDollarSign, FaShieldAlt } from 'react-icons/fa';
+import { SectionHeader, shadowCard } from '../../_components/ui';
+
+const cards = [
+  {
+    icon: FaChartLine,
+    title: 'Indicadores de Gestão',
+    text: 'Acompanhe os principais indicadores de gestão e desempenho da CDL Ipirá. Nosso compromisso é manter você informado sobre todas as atividades.',
+    tile: 'bg-linear-to-br from-[#003f7f] to-[#0066cc]',
+    bar: 'from-[#003f7f] to-[#0066cc]',
+  },
+  {
+    icon: FaDollarSign,
+    title: 'Prestação de Contas',
+    text: 'Acesse os demonstrativos financeiros e relatórios de prestação de contas. Transparência total na gestão dos recursos da entidade.',
+    tile: 'bg-linear-to-br from-[#00a859] to-[#00d670]',
+    bar: 'from-[#00a859] to-[#00d670]',
+  },
+];
 
 const InfoSection = () => {
   return (
-    <section className="py-8 sm:py-12 md:py-16 bg-white">
+    <section className="bg-white pt-8 pb-16 sm:pt-10 sm:pb-20 lg:pt-12 lg:pb-24">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8 sm:mb-10">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#003f7f] mb-3">
-              Compromisso com a Transparência
-            </h2>
-            <div className="w-20 h-1.5 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto"></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8">
-            <div className="bg-linear-to-br from-[#003f7f] to-[#0052a3] rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 text-white shadow-xl">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/20 rounded-full flex items-center justify-center mb-4 sm:mb-6">
-                <FaChartLine className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <h3 className="text-lg sm:text-xl md:text-2xl font-bold mb-2 sm:mb-3">
-                Indicadores de Gestão
-              </h3>
-              <p className="text-sm sm:text-base text-white/80 leading-relaxed text-left sm:text-justify">
-                Acompanhe os principais indicadores de gestão e desempenho da CDL Ipirá. Nosso compromisso é manter você informado sobre todas as atividades.
-              </p>
-            </div>
-
-            <div className="bg-linear-to-br from-[#00a859] to-[#00d670] rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 text-white shadow-xl">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/20 rounded-full flex items-center justify-center mb-4 sm:mb-6">
-                <FaDollarSign className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <h3 className="text-lg sm:text-xl md:text-2xl font-bold mb-2 sm:mb-3">
-                Prestação de Contas
-              </h3>
-              <p className="text-sm sm:text-base text-white/80 leading-relaxed text-left sm:text-justify">
-                Acesse os demonstrativos financeiros e relatórios de prestação de contas. Transparência total na gestão dos recursos da entidade.
-              </p>
-            </div>
-          </div>
+        <SectionHeader icon={FaShieldAlt} eyebrow="Gestão aberta" title="Compromisso com a Transparência" />
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 lg:gap-8">
+          {cards.map(({ icon: Icon, title, text, tile, bar }) => (
+            <article key={title} className={`relative overflow-hidden rounded-3xl bg-white p-7 ring-1 ring-[#003f7f]/[0.07] sm:p-9 ${shadowCard}`}>
+              <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 bg-linear-to-r ${bar}`} />
+              <span className={`flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)] ${tile}`}>
+                <Icon aria-hidden="true" className="h-6 w-6" />
+              </span>
+              <h3 className="mt-6 text-xl font-black tracking-tight text-[#003f7f] sm:text-2xl">{title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-pretty text-gray-600 sm:text-base">{text}</p>
+            </article>
+          ))}
         </div>
       </div>
     </section>
@@ -46,6 +44,3 @@ const InfoSection = () => {
 };
 
 export default InfoSection;
-
-
-

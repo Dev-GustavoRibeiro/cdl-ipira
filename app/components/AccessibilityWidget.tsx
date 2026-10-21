@@ -83,6 +83,7 @@ function applySettings(newSettings: AccessibilitySettings) {
   
   // Espaçamento de linha
   root.style.setProperty('--line-height-multiplier', `${newSettings.lineHeight / 100}`);
+  root.classList.toggle('custom-line-height', newSettings.lineHeight !== 100);
   
   // Fonte para dislexia (OpenDyslexic via cdn.jsdelivr.net, ver globals.css)
   root.classList.toggle('dyslexic-font', newSettings.dyslexicFont);

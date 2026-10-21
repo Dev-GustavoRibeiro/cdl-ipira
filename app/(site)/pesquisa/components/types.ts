@@ -27,42 +27,43 @@ export interface TypeConfig {
   bgColor: string;
 }
 
+// Cores da marca: bgColor pinta o quadrado do ícone, color pinta o ícone
 export const typeConfig: Record<string, TypeConfig> = {
-  noticia: { 
-    label: 'Notícia', 
-    icon: FaNewspaper, 
-    color: 'text-green-600',
-    bgColor: 'bg-green-100'
+  noticia: {
+    label: 'Notícia',
+    icon: FaNewspaper,
+    color: 'text-[#00a859]',
+    bgColor: 'bg-[#00a859]/10'
   },
-  evento: { 
-    label: 'Evento', 
-    icon: FaCalendarAlt, 
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-100'
+  evento: {
+    label: 'Evento',
+    icon: FaCalendarAlt,
+    color: 'text-[#003f7f]',
+    bgColor: 'bg-[#ffd000]/30'
   },
-  vaga: { 
-    label: 'Vaga', 
-    icon: FaBriefcase, 
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-100'
+  vaga: {
+    label: 'Vaga',
+    icon: FaBriefcase,
+    color: 'text-[#0066cc]',
+    bgColor: 'bg-[#0066cc]/10'
   },
-  video: { 
-    label: 'Vídeo', 
-    icon: FaVideo, 
-    color: 'text-red-600',
-    bgColor: 'bg-red-100'
+  video: {
+    label: 'Vídeo',
+    icon: FaVideo,
+    color: 'text-white',
+    bgColor: 'bg-[#003f7f]'
   },
   campanha: {
     label: 'Campanha',
     icon: FaBullhorn,
-    color: 'text-[#00a859]',
-    bgColor: 'bg-[#00a859]/10'
-  },
-  page: { 
-    label: 'Página', 
-    icon: FaFileAlt, 
     color: 'text-[#003f7f]',
-    bgColor: 'bg-blue-50'
+    bgColor: 'bg-[#ffd000]'
+  },
+  page: {
+    label: 'Página',
+    icon: FaFileAlt,
+    color: 'text-[#003f7f]',
+    bgColor: 'bg-[#003f7f]/10'
   }
 };
 
@@ -79,3 +80,31 @@ export function formatDate(dateString: string | undefined): string {
 
 
 
+
+const stripAccents = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/**
+ * Divide o texto em trechos marcando os termos da busca, sem diferenciar acentos/maiúsculas
+ * ("comercio" destaca "Comércio"). Termos com menos de 2 letras são ignorados.
+ */
+export function highlightParts(text: string, query: string): { text: string; match: boolean }[] {
+  const terms = stripAccents(query.toLowerCase())
+    .split(/\s+/)
+    .filter((term) => term.length >= 2)
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  // Sem acento cada letra continua ocupando uma posição; se não (caso raro), não destaca
+  const plain = Array.from(text, (char) => stripAccents(char)).join('');
+  if (!terms.length || plain.length !== text.length) return [{ text, match: false }];
+
+  const parts: { text: string; match: boolean }[] = [];
+  const pattern = new RegExp(terms.join('|'), 'gi');
+  let last = 0;
+  for (const found of plain.matchAll(pattern)) {
+    const start = found.index ?? 0;
+    if (start > last) parts.push({ text: text.slice(last, start), match: false });
+    parts.push({ text: text.slice(start, start + found[0].length), match: true });
+    last = start + found[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), match: false });
+  return parts;
+}

@@ -33,7 +33,7 @@ const MagazinesGrid = ({ magazines, searchTerm }: MagazinesGridProps) => {
       {magazines.map((magazine, index) => (
         <article
           key={magazine.id}
-          className={`${MAGAZINE_ITEM_WIDTH} group flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-gray-100 shadow-[0_10px_30px_-18px_rgba(0,63,127,0.35)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_-20px_rgba(0,63,127,0.45)] motion-reduce:hover:translate-y-0 animate-scale-in`}
+          className={`${MAGAZINE_ITEM_WIDTH} group flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-gray-100 shadow-[0_10px_30px_-18px_rgba(0,63,127,0.35)] transition-[transform,translate,scale,box-shadow] duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_-20px_rgba(0,63,127,0.45)] motion-reduce:hover:translate-y-0 animate-scale-in`}
           style={staggerDelay(index)}
         >
           {/* Capa */}
@@ -78,7 +78,7 @@ const MagazinesGrid = ({ magazines, searchTerm }: MagazinesGridProps) => {
                 href={magazine.file_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-full font-bold text-xs sm:text-sm hover:bg-[#0052a3] active:scale-[0.98] transition-[transform,background-color] duration-200"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-full font-bold text-xs sm:text-sm hover:bg-[#0052a3] active:scale-[0.98] transition-[transform,translate,scale,background-color] duration-200"
               >
                 <FaEye className="w-3.5 h-3.5" aria-hidden="true" />
                 Ler
@@ -88,7 +88,7 @@ const MagazinesGrid = ({ magazines, searchTerm }: MagazinesGridProps) => {
                 download
                 aria-label={`Baixar ${magazine.title}`}
                 title="Baixar PDF"
-                className="w-9 sm:w-11 shrink-0 inline-flex items-center justify-center border-2 border-[#003f7f] text-[#003f7f] rounded-full hover:bg-[#003f7f] hover:text-white active:scale-[0.98] transition-[transform,background-color,color] duration-200"
+                className="w-9 sm:w-11 shrink-0 inline-flex items-center justify-center border-2 border-[#003f7f] text-[#003f7f] rounded-full hover:bg-[#003f7f] hover:text-white active:scale-[0.98] transition-[transform,translate,scale,background-color,color] duration-200"
               >
                 <FaDownload className="w-3.5 h-3.5" aria-hidden="true" />
               </a>

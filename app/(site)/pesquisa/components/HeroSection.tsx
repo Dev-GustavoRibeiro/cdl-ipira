@@ -12,50 +12,56 @@ interface HeroSectionProps {
 
 const HeroSection = ({ searchTerm, onSearchTermChange, onSubmit, onClear }: HeroSectionProps) => {
   return (
-    <section className="relative bg-gradient-to-br from-[#003f7f] via-[#0052a3] to-[#0066cc] py-12 sm:py-16 md:py-20 overflow-hidden">
-      {/* Decorative elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/5 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#ffd000]/10 rounded-full blur-3xl"></div>
-      </div>
-      
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="max-w-3xl mx-auto text-center">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-4 sm:mb-6">
+    <section className="relative overflow-hidden bg-linear-to-br from-[#003f7f] via-[#0052a3] to-[#0066cc] py-14 sm:py-16 md:py-20">
+      <div aria-hidden="true" className="pointer-events-none absolute -top-32 -right-24 h-96 w-96 rounded-full bg-[#ffd000]/15 blur-3xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full bg-[#00a859]/20 blur-3xl" />
+
+      <div className="relative container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#ffd000] px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-[#003f7f] shadow-sm">
+            <FaSearch aria-hidden="true" className="h-3 w-3" />
+            Busca no site
+          </span>
+          <h1 className="mt-4 text-4xl font-black leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
             Pesquisa
           </h1>
-          <p className="text-white/80 text-base sm:text-lg mb-8">
+          <div aria-hidden="true" className="mx-auto mt-5 h-1.5 w-24 rounded-full bg-linear-to-r from-white via-[#00d670] to-[#ffd000]" />
+          <p className="mx-auto mt-5 max-w-[52ch] text-base text-white/85 md:text-lg">
             Encontre notícias, eventos, vagas, vídeos e informações do site CDL Ipirá
           </p>
-          
+
           {/* Campo de pesquisa */}
-          <form onSubmit={onSubmit} className="relative max-w-2xl mx-auto">
-            <div className="relative flex items-center">
-              <FaSearch className="absolute left-5 text-gray-400 w-5 h-5 pointer-events-none z-10" />
+          <form role="search" onSubmit={onSubmit} className="mx-auto mt-8 max-w-2xl md:mt-10">
+            <div className="flex items-center gap-1 rounded-2xl bg-white p-2 shadow-[0_30px_60px_-20px_rgba(0,26,61,0.65)] ring-4 ring-white/15 transition-[box-shadow] duration-200 focus-within:ring-[#ffd000]">
+              <FaSearch aria-hidden="true" className="ml-3 h-5 w-5 shrink-0 text-gray-400 sm:ml-4" />
+              <label htmlFor="pesquisa-termo" className="sr-only">Pesquisar no site</label>
               <input
-                type="text"
+                id="pesquisa-termo"
+                type="search"
+                enterKeyHint="search"
                 value={searchTerm}
                 onChange={(e) => onSearchTermChange(e.target.value)}
-                aria-label="Pesquisar no site"
                 placeholder="O que você está procurando?"
-                className="w-full pl-14 pr-32 py-4 sm:py-5 rounded-full text-gray-800 bg-white shadow-2xl outline-none text-base sm:text-lg placeholder:text-gray-400 focus:ring-4 focus:ring-[#ffd000]/50 transition-all"
+                minLength={2}
+                className="min-w-0 flex-1 bg-transparent px-2 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 sm:px-3 sm:py-3.5 sm:text-lg [&::-webkit-search-cancel-button]:appearance-none"
                 autoFocus
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={onClear}
-                  className="absolute right-28 text-gray-400 hover:text-gray-600 transition-colors p-2"
-                  aria-label="Limpar"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  aria-label="Limpar pesquisa"
                 >
-                  <FaTimes className="w-4 h-4" />
+                  <FaTimes aria-hidden="true" className="h-4 w-4" />
                 </button>
               )}
               <button
                 type="submit"
-                className="absolute right-2 bg-[#003f7f] hover:bg-[#002a54] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold transition-all duration-300 hover:shadow-lg text-sm sm:text-base"
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#003f7f] px-4 py-3 text-sm font-bold text-white transition-[background-color,scale] duration-200 hover:bg-[#0052a3] active:scale-[0.98] sm:px-7 sm:py-3.5 sm:text-base"
               >
-                Buscar
+                <FaSearch aria-hidden="true" className="h-3.5 w-3.5 sm:hidden" />
+                <span className="sr-only sm:not-sr-only">Buscar</span>
               </button>
             </div>
           </form>
@@ -66,6 +72,3 @@ const HeroSection = ({ searchTerm, onSearchTermChange, onSubmit, onClear }: Hero
 };
 
 export default HeroSection;
-
-
-

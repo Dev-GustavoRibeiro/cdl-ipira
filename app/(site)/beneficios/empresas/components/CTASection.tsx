@@ -17,7 +17,7 @@ const CTASection = () => {
           </p>
           <Link
             href="/imprensa/contato"
-            className="inline-flex items-center justify-center gap-2 bg-[#ffd000] text-[#003f7f] px-7 sm:px-8 py-3.5 rounded-full font-bold shadow-[0_14px_30px_-12px_rgba(255,208,0,0.8)] hover:bg-[#ffed4e] hover:-translate-y-0.5 active:scale-[0.98] transition-[transform,background-color] duration-200 text-sm sm:text-base group"
+            className="inline-flex items-center justify-center gap-2 bg-[#ffd000] text-[#003f7f] px-7 sm:px-8 py-3.5 rounded-full font-bold shadow-[0_14px_30px_-12px_rgba(255,208,0,0.8)] hover:bg-[#ffed4e] hover:-translate-y-0.5 active:scale-[0.98] transition-[transform,translate,scale,background-color] duration-200 text-sm sm:text-base group"
           >
             Entre em Contato
             <svg className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">

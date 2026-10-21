@@ -1,16 +1,64 @@
 'use client';
 
-import React, { useState } from 'react';
-import { FaTimes } from 'react-icons/fa';
-import { useModalBehavior } from '@/lib/hooks/useModalBehavior';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { FaTimes, FaWhatsapp, FaBriefcase, FaExclamationCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 
 interface JobRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+/* Casca padrão dos modais do site (mesmas classes em NewsModal, EventModal, JobModal e RegistrationModal) */
+const OVERLAY = 'fixed inset-0 z-100 flex items-end justify-center sm:items-center sm:p-6';
+const BACKDROP = 'absolute inset-0 bg-[#001a3d]/70 backdrop-blur-sm transition-opacity duration-300 starting:opacity-0 motion-reduce:transition-none';
+const PANEL = 'relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-24px_60px_-24px_rgba(0,26,61,0.55)] outline-none transition-[opacity,translate,scale] duration-300 ease-out starting:translate-y-full sm:max-h-[90dvh] sm:rounded-3xl sm:shadow-[0_40px_100px_-30px_rgba(0,26,61,0.7)] sm:starting:translate-y-4 sm:starting:scale-[0.97] sm:starting:opacity-0 motion-reduce:transition-none';
+const CLOSE = 'absolute top-3 right-3 z-30 grid h-10 w-10 place-items-center rounded-full bg-white/90 text-[#003f7f] shadow-[0_8px_20px_-8px_rgba(0,26,61,0.6)] ring-1 ring-black/5 backdrop-blur-md transition-[scale,background-color] duration-200 hover:scale-105 hover:bg-white active:scale-95 motion-reduce:hover:scale-100 sm:top-4 sm:right-4';
+const FOOTER = 'flex shrink-0 items-center gap-3 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-8';
+const BTN_PRIMARY = 'inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-[#003f7f] to-[#0066cc] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_30px_-12px_rgba(0,63,127,0.7)] transition-[translate,scale,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-12px_rgba(0,63,127,0.8)] active:scale-[0.98] motion-reduce:hover:translate-y-0';
+const BTN_SECONDARY = 'inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-[#003f7f] ring-1 ring-gray-200 transition-[background-color,scale] duration-200 hover:bg-gray-50 active:scale-[0.98]';
+
+const inputClass = (invalid: boolean) =>
+  `w-full rounded-xl border bg-white px-4 py-3 text-[15px] text-gray-900 placeholder:text-gray-400 transition-[border-color,box-shadow] duration-200 focus:ring-4 focus:outline-none ${
+    invalid ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : 'border-gray-200 hover:border-gray-300 focus:border-[#003f7f] focus:ring-[#003f7f]/15'
+  }`;
+
+type FieldName = 'empresa' | 'cargo' | 'descricao' | 'quantidade' | 'localizacao' | 'contato' | 'email';
+
+interface FieldConfig {
+  name: FieldName;
+  label: string;
+  type?: string;
+  placeholder?: string;
+  autoComplete?: string;
+  wide?: boolean;
+  textarea?: boolean;
+}
+
+// Ordem do formulário (e da mensagem); "wide" ocupa as duas colunas no desktop
+const FIELDS: FieldConfig[] = [
+  { name: 'empresa', label: 'Nome da empresa', placeholder: 'Ex.: Magazine Ipirá', autoComplete: 'organization' },
+  { name: 'cargo', label: 'Cargo/Vaga', placeholder: 'Ex.: Vendedor(a)' },
+  { name: 'descricao', label: 'Descrição da vaga', placeholder: 'Atividades, requisitos e benefícios', wide: true, textarea: true },
+  { name: 'quantidade', label: 'Quantidade de vagas', type: 'number', placeholder: 'Ex.: 2' },
+  { name: 'localizacao', label: 'Localização', placeholder: 'Bairro ou endereço' },
+  { name: 'contato', label: 'Contato', placeholder: 'Nome e telefone do responsável', autoComplete: 'name' },
+  { name: 'email', label: 'E-mail', type: 'email', placeholder: 'contato@empresa.com', autoComplete: 'email' },
+];
+
+function validateField(name: FieldName, raw: string): string | undefined {
+  const value = raw.trim();
+  if (!value) return 'Campo obrigatório.';
+  if (name === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Informe um e-mail válido.';
+  if (name === 'quantidade' && !(Number.isInteger(Number(value)) && Number(value) >= 1)) return 'Informe um número a partir de 1.';
+  return undefined;
+}
+
 const JobRegistrationModal = ({ isOpen, onClose }: JobRegistrationModalProps) => {
+  const isClient = useIsClient();
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -18,22 +66,29 @@ const JobRegistrationModal = ({ isOpen, onClose }: JobRegistrationModalProps) =>
     setSubmitStatus('idle');
 
     const formData = new FormData(form);
-    const empresa = formData.get('empresa') as string;
-    const cargo = formData.get('cargo') as string;
-    const descricao = formData.get('descricao') as string;
-    const quantidade = formData.get('quantidade') as string;
-    const localizacao = formData.get('localizacao') as string;
-    const contato = formData.get('contato') as string;
-    const email = formData.get('email') as string;
+    const get = (name: FieldName) => String(formData.get(name) ?? '');
+
+    // Validação inline: mostra todos os erros e leva o foco ao primeiro campo inválido
+    const nextErrors: Partial<Record<FieldName, string>> = {};
+    for (const { name } of FIELDS) {
+      const error = validateField(name, get(name));
+      if (error) nextErrors[name] = error;
+    }
+    setErrors(nextErrors);
+    const firstInvalid = FIELDS.find(({ name }) => nextErrors[name]);
+    if (firstInvalid) {
+      form.querySelector<HTMLElement>(`[name="${firstInvalid.name}"]`)?.focus();
+      return;
+    }
 
     const message = `Olá, gostaria de cadastrar uma nova vaga no Balcão de Empregos da CDL:\n\n` +
-      `🏢 *Empresa:* ${empresa}\n` +
-      `💼 *Cargo:* ${cargo}\n` +
-      `📝 *Descrição:* ${descricao}\n` +
-      `🔢 *Quantidade:* ${quantidade}\n` +
-      `📍 *Localização:* ${localizacao}\n` +
-      `👤 *Contato:* ${contato}\n` +
-      `📧 *Email:* ${email}`;
+      `🏢 *Empresa:* ${get('empresa')}\n` +
+      `💼 *Cargo:* ${get('cargo')}\n` +
+      `📝 *Descrição:* ${get('descricao')}\n` +
+      `🔢 *Quantidade:* ${get('quantidade')}\n` +
+      `📍 *Localização:* ${get('localizacao')}\n` +
+      `👤 *Contato:* ${get('contato')}\n` +
+      `📧 *Email:* ${get('email')}`;
 
     const whatsappUrl = `https://api.whatsapp.com/send?phone=557532541599&text=${encodeURIComponent(message)}`;
 
@@ -47,201 +102,147 @@ const JobRegistrationModal = ({ isOpen, onClose }: JobRegistrationModalProps) =>
 
     setSubmitStatus('success');
     form.reset();
-    setTimeout(() => {
-      onClose();
-      setSubmitStatus('idle');
-    }, 3000);
   };
 
   const handleClose = () => {
     onClose();
     setSubmitStatus('idle');
+    setErrors({});
   };
+
+  // Depois de abrir o WhatsApp, fecha sozinho em 3s (o timer é cancelado se o usuário fechar antes)
+  useEffect(() => {
+    if (submitStatus !== 'success') return;
+    const timer = setTimeout(() => {
+      onClose();
+      setSubmitStatus('idle');
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [submitStatus, onClose]);
 
   const dialogRef = useModalBehavior<HTMLDivElement>(isOpen, handleClose);
 
-  if (!isOpen) return null;
+  if (!isClient || !isOpen) return null;
 
-  return (
-    <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-100 flex items-center justify-center p-4 overflow-y-auto"
-      onClick={handleClose}
-    >
+  return createPortal(
+    <div className={OVERLAY}>
+      <div aria-hidden="true" onClick={handleClose} className={BACKDROP} />
+
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="job-registration-title"
         tabIndex={-1}
-        className="outline-none bg-white rounded-xl sm:rounded-2xl p-6 sm:p-8 md:p-10 shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto animate-scale-in"
-        onClick={(e) => e.stopPropagation()}
+        className={`${PANEL} sm:max-w-2xl`}
       >
-        {/* Header do Modal */}
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 id="job-registration-title" className="text-2xl sm:text-4xl font-black text-[#003f7f]">
-            Cadastre sua Vaga
-          </h2>
-          <button
-            onClick={handleClose}
-            className="text-gray-500 hover:text-gray-700 transition-colors p-2 hover:bg-gray-100 rounded-full"
-            aria-label="Fechar"
-          >
-            <FaTimes className="w-5 h-5 sm:w-6 sm:h-6" />
-          </button>
-        </div>
+        <button type="button" onClick={handleClose} aria-label="Fechar" className={CLOSE}>
+          <FaTimes className="h-4 w-4" aria-hidden="true" />
+        </button>
 
-        <p className="text-gray-700 text-sm sm:text-base mb-6 sm:mb-8 text-left sm:text-justify">
-          Preencha os dados abaixo para enviar as informações da sua vaga diretamente para nossa equipe via WhatsApp.
-        </p>
-
-        {/* Mensagem de Sucesso */}
-        {submitStatus === 'success' && (
-          <div className="mb-6 p-4 bg-[#00a859] text-white rounded-xl flex items-center gap-3 animate-blur-fade-in">
-            <svg className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <p className="font-bold">Redirecionando para o WhatsApp...</p>
-              <p className="text-sm text-white/90">Finalize o cadastro enviando a mensagem.</p>
-            </div>
-          </div>
-        )}
-
-        {/* Mensagem de Erro */}
-        {submitStatus === 'error' && (
-          <div className="mb-6 p-4 bg-red-500 text-white rounded-xl flex items-center gap-3 animate-blur-fade-in">
-            <svg className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <p className="font-bold">Não foi possível abrir o WhatsApp</p>
-              <p className="text-sm text-white/90">Permita pop-ups para este site e tente novamente, ou fale conosco pelo (75) 3254-1599.</p>
-            </div>
-          </div>
-        )}
-        
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            <div>
-              <label htmlFor="vaga-empresa" className="block text-sm font-bold text-gray-700 mb-2">
-                Nome da Empresa *
-              </label>
-              <input
-                type="text"
-                id="vaga-empresa"
-                name="empresa"
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label htmlFor="vaga-cargo" className="block text-sm font-bold text-gray-700 mb-2">
-                Cargo/Vaga *
-              </label>
-              <input
-                type="text"
-                id="vaga-cargo"
-                name="cargo"
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="vaga-descricao" className="block text-sm font-bold text-gray-700 mb-2">
-              Descrição da Vaga *
-            </label>
-            <textarea
-              id="vaga-descricao"
-              name="descricao"
-              required
-              rows={4}
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-            ></textarea>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            <div>
-              <label htmlFor="vaga-quantidade" className="block text-sm font-bold text-gray-700 mb-2">
-                Quantidade de Vagas *
-              </label>
-              <input
-                type="number"
-                id="vaga-quantidade"
-                name="quantidade"
-                min="1"
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label htmlFor="vaga-localizacao" className="block text-sm font-bold text-gray-700 mb-2">
-                Localização *
-              </label>
-              <input
-                type="text"
-                id="vaga-localizacao"
-                name="localizacao"
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            <div>
-              <label htmlFor="vaga-contato" className="block text-sm font-bold text-gray-700 mb-2">
-                Contato *
-              </label>
-              <input
-                type="text"
-                id="vaga-contato"
-                name="contato"
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label htmlFor="vaga-email" className="block text-sm font-bold text-gray-700 mb-2">
-                E-mail *
-              </label>
-              <input
-                type="email"
-                id="vaga-email"
-                name="email"
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4">
-            <button
-              type="submit"
-              disabled={submitStatus === 'success'}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold hover:shadow-xl transition-all duration-300 hover:scale-105 text-sm sm:text-base group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              Enviar via WhatsApp
-              <svg className="w-5 h-5 sm:w-6 sm:h-6 transform group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-700 px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold hover:bg-gray-50 transition-all duration-300 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancelar
+        {submitStatus === 'success' ? (
+          <div role="status" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-12 pb-[max(2.5rem,env(safe-area-inset-bottom))] text-center sm:px-10 sm:pt-14 sm:pb-12">
+            <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#00a859]/10 text-[#00a859] ring-8 ring-[#00a859]/5 transition-[scale,opacity] duration-500 ease-out starting:scale-50 starting:opacity-0 motion-reduce:transition-none">
+              <FaWhatsapp className="h-9 w-9" aria-hidden="true" />
+            </span>
+            <h2 id="job-registration-title" className="mt-6 text-2xl font-black tracking-tight text-balance text-[#003f7f] sm:text-3xl">
+              Redirecionando para o WhatsApp...
+            </h2>
+            <div className="mx-auto mt-4 h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" aria-hidden="true" />
+            <p className="mx-auto mt-5 max-w-[42ch] text-gray-600">Finalize o cadastro enviando a mensagem com os dados da vaga para a nossa equipe.</p>
+            {/* O formulário some: o foco vai para cá para não cair fora do diálogo */}
+            <button type="button" onClick={handleClose} autoFocus className={`${BTN_SECONDARY} mt-8 w-full sm:w-auto sm:min-w-48`}>
+              Fechar
             </button>
           </div>
-        </form>
+        ) : (
+          <>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <div className="px-5 pt-7 sm:px-8 sm:pt-8">
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#ffd000] px-4 py-1.5 text-xs font-bold tracking-[0.14em] text-[#003f7f] uppercase shadow-sm">
+                  <FaBriefcase aria-hidden="true" />
+                  Balcão de Empregos
+                </span>
+                <h2 id="job-registration-title" className="mt-4 text-3xl leading-[1.1] font-black tracking-tight text-balance text-[#003f7f] sm:text-4xl">
+                  Cadastre sua Vaga
+                </h2>
+                <div className="mt-4 h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" aria-hidden="true" />
+                <p className="mt-4 max-w-[60ch] text-sm leading-relaxed text-gray-600 sm:text-base">
+                  Preencha os dados abaixo para enviar as informações da sua vaga diretamente para nossa equipe via WhatsApp.
+                </p>
+              </div>
+
+              {submitStatus === 'error' && (
+                <div role="alert" className="mx-5 mt-6 flex gap-3 rounded-2xl bg-red-50 p-4 text-red-800 ring-1 ring-red-100 sm:mx-8">
+                  <FaExclamationTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
+                  <div className="text-sm">
+                    <p className="font-bold">Não foi possível abrir o WhatsApp</p>
+                    <p className="mt-0.5">Permita pop-ups para este site e tente novamente, ou fale conosco pelo (75) 3254-1599.</p>
+                  </div>
+                </div>
+              )}
+
+              <form id="job-registration-form" onSubmit={handleSubmit} noValidate className="grid gap-x-4 gap-y-5 px-5 pt-7 pb-8 sm:grid-cols-2 sm:px-8">
+                {FIELDS.map(({ name, label, type = 'text', placeholder, autoComplete, wide, textarea }) => {
+                  const id = `vaga-${name}`;
+                  const error = errors[name];
+                  const common = {
+                    id,
+                    name,
+                    required: true,
+                    placeholder,
+                    autoComplete,
+                    'aria-invalid': error ? true : undefined,
+                    'aria-describedby': error ? `${id}-error` : undefined,
+                    className: `${inputClass(!!error)} ${textarea ? 'resize-none' : ''}`,
+                    // Revalida ao sair do campo; enquanto há erro, revalida a cada digitação
+                    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                      const value = e.currentTarget.value;
+                      setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
+                    },
+                    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                      const value = e.currentTarget.value;
+                      if (error) setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
+                    },
+                  };
+                  return (
+                    <div key={name} className={wide ? 'sm:col-span-2' : undefined}>
+                      <label htmlFor={id} className="mb-1.5 block text-sm font-bold text-gray-800">
+                        {label}
+                        <span className="ml-0.5 text-[#003f7f]" aria-hidden="true">*</span>
+                      </label>
+                      {textarea ? (
+                        <textarea {...common} rows={4} />
+                      ) : (
+                        <input {...common} type={type} {...(type === 'number' ? { min: 1, inputMode: 'numeric' as const } : {})} />
+                      )}
+                      {error && (
+                        <p id={`${id}-error`} className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-600">
+                          <FaExclamationCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          {error}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </form>
+            </div>
+
+            <div className={FOOTER}>
+              <button type="button" onClick={handleClose} className={`${BTN_SECONDARY} max-sm:hidden sm:ml-auto`}>
+                Cancelar
+              </button>
+              <button type="submit" form="job-registration-form" className={`${BTN_PRIMARY} flex-1 sm:flex-none`}>
+                <FaWhatsapp className="h-5 w-5" aria-hidden="true" />
+                Enviar via WhatsApp
+              </button>
+            </div>
+          </>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
 export default JobRegistrationModal;
-
-
-

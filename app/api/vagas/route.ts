@@ -5,7 +5,8 @@ export async function GET() {
   try {
     const { data: jobs, error } = await supabase
       .from('jobs')
-      .select('*')
+      // Só o que a página exibe: contato da empresa (nome, e-mail, telefone) não é público
+      .select('id, title, company, quantity, description, location, date, category, created_at')
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 

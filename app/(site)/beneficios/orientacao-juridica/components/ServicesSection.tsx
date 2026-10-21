@@ -1,7 +1,9 @@
 'use client';
 
 import React from 'react';
+import { FaBriefcase } from 'react-icons/fa';
 import { Service } from './types';
+import SectionHeader from './SectionHeader';
 
 interface ServicesSectionProps {
   services: Service[];
@@ -9,32 +11,44 @@ interface ServicesSectionProps {
 
 const ServicesSection = ({ services }: ServicesSectionProps) => {
   return (
-    <section className="py-8 sm:py-12 md:py-16 bg-white">
+    <section aria-labelledby="servicos-titulo" className="bg-white py-16 md:py-24">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
-          <h2 className="text-2xl xs:text-3xl sm:text-4xl font-black text-[#003f7f] mb-3 sm:mb-4">
-            Serviços Oferecidos
-          </h2>
-          <div className="w-20 sm:w-24 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto"></div>
-        </div>
+        <SectionHeader
+          id="servicos-titulo"
+          eyebrow="O que oferecemos"
+          icon={FaBriefcase}
+          title="Serviços Oferecidos"
+          subtitle="Apoio jurídico para as principais questões do comércio, do contrato à resolução de conflitos."
+        />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 md:gap-8">
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4 md:mt-14">
           {services.map((service, index) => (
-            <div
+            <article
               key={service.id}
-              className="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group animate-scale-in"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className="group relative flex h-full flex-col overflow-hidden rounded-3xl bg-white p-6 ring-1 ring-[#003f7f]/[0.06] shadow-[0_20px_50px_-20px_rgba(0,63,127,0.35)] transition-[translate,box-shadow] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-[0_28px_60px_-20px_rgba(0,63,127,0.5)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:p-7 animate-scale-in"
+              style={{ animationDelay: `${index * 80}ms` }}
             >
-              <div className={`w-16 h-16 sm:w-20 sm:h-20 bg-linear-to-br ${service.color} rounded-full flex items-center justify-center mb-4 sm:mb-6 text-white group-hover:scale-110 transition-transform`}>
-                {service.icon}
+              {/* Barra nas cores da marca, aparece no hover */}
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 h-1 origin-left scale-x-0 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] transition-transform duration-300 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+              />
+              <div className="flex items-start justify-between">
+                {/* service.color traz o gradiente e a cor do ícone */}
+                <span className={`grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)] sm:h-16 sm:w-16 ${service.color}`}>
+                  {service.icon}
+                </span>
+                <span aria-hidden="true" className="text-sm font-black tabular-nums text-gray-300">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
               </div>
-              <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-[#003f7f] mb-2 sm:mb-3">
+              <h3 className="mt-6 text-xl font-black leading-snug tracking-tight text-[#003f7f]">
                 {service.title}
               </h3>
-              <p className="text-sm sm:text-base text-gray-600 leading-relaxed text-left sm:text-justify">
+              <p className="mt-3 text-[15px] leading-relaxed text-gray-600">
                 {service.description}
               </p>
-            </div>
+            </article>
           ))}
         </div>
       </div>
@@ -43,6 +57,3 @@ const ServicesSection = ({ services }: ServicesSectionProps) => {
 };
 
 export default ServicesSection;
-
-
-

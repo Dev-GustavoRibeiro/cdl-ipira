@@ -97,7 +97,7 @@ const PartnersGrid = ({ parceiros, isLoading, searchTerm, totalCount, onClearSea
               return (
                 <li
                   key={parceiro.id}
-                  className="group flex flex-col rounded-2xl bg-white p-2 sm:p-3 pb-4 sm:pb-4 ring-1 ring-gray-200/70 shadow-[0_8px_24px_-18px_rgba(0,63,127,0.4)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-20px_rgba(0,63,127,0.45)] hover:ring-[#003f7f]/25 motion-reduce:hover:translate-y-0"
+                  className="group flex flex-col rounded-2xl bg-white p-2 sm:p-3 pb-4 sm:pb-4 ring-1 ring-gray-200/70 shadow-[0_8px_24px_-18px_rgba(0,63,127,0.4)] transition-[transform,translate,scale,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-20px_rgba(0,63,127,0.45)] hover:ring-[#003f7f]/25 motion-reduce:hover:translate-y-0"
                 >
                   {/* As artes são 16:9 com fundo branco: a caixa segue a proporção e o logo aparece inteiro (contain) */}
                   <div className="relative aspect-video w-full overflow-hidden rounded-xl">

@@ -5,10 +5,10 @@ import type { IconType } from 'react-icons';
    (notícias, eventos, galeria, TV Lojista, revista, campanhas e empresas associadas). */
 
 export const primaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-full bg-[#003f7f] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_28px_-12px_rgba(0,63,127,0.7)] transition-[transform,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-[#0052a3] active:scale-[0.98] motion-reduce:hover:translate-y-0';
+  'inline-flex items-center justify-center gap-2 rounded-full bg-[#003f7f] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_28px_-12px_rgba(0,63,127,0.7)] transition-[translate,scale,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-[#0052a3] active:scale-[0.98] motion-reduce:hover:translate-y-0';
 
 export const secondaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-full border-2 border-[#003f7f] px-6 py-2.5 text-sm font-bold text-[#003f7f] transition-[transform,background-color,color] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-[0.98]';
+  'inline-flex items-center justify-center gap-2 rounded-full border-2 border-[#003f7f] px-6 py-2.5 text-sm font-bold text-[#003f7f] transition-[translate,scale,background-color,color] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-[0.98]';
 
 interface StateBlockProps {
   icon: IconType;
@@ -72,4 +72,4 @@ export const staggerDelay = (index: number) => ({ animationDelay: `${Math.min(in
 
 /** Classes do cartão padrão: raio, sombra azulada e elevação no hover. */
 export const cardClass =
-  'group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-gray-100 shadow-[0_10px_30px_-18px_rgba(0,63,127,0.35)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_-20px_rgba(0,63,127,0.45)] motion-reduce:hover:translate-y-0 animate-scale-in';
+  'group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-gray-100 shadow-[0_10px_30px_-18px_rgba(0,63,127,0.35)] transition-[translate,scale,box-shadow] duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_-20px_rgba(0,63,127,0.45)] motion-reduce:hover:translate-y-0 animate-scale-in';

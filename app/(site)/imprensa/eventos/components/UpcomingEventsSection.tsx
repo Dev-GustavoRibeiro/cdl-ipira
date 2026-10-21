@@ -25,7 +25,7 @@ const UpcomingEventsSection = ({ upcomingEvents }: UpcomingEventsSectionProps) =
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
             <Link
               href="/imprensa/contato"
-              className="inline-flex items-center justify-center gap-2 bg-[#ffd000] text-[#003f7f] px-6 py-3 rounded-full font-bold text-sm sm:text-base shadow-[0_12px_28px_-12px_rgba(255,208,0,0.9)] hover:bg-[#ffed4e] hover:-translate-y-0.5 active:scale-[0.98] transition-[transform,background-color] duration-200"
+              className="inline-flex items-center justify-center gap-2 bg-[#ffd000] text-[#003f7f] px-6 py-3 rounded-full font-bold text-sm sm:text-base shadow-[0_12px_28px_-12px_rgba(255,208,0,0.9)] hover:bg-[#ffed4e] hover:-translate-y-0.5 active:scale-[0.98] transition-[transform,translate,scale,background-color] duration-200"
             >
               Entre em Contato
             </Link>

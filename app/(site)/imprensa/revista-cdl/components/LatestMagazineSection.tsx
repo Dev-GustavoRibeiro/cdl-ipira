@@ -63,7 +63,7 @@ const LatestMagazineSection = ({ magazine }: LatestMagazineSectionProps) => {
                   href={magazine.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-full font-bold shadow-[0_12px_28px_-12px_rgba(0,63,127,0.7)] hover:bg-[#0052a3] hover:-translate-y-0.5 active:scale-[0.98] transition-[transform,background-color] duration-200"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-full font-bold shadow-[0_12px_28px_-12px_rgba(0,63,127,0.7)] hover:bg-[#0052a3] hover:-translate-y-0.5 active:scale-[0.98] transition-[transform,translate,scale,background-color] duration-200"
                 >
                   <FaEye className="w-4 h-4" aria-hidden="true" />
                   Ler Revista
@@ -73,7 +73,7 @@ const LatestMagazineSection = ({ magazine }: LatestMagazineSectionProps) => {
                   download
                   aria-label={`Baixar ${magazine.title}`}
                   title="Baixar PDF"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-[#003f7f] text-[#003f7f] px-5 py-3 rounded-full font-bold hover:bg-[#003f7f] hover:text-white active:scale-[0.98] transition-[transform,background-color,color] duration-200"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-[#003f7f] text-[#003f7f] px-5 py-3 rounded-full font-bold hover:bg-[#003f7f] hover:text-white active:scale-[0.98] transition-[transform,translate,scale,background-color,color] duration-200"
                 >
                   <FaDownload className="w-4 h-4" aria-hidden="true" />
                 </a>

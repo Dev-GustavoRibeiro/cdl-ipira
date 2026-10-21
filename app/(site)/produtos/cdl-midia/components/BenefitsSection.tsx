@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { FaBullhorn, FaChartLine, FaUsers, FaVideo } from 'react-icons/fa';
+import { FaBullhorn, FaChartLine, FaUsers, FaVideo, FaThumbsUp } from 'react-icons/fa';
+import { SectionHeader, cardLift, cardSurface } from '../../_components/ProductUI';
 
 const benefits = [
   {
@@ -28,40 +29,35 @@ const benefits = [
 
 const BenefitsSection = () => {
   return (
-    <section className="py-16 bg-white">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-black text-[#003f7f] mb-4">
-            Benefícios para sua Empresa
-          </h2>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Vantagens que fazem a diferença na visibilidade do seu negócio
-          </p>
-        </div>
+    <section aria-labelledby="midia-beneficios" className="bg-gray-50 py-16 md:py-24">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <SectionHeader
+          id="midia-beneficios"
+          eyebrow="Vantagens"
+          icon={FaThumbsUp}
+          title="Benefícios para sua Empresa"
+          subtitle="Vantagens que fazem a diferença na visibilidade do seu negócio"
+        />
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {benefits.map((benefit, index) => {
-            const IconComponent = benefit.icon;
+        <ul className="mt-12 grid gap-5 sm:grid-cols-2 sm:gap-6 md:mt-14 lg:gap-8 xl:grid-cols-4">
+          {benefits.map((benefit) => {
+            const Icon = benefit.icon;
             return (
-              <div
-                key={index}
-                className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 text-center border-2 border-gray-100"
-              >
-                <div className="bg-[#003f7f] text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <IconComponent className="w-8 h-8" />
+              <li key={benefit.title} className={`group flex h-full items-start gap-4 p-5 sm:block sm:p-7 ${cardSurface} ${cardLift}`}>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#00a859]/10 text-[#00a859] ring-1 ring-[#00a859]/15 transition-colors duration-300 group-hover:bg-[#00a859] group-hover:text-white motion-reduce:transition-none sm:h-14 sm:w-14">
+                  <Icon aria-hidden="true" className="h-6 w-6" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight text-[#003f7f] sm:mt-5">{benefit.title}</h3>
+                  <p className="mt-1 leading-relaxed text-gray-600 sm:mt-2">{benefit.description}</p>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{benefit.title}</h3>
-                <p className="text-gray-600">{benefit.description}</p>
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </div>
     </section>
   );
 };
 
 export default BenefitsSection;
-
-
-

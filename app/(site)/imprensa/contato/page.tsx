@@ -71,28 +71,32 @@ const ContatoPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50">
+    <div className="bg-white">
       <HeroSection />
-      
-      {/* Informações de Contato e Formulário */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          <div className="grid lg:grid-cols-2 gap-12">
-            <ContactInfoSection />
-            <ContactForm 
+      <ContactInfoSection />
+
+      {/* Formulário e horário de atendimento */}
+      <section aria-label="Formulário de contato" className="py-16 md:py-24">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid items-start gap-8 lg:grid-cols-[1.5fr_1fr] lg:gap-10">
+            <ContactForm
               formData={formData}
               isSubmitting={isSubmitting}
               submitStatus={submitStatus}
               submitMessage={submitMessage}
               onChange={handleChange}
               onSubmit={handleSubmit}
+              onReset={() => {
+                setSubmitStatus(null);
+                setSubmitMessage(null);
+              }}
             />
+            <InfoCardsSection />
           </div>
         </div>
       </section>
 
       <MapSection />
-      <InfoCardsSection />
     </div>
   );
 };

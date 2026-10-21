@@ -7,7 +7,7 @@ export { default as ResultsHeader } from './ResultsHeader';
 export { default as ResultsFilters } from './ResultsFilters';
 export { default as ResultCard } from './ResultCard';
 export { default as ResultsList } from './ResultsList';
-export { typeConfig, formatDate } from './types';
+export { typeConfig, formatDate, highlightParts } from './types';
 export type { SearchResult, SearchResponse, TypeConfig } from './types';
 
 

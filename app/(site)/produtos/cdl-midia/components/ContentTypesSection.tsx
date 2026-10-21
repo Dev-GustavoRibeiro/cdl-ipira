@@ -1,54 +1,63 @@
 'use client';
 
 import React from 'react';
-import { FaVideo, FaMicrophone, FaFileAlt } from 'react-icons/fa';
+import { FaVideo, FaMicrophone, FaFileAlt, FaPhotoVideo } from 'react-icons/fa';
+import { ACCENTS, SectionHeader, cardSurface } from '../../_components/ProductUI';
+
+const contentTypes = [
+  {
+    icon: FaVideo,
+    title: 'Vídeos de Boas-Vindas',
+    description: 'Apresente sua empresa aos associados da CDL com vídeos personalizados e profissionais.',
+    accent: ACCENTS.blue
+  },
+  {
+    icon: FaMicrophone,
+    title: 'Podcasts',
+    description: 'Participe de entrevistas e compartilhe conhecimento através do CDL Cast.',
+    accent: ACCENTS.green
+  },
+  {
+    icon: FaFileAlt,
+    title: 'Histórias Inspiradoras',
+    description: 'Conte a trajetória da sua empresa no projeto "Minha Empresa Faz História".',
+    accent: ACCENTS.yellow
+  }
+];
 
 const ContentTypesSection = () => {
   return (
-    <section className="py-16 bg-gray-50">
-      <div className="container mx-auto px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-black text-[#003f7f] mb-4">
-              Tipos de Conteúdo
-            </h2>
-            <p className="text-xl text-gray-600">
-              Diversos formatos para destacar sua empresa
-            </p>
-          </div>
+    <section aria-labelledby="midia-conteudos" className="bg-white py-16 md:py-24">
+      <div className="container mx-auto grid gap-10 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:gap-16 lg:px-8">
+        <SectionHeader
+          id="midia-conteudos"
+          align="left"
+          eyebrow="Formatos"
+          icon={FaPhotoVideo}
+          title="Tipos de Conteúdo"
+          subtitle="Diversos formatos para destacar sua empresa"
+          className="lg:col-span-5"
+        />
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <FaVideo className="w-12 h-12 text-[#003f7f] mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Vídeos de Boas-Vindas</h3>
-              <p className="text-gray-600">
-                Apresente sua empresa aos associados da CDL com vídeos personalizados e profissionais.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <FaMicrophone className="w-12 h-12 text-[#00a859] mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Podcasts</h3>
-              <p className="text-gray-600">
-                Participe de entrevistas e compartilhe conhecimento através do CDL Cast.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <FaFileAlt className="w-12 h-12 text-[#ffd000] mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Histórias Inspiradoras</h3>
-              <p className="text-gray-600">
-                Conte a trajetória da sua empresa no projeto &quot;Minha Empresa Faz História&quot;.
-              </p>
-            </div>
-          </div>
-        </div>
+        <ul className="space-y-4 sm:space-y-5 lg:col-span-7">
+          {contentTypes.map((type) => {
+            const Icon = type.icon;
+            return (
+              <li key={type.title} className={`flex items-start gap-5 p-5 sm:p-6 ${cardSurface}`}>
+                <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${type.accent.tile}`}>
+                  <Icon aria-hidden="true" className="h-6 w-6" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight text-[#003f7f] sm:text-xl">{type.title}</h3>
+                  <p className="mt-1.5 leading-relaxed text-gray-600">{type.description}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );
 };
 
 export default ContentTypesSection;
-
-
-

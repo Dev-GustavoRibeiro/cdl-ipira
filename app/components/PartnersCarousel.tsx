@@ -37,7 +37,7 @@ const SECONDS_PER_LOGO = 5;
 // Bloco 16:9 de tamanho fixo: as logos são enviadas em telas 1920x1080 com margem própria,
 // então o padding é mínimo para não encolhê-las
 const TILE_SIZE = 'aspect-video w-40 shrink-0 rounded-2xl sm:w-56';
-const TILE = `${TILE_SIZE} block border border-gray-100 bg-white p-1 sm:p-1.5 shadow-[0_8px_24px_-14px_rgba(0,63,127,0.3)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_16px_32px_-16px_rgba(0,63,127,0.45)] motion-reduce:hover:translate-y-0`;
+const TILE = `${TILE_SIZE} block border border-gray-100 bg-white p-1 sm:p-1.5 shadow-[0_8px_24px_-14px_rgba(0,63,127,0.3)] transition-[transform,translate,scale,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_16px_32px_-16px_rgba(0,63,127,0.45)] motion-reduce:hover:translate-y-0`;
 
 // focusable=false no letreiro: centenas de paradas de Tab em blocos que se movem (e saem da tela)
 // travariam o teclado; quem navega por teclado usa "Ver todos os associados"

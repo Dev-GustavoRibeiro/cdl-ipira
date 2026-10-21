@@ -8,6 +8,3 @@ export { default as SuplentesSection } from './SuplentesSection';
 export { default as ColaboradoresSection } from './ColaboradoresSection';
 export { default as InfoSection } from './InfoSection';
 export type { TeamMember } from './types';
-
-
-

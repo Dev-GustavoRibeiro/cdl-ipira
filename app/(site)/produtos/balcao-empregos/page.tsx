@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { FaBriefcase, FaExclamationTriangle } from 'react-icons/fa';
 import JobModal from '@/app/components/JobModal';
 import { formatDateBR } from '@/lib/date';
+import { StateBlock, primaryButton } from '@/app/(site)/imprensa/noticias/components/LoadStates';
+import { SectionHeader, anchorOffset } from '../_components/ProductUI';
 import {
-  Breadcrumb,
   HeroSection,
   FiltersSection,
   JobsGrid,
@@ -32,6 +34,8 @@ const normalize = (value?: string | null) =>
 export default function BalcaoEmpregosPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,17 +57,26 @@ export default function BalcaoEmpregosPage() {
           setJobs(mappedData);
         } else {
           console.error('Erro na resposta da API');
-          setJobs([]); 
+          setJobs([]);
+          setLoadError(true);
         }
       } catch (error) {
         console.error('Erro ao carregar vagas:', error);
         setJobs([]);
+        setLoadError(true);
       } finally {
         setIsLoading(false);
       }
     };
     fetchJobs();
-  }, []);
+  }, [reloadKey]);
+
+  // Botão "Tentar novamente" do estado de erro
+  const handleRetry = () => {
+    setIsLoading(true);
+    setLoadError(false);
+    setReloadKey((key) => key + 1);
+  };
 
   const term = normalize(searchTerm.trim());
   const filteredJobs = jobs.filter(job => {
@@ -83,37 +96,70 @@ export default function BalcaoEmpregosPage() {
     setIsJobModalOpen(true);
   };
 
+  const hasFilters = selectedCategory !== 'Todas' || term !== '';
+  const resetFilters = () => {
+    setSelectedCategory('Todas');
+    setSearchTerm('');
+  };
+
   return (
     <>
-      <Breadcrumb />
       <HeroSection onOpenModal={openModal} />
-      
-      <FiltersSection
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        selectedCategory={selectedCategory}
-        onCategoryChange={setSelectedCategory}
-        categories={categories}
-      />
 
-      {/* Grid de Vagas */}
-      <section className="py-8 sm:py-12 md:py-16 bg-white">
+      <section id="vagas" aria-labelledby="vagas-titulo" className={`bg-gray-50 py-16 md:py-24 ${anchorOffset}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-            {/* Coluna Principal - Vagas */}
-            <div className="lg:col-span-2">
-              <h2 className="text-2xl xs:text-3xl sm:text-4xl font-black text-[#003f7f] mb-6 sm:mb-8">
-                Vagas Disponíveis
-              </h2>
-              <JobsGrid 
-                jobs={filteredJobs} 
-                isLoading={isLoading} 
-                onJobClick={openJobModal} 
+          {/* Celular: título, filtros, vagas e "Quer contratar?" em sequência.
+              Desktop: vagas e "Quer contratar?" à esquerda; filtros fixos (sticky) na coluna da direita. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_auto_1fr] lg:gap-x-10 lg:gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between lg:col-start-1 lg:row-start-1">
+              <SectionHeader
+                id="vagas-titulo"
+                align="left"
+                eyebrow="Oportunidades"
+                icon={FaBriefcase}
+                title="Vagas Disponíveis"
               />
+              {!isLoading && !loadError && (
+                <p aria-live="polite" className="shrink-0 text-sm font-semibold text-gray-600">
+                  {filteredJobs.length} {filteredJobs.length === 1 ? 'vaga encontrada' : 'vagas encontradas'}
+                </p>
+              )}
             </div>
 
-            {/* Sidebar - Quer Contratar */}
-            <div className="lg:col-span-1">
+            <div className="min-w-0 lg:col-start-2 lg:row-span-3 lg:row-start-1">
+              <div className="lg:sticky lg:top-[calc(var(--header-height,0px)+1.5rem)]">
+                <FiltersSection
+                  searchTerm={searchTerm}
+                  onSearchChange={setSearchTerm}
+                  selectedCategory={selectedCategory}
+                  onCategoryChange={setSelectedCategory}
+                  categories={categories}
+                />
+              </div>
+            </div>
+
+            <div className="lg:col-start-1 lg:row-start-2">
+              {loadError ? (
+                <StateBlock
+                  icon={FaExclamationTriangle}
+                  title="Não foi possível carregar as vagas"
+                  description="Verifique sua conexão e tente novamente."
+                >
+                  <button type="button" onClick={handleRetry} className={primaryButton}>
+                    Tentar novamente
+                  </button>
+                </StateBlock>
+              ) : (
+                <JobsGrid
+                  jobs={filteredJobs}
+                  isLoading={isLoading}
+                  onJobClick={openJobModal}
+                  onResetFilters={hasFilters ? resetFilters : undefined}
+                />
+              )}
+            </div>
+
+            <div className="min-w-0 lg:col-start-1 lg:row-start-3">
               <Sidebar onOpenModal={openModal} />
             </div>
           </div>

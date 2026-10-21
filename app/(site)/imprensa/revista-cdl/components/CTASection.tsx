@@ -13,7 +13,7 @@ const CTASection = () => {
         </p>
         <Link
           href="/imprensa/contato"
-          className="inline-flex items-center gap-2 bg-[#00a859] text-white px-8 py-3.5 rounded-full font-bold shadow-[0_12px_28px_-12px_rgba(0,168,89,0.8)] hover:bg-[#00d670] hover:-translate-y-0.5 active:scale-[0.98] transition-[transform,background-color] duration-200"
+          className="inline-flex items-center gap-2 bg-[#00a859] text-white px-8 py-3.5 rounded-full font-bold shadow-[0_12px_28px_-12px_rgba(0,168,89,0.8)] hover:bg-[#00d670] hover:-translate-y-0.5 active:scale-[0.98] transition-[transform,translate,scale,background-color] duration-200"
         >
           Fale Conosco
         </Link>

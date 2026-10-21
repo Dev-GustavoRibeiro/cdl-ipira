@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-/** Cobre header/footer quando o 404 é disparado dentro das rotas públicas. */
+/** notFound() dentro das rotas públicas: o layout (site) já traz header e rodapé. */
 export default function SiteNotFound() {
   return <NotFoundScreen />;
 }

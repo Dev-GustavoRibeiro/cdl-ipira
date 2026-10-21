@@ -355,11 +355,11 @@ video {
   --page-zoom: 1;
 }
 
-/* Aplicar espaçamento de linha */
-body p,
-body li,
-body span,
-body div {
+/* Aplicar espaçamento de linha (só quando ajustado no widget; senão valem as classes leading-* do Tailwind) */
+html.custom-line-height body p,
+html.custom-line-height body li,
+html.custom-line-height body span,
+html.custom-line-height body div {
   line-height: calc(1.5 * var(--line-height-multiplier));
 }
 

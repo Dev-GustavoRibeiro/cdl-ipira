@@ -47,12 +47,9 @@ export default function OrientacaoJuridicaPage() {
 
       if (!response.ok) throw new Error('Falha ao enviar solicitação');
 
-      setFormStatus('success');
       form.reset();
-
-      setTimeout(() => {
-        setFormStatus('idle');
-      }, 3000);
+      // O painel de sucesso fica até o usuário pedir outro envio
+      setFormStatus('success');
     } catch {
       setFormStatus('error');
     } finally {
@@ -70,6 +67,7 @@ export default function OrientacaoJuridicaPage() {
         isFormSubmitting={isFormSubmitting}
         formStatus={formStatus}
         onSubmit={handleFormSubmit}
+        onReset={() => setFormStatus('idle')}
       />
       <FAQSection 
         faqs={faqs}

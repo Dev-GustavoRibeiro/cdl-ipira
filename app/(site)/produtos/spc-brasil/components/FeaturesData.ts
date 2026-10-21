@@ -1,12 +1,30 @@
 import { FaBell, FaHandshake, FaChartLine } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
+import type { Accent } from '../../_components/ProductUI';
 
-export const features = [
+// type e mainBenefit alimentam o painel do hero e a tabela comparativa
+
+export const features: {
+  id: number;
+  anchor: string;
+  title: string;
+  icon: IconType;
+  accent: Accent;
+  type: string;
+  mainBenefit: string;
+  description: string;
+  benefits: string[];
+  howItWorks: string[];
+  useCases: string[];
+}[] = [
   {
     id: 1,
+    anchor: 'spc-avisa',
     title: 'SPC AVISA',
     icon: FaBell,
-    color: 'from-[#003f7f] to-[#0066cc]',
-    iconBg: 'bg-[#003f7f]',
+    accent: 'blue',
+    type: 'Monitoramento',
+    mainBenefit: 'Proteção',
     description: 'Sistema de alertas que notifica sobre consultas e movimentações de CPF/CNPJ em tempo real.',
     benefits: [
       'Alertas em tempo real sobre consultas ao seu CPF/CNPJ',
@@ -30,10 +48,12 @@ export const features = [
   },
   {
     id: 2,
+    anchor: 'spc-conciliador',
     title: 'SPC CONCILIADOR',
     icon: FaHandshake,
-    color: 'from-[#00a859] to-[#00d670]',
-    iconBg: 'bg-[#00a859]',
+    accent: 'green',
+    type: 'Negociação',
+    mainBenefit: 'Regularização',
     description: 'Plataforma que facilita a negociação e conciliação de dívidas entre empresas e consumidores.',
     benefits: [
       'Negocie dívidas de forma rápida e segura',
@@ -57,10 +77,12 @@ export const features = [
   },
   {
     id: 3,
+    anchor: 'cadastro-positivo',
     title: 'CADASTRO POSITIVO',
     icon: FaChartLine,
-    color: 'from-[#ffd000] to-[#ffed4e]',
-    iconBg: 'bg-[#ffd000]',
+    accent: 'yellow',
+    type: 'Histórico Positivo',
+    mainBenefit: 'Score de Crédito',
     description: 'Sistema que registra seu histórico positivo de pagamentos, melhorando seu score de crédito.',
     benefits: [
       'Aumente seu score de crédito com histórico positivo',
@@ -83,6 +105,3 @@ export const features = [
     ]
   }
 ];
-
-
-
