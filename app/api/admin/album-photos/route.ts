@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
 import { sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 
 function sanitizePhotoPayload(body: Record<string, unknown>) {
   return {
@@ -29,6 +30,10 @@ function validatePhotoPayload(payload: ReturnType<typeof sanitizePhotoPayload>) 
 }
 
 export async function GET(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const albumId = Number(searchParams.get('albumId'));
@@ -56,6 +61,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizePhotoPayload(body);
@@ -85,6 +94,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));

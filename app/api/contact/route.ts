@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isValidEmail, sanitizeString } from '@/lib/security';
+import { getClientIP, isValidEmail, sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 interface ContactPayload {
@@ -19,15 +19,6 @@ const ALLOWED_SUBJECTS = new Set([
   'outros',
 ]);
 
-function getRequestIp(request: NextRequest): string | null {
-  const forwarded = request.headers.get('x-forwarded-for');
-
-  if (forwarded) {
-    return forwarded.split(',')[0]?.trim() || null;
-  }
-
-  return request.headers.get('x-real-ip');
-}
 
 function sanitizePhone(value: string): string {
   return value.trim().replace(/[^\d+\-()\s]/g, '');
@@ -49,7 +40,7 @@ async function saveContactFallback(
       action: 'CREATE',
       table_name: 'contact_messages',
       record_title: payload.nome,
-      user_name: payload.nome,
+      user_name: 'Formulário de contato',
       details: {
         email: payload.email,
         telefone: payload.telefone,
@@ -57,7 +48,7 @@ async function saveContactFallback(
         mensagem: payload.mensagem,
         source: 'public_contact_form_fallback',
       },
-      ip_address: getRequestIp(request),
+      ip_address: getClientIP(request),
     })
     .select('id')
     .single();
@@ -121,7 +112,7 @@ export async function POST(request: NextRequest) {
         telefone,
         assunto,
         mensagem,
-        ip_address: getRequestIp(request),
+        ip_address: getClientIP(request),
         user_agent: request.headers.get('user-agent'),
       })
       .select('id')

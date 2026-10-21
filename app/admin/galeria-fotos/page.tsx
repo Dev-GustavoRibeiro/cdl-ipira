@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaEyeSlash, FaUpload, FaImages, FaTimes, FaCloudUploadAlt, FaCalendarAlt, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaEyeSlash, FaUpload, FaImages, FaTimes, FaCloudUploadAlt, FaCalendarAlt, FaMapMarkerAlt, FaBullhorn } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import { formatDateBR, todayISO } from '@/lib/date';
+import type { Campaign } from '@/lib/campaigns';
 
 interface Album {
   id: number;
@@ -20,6 +21,7 @@ interface Album {
   cover?: string; // Compatibilidade
   is_active?: boolean;
   photo_count?: number;
+  campaign_id?: number | null;
 }
 
 interface AlbumPhoto {
@@ -44,6 +46,7 @@ export default function AdminGaleriaFotosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [albums, setAlbums] = useState<Album[]>([]);
+  const [campanhas, setCampanhas] = useState<Pick<Campaign, 'id' | 'title'>[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Modal de álbum
@@ -82,7 +85,16 @@ export default function AdminGaleriaFotosPage() {
     type: 'success'
   });
 
-  const fetchAlbums = async () => {
+  useEffect(() => {
+    fetchAlbums();
+    // Campanhas para o select (se falhar, o formulário segue só com "Nenhuma")
+    fetch('/api/admin/campanhas')
+      .then((response) => (response.ok ? response.json() : []))
+      .then(setCampanhas)
+      .catch(() => setCampanhas([]));
+  }, []);
+
+  async function fetchAlbums() {
     setIsLoading(true);
     try {
       const response = await fetch('/api/admin/albums');
@@ -95,7 +107,7 @@ export default function AdminGaleriaFotosPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
   const fetchAlbumPhotos = async (albumId: number) => {
     setIsLoadingPhotos(true);
@@ -111,10 +123,6 @@ export default function AdminGaleriaFotosPage() {
       setIsLoadingPhotos(false);
     }
   };
-
-  useEffect(() => {
-    fetchAlbums();
-  }, []);
 
   const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -186,13 +194,14 @@ export default function AdminGaleriaFotosPage() {
         coverUrl = await uploadImage(selectedCover, 'covers');
       }
 
-      const albumData: Record<string, any> = {
+      const albumData: Record<string, unknown> = {
         title: currentAlbum.title,
         description: currentAlbum.description || null,
         category: currentAlbum.category,
         date: currentAlbum.date,
         location: currentAlbum.location || null,
         is_active: currentAlbum.is_active !== false,
+        campaign_id: currentAlbum.campaign_id ?? null,
       };
       
       // Adicionar cover/cover_url dependendo da estrutura da tabela
@@ -267,10 +276,9 @@ export default function AdminGaleriaFotosPage() {
             : 'O novo álbum foi criado com sucesso!',
         type: wasEditing ? 'edit' : 'success'
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao salvar álbum:', error);
-      const errorMessage = error?.message || error?.error_description || JSON.stringify(error);
-      toast.error(`Erro ao salvar álbum: ${errorMessage}`);
+      toast.error(`Erro ao salvar álbum: ${error instanceof Error ? error.message : 'tente novamente'}`);
     } finally {
       setIsSaving(false);
       setIsUploading(false);
@@ -398,7 +406,7 @@ export default function AdminGaleriaFotosPage() {
       setIsEditing(true);
     } else {
       setCurrentAlbum({
-        date: new Date().toISOString().split('T')[0],
+        date: todayISO(),
         is_active: true,
         category: 'Eventos'
       });
@@ -435,12 +443,6 @@ export default function AdminGaleriaFotosPage() {
     const matchesCategory = filterCategory === 'all' || album.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
 
   return (
     <div className="space-y-6">
@@ -486,12 +488,14 @@ export default function AdminGaleriaFotosPage() {
             <input
               type="text"
               placeholder="Buscar álbuns..."
+              aria-label="Buscar álbuns"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
             />
           </div>
           <select
+            aria-label="Filtrar por categoria"
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             className="px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent bg-white"
@@ -520,84 +524,96 @@ export default function AdminGaleriaFotosPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAlbums.map((album) => (
-            <div
-              key={album.id}
-              className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 ${!album.is_active ? 'opacity-60' : ''}`}
-            >
-              {/* Capa */}
-              <div className="relative h-48 bg-gradient-to-br from-[#003f7f] to-[#0052a3]">
-                {album.cover_url ? (
-                  <Image src={album.cover_url} alt={album.title} fill className="object-cover" />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <FaImages className="w-16 h-16 text-white/30" />
-                  </div>
-                )}
-                {/* Badge de status e contagem */}
-                <div className="absolute top-3 left-3 flex gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${album.is_active ? 'bg-green-500 text-white' : 'bg-gray-500 text-white'}`}>
-                    {album.is_active ? 'Ativo' : 'Oculto'}
-                  </span>
-                  <span className="bg-black/70 text-white px-2 py-1 rounded-full text-xs font-bold">
-                    {album.photo_count || 0} fotos
-                  </span>
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="p-4">
-                <span className="inline-block bg-[#003f7f]/10 text-[#003f7f] px-2 py-0.5 rounded text-xs font-bold mb-2">
-                  {album.category}
-                </span>
-                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{album.title}</h3>
-                <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
-                  <div className="flex items-center gap-1">
-                    <FaCalendarAlt className="w-3 h-3" />
-                    {new Date(album.date).toLocaleDateString('pt-BR')}
-                  </div>
-                  {album.location && (
-                    <div className="flex items-center gap-1">
-                      <FaMapMarkerAlt className="w-3 h-3" />
-                      <span className="truncate max-w-[100px]">{album.location}</span>
+          {filteredAlbums.map((album) => {
+            const campanha = campanhas.find((c) => c.id === album.campaign_id);
+            return (
+              <div
+                key={album.id}
+                className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 ${!album.is_active ? 'opacity-60' : ''}`}
+              >
+                {/* Capa */}
+                <div className="relative h-48 bg-gradient-to-br from-[#003f7f] to-[#0052a3]">
+                  {album.cover_url ? (
+                    <Image src={album.cover_url} alt={album.title} fill className="object-cover" />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <FaImages className="w-16 h-16 text-white/30" />
                     </div>
                   )}
+                  {/* Badge de status e contagem */}
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${album.is_active ? 'bg-green-500 text-white' : 'bg-gray-500 text-white'}`}>
+                      {album.is_active ? 'Ativo' : 'Oculto'}
+                    </span>
+                    <span className="bg-black/70 text-white px-2 py-1 rounded-full text-xs font-bold">
+                      {album.photo_count || 0} fotos
+                    </span>
+                  </div>
                 </div>
 
-                {/* Ações */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => openPhotosModal(album)}
-                    className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-3 py-2 rounded-lg font-bold hover:bg-[#0066cc] transition-colors text-sm"
-                  >
-                    <FaImages className="w-3 h-3" />
-                    Fotos
-                  </button>
-                  <button
-                    onClick={() => handleToggleActive(album)}
-                    className={`p-2 rounded-lg transition-colors ${album.is_active ? 'text-green-600 hover:bg-green-100' : 'text-gray-500 hover:bg-gray-100'}`}
-                    title={album.is_active ? 'Ocultar' : 'Ativar'}
-                  >
-                    {album.is_active ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={() => openAlbumModal(album)}
-                    className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
-                    title="Editar"
-                  >
-                    <FaEdit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => openDeleteDialog(album.id, album.title, 'album')}
-                    className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
-                    title="Excluir"
-                  >
-                    <FaTrash className="w-4 h-4" />
-                  </button>
+                {/* Info */}
+                <div className="p-4">
+                  <span className="inline-block bg-[#003f7f]/10 text-[#003f7f] px-2 py-0.5 rounded text-xs font-bold mb-2">
+                    {album.category}
+                  </span>
+                  {campanha && (
+                    <span className="inline-flex items-center gap-1 ml-2 bg-[#ffd000]/20 text-[#003f7f] px-2 py-0.5 rounded-full text-xs font-bold mb-2">
+                      <FaBullhorn className="w-3 h-3" aria-hidden="true" />
+                      {campanha.title}
+                    </span>
+                  )}
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{album.title}</h3>
+                  <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
+                    <div className="flex items-center gap-1">
+                      <FaCalendarAlt className="w-3 h-3" />
+                      {formatDateBR(album.date)}
+                    </div>
+                    {album.location && (
+                      <div className="flex items-center gap-1">
+                        <FaMapMarkerAlt className="w-3 h-3" />
+                        <span className="truncate max-w-[100px]">{album.location}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openPhotosModal(album)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-3 py-2 rounded-lg font-bold hover:bg-[#0066cc] transition-colors text-sm"
+                    >
+                      <FaImages className="w-3 h-3" />
+                      Fotos
+                    </button>
+                    <button
+                      onClick={() => handleToggleActive(album)}
+                      className={`p-2 rounded-lg transition-colors ${album.is_active ? 'text-green-600 hover:bg-green-100' : 'text-gray-500 hover:bg-gray-100'}`}
+                      title={album.is_active ? 'Ocultar' : 'Ativar'}
+                      aria-label={`${album.is_active ? 'Ocultar' : 'Ativar'} ${album.title}`}
+                    >
+                      {album.is_active ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
+                    </button>
+                    <button
+                      onClick={() => openAlbumModal(album)}
+                      className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
+                      title="Editar"
+                      aria-label={`Editar ${album.title}`}
+                    >
+                      <FaEdit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => openDeleteDialog(album.id, album.title, 'album')}
+                      className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
+                      title="Excluir"
+                      aria-label={`Excluir ${album.title}`}
+                    >
+                      <FaTrash className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -605,8 +621,9 @@ export default function AdminGaleriaFotosPage() {
       <Modal isOpen={isModalOpen} onClose={closeAlbumModal} title={isEditing ? 'Editar Álbum' : 'Novo Álbum'}>
         <form onSubmit={handleSaveAlbum} className="space-y-5">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Título *</label>
+            <label htmlFor="album-title" className="block text-sm font-bold text-gray-700 mb-2">Título *</label>
             <input
+              id="album-title"
               type="text"
               required
               value={currentAlbum.title || ''}
@@ -617,8 +634,9 @@ export default function AdminGaleriaFotosPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+            <label htmlFor="album-description" className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
             <textarea
+              id="album-description"
               value={currentAlbum.description || ''}
               onChange={(e) => setCurrentAlbum({ ...currentAlbum, description: e.target.value })}
               rows={2}
@@ -628,8 +646,9 @@ export default function AdminGaleriaFotosPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Categoria *</label>
+              <label htmlFor="album-category" className="block text-sm font-bold text-gray-700 mb-2">Categoria *</label>
               <select
+                id="album-category"
                 required
                 value={currentAlbum.category || ''}
                 onChange={(e) => setCurrentAlbum({ ...currentAlbum, category: e.target.value })}
@@ -641,8 +660,9 @@ export default function AdminGaleriaFotosPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
+              <label htmlFor="album-date" className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
               <input
+                id="album-date"
                 type="date"
                 required
                 value={currentAlbum.date ? currentAlbum.date.split('T')[0] : ''}
@@ -651,8 +671,9 @@ export default function AdminGaleriaFotosPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Local</label>
+              <label htmlFor="album-location" className="block text-sm font-bold text-gray-700 mb-2">Local</label>
               <input
+                id="album-location"
                 type="text"
                 value={currentAlbum.location || ''}
                 onChange={(e) => setCurrentAlbum({ ...currentAlbum, location: e.target.value })}
@@ -662,19 +683,35 @@ export default function AdminGaleriaFotosPage() {
             </div>
           </div>
 
+          <div>
+            <label htmlFor="album-campaign" className="block text-sm font-bold text-gray-700 mb-2">Campanha</label>
+            <select
+              id="album-campaign"
+              value={currentAlbum.campaign_id ?? ''}
+              onChange={(e) => setCurrentAlbum({ ...currentAlbum, campaign_id: e.target.value ? Number(e.target.value) : null })}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
+            >
+              <option value="">Nenhuma</option>
+              {campanhas.map(campanha => (
+                <option key={campanha.id} value={campanha.id}>{campanha.title}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Upload de Capa */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Imagem de Capa</label>
+            <span className="block text-sm font-bold text-gray-700 mb-2">Imagem de Capa</span>
             <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverSelect} className="hidden" />
             
             {!selectedCover && !currentAlbum.cover_url ? (
-              <div
+              <button
+                type="button"
                 onClick={() => coverInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
+                className="w-full border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
               >
                 <FaCloudUploadAlt className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 text-sm">Clique para selecionar uma imagem</p>
-              </div>
+                <span className="block text-gray-600 text-sm">Clique para selecionar uma imagem</span>
+              </button>
             ) : (
               <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-4">
                 <div className="relative w-20 h-14 rounded-lg overflow-hidden bg-gray-200">
@@ -701,9 +738,9 @@ export default function AdminGaleriaFotosPage() {
           {/* Upload de Fotos (apenas para novo álbum) */}
           {!isEditing && (
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <span className="block text-sm font-bold text-gray-700 mb-2">
                 Fotos do Álbum <span className="text-gray-400 font-normal">(opcional)</span>
-              </label>
+              </span>
               <input 
                 ref={initialPhotosInputRef} 
                 type="file" 
@@ -713,14 +750,15 @@ export default function AdminGaleriaFotosPage() {
                 className="hidden" 
               />
               
-              <div
+              <button
+                type="button"
                 onClick={() => initialPhotosInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
+                className="w-full border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
               >
                 <FaCloudUploadAlt className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 text-sm">Clique para selecionar fotos</p>
-                <p className="text-gray-400 text-xs mt-1">Múltiplas fotos permitidas (máx. 20MB cada)</p>
-              </div>
+                <span className="block text-gray-600 text-sm">Clique para selecionar fotos</span>
+                <span className="block text-gray-400 text-xs mt-1">Múltiplas fotos permitidas (máx. 20MB cada)</span>
+              </button>
 
               {initialPhotos.length > 0 && (
                 <div className="mt-3 space-y-3">
@@ -748,7 +786,8 @@ export default function AdminGaleriaFotosPage() {
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); removeInitialPhoto(index); }}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                          aria-label={`Remover ${file.name}`}
                         >
                           <FaTimes className="w-2.5 h-2.5" />
                         </button>
@@ -758,6 +797,7 @@ export default function AdminGaleriaFotosPage() {
                       type="button"
                       onClick={() => initialPhotosInputRef.current?.click()}
                       className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
+                      aria-label="Adicionar mais fotos"
                     >
                       <FaPlus className="w-4 h-4 text-gray-400" />
                     </button>

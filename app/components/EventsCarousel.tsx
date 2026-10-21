@@ -4,22 +4,25 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Autoplay, Pagination, Navigation } from 'swiper/modules';
+import type { Swiper as SwiperClass } from 'swiper';
+import { A11y, Autoplay } from 'swiper/modules';
+import { FaArrowRight, FaBullhorn, FaCalendarAlt, FaChevronLeft, FaChevronRight, FaMapMarkerAlt, FaUsers } from 'react-icons/fa';
 import EventModal from './EventModal';
+import { formatDateBR, isTodayOrFuture, parseDateOnly, todayISO } from '@/lib/date';
+import { isOptimizableImage } from '@/lib/images';
 import 'swiper/css';
-import 'swiper/css/pagination';
-import 'swiper/css/navigation';
+import 'swiper/css/a11y';
 
 interface Event {
   id: number;
   title: string;
   description: string;
-  date: string; // Database date string YYYY-MM-DD
+  date: string; // DD/MM/YYYY (exibida no modal)
   time: string;
   location: string;
   category: string;
-  participants: string; // String for display in card
-  attendees: number; // Number for modal
+  participants: string; // String for display in card ('' = não informado)
+  attendees?: number; // Number for modal
   image?: string;
   gradient: string;
   month: string; // Derived for display
@@ -29,11 +32,223 @@ interface Event {
   status: 'upcoming' | 'ongoing' | 'past';
 }
 
+// Cores da marca para eventos sem imagem (também usadas no topo do modal)
+const GRADIENTS = [
+  'from-[#003f7f] to-[#0066cc]',
+  'from-[#00a859] to-[#00d670]',
+  'from-[#0052a3] to-[#0066cc]',
+  'from-[#ffd000] to-[#ffed4e]',
+];
+
+// Acima disso vira carrossel; até aqui, grade estática (sem setas nem bolinhas)
+const GRID_MAX = 3;
+
+// Grade de 3 itens: no tablet (2 colunas) o terceiro card fica centralizado em vez de sobrar à esquerda
+const GRID_3 = 'sm:grid-cols-2 lg:grid-cols-3 sm:max-lg:[&>:last-child]:col-span-2 sm:max-lg:[&>:last-child]:mx-auto sm:max-lg:[&>:last-child]:w-[calc(50%-0.75rem)]';
+
+const SHADOW = 'shadow-[0_12px_32px_-18px_rgba(0,63,127,0.35)]';
+const SHADOW_HOVER = 'hover:shadow-[0_24px_50px_-20px_rgba(0,63,127,0.45)]';
+
+const primaryButtonClass = `group inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-[#003f7f] to-[#0066cc] px-7 py-3.5 text-sm font-bold text-white shadow-[0_12px_30px_-12px_rgba(0,63,127,0.7)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-12px_rgba(0,63,127,0.8)] active:scale-[0.98] motion-reduce:hover:translate-y-0`;
+
+const secondaryButtonClass = `group inline-flex items-center justify-center gap-2 rounded-full border-2 border-[#003f7f]/15 bg-white px-7 py-3 text-sm font-bold text-[#003f7f] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#003f7f] active:scale-[0.98] motion-reduce:hover:translate-y-0`;
+
+const navButtonClass = `grid h-12 w-12 place-items-center rounded-full bg-white text-[#003f7f] ring-1 ring-gray-200 shadow-[0_8px_20px_-10px_rgba(0,63,127,0.45)] transition-all duration-200 hover:bg-[#003f7f] hover:text-white hover:ring-[#003f7f] active:scale-95`;
+
+// Slides fora da área visível (no destino da transição) ficam inertes: fora do Tab e do leitor de tela.
+// Conta pelas posições do Swiper com 1px de folga, porque a classe "fully-visible" falha com larguras fracionadas.
+function syncInert(s: SwiperClass) {
+  const active = document.activeElement;
+  const start = s.snapGrid[s.snapIndex] ?? 0;
+  s.slides.forEach((el, i) => {
+    const left = s.slidesGrid[i] - start;
+    el.inert = left < -1 || left + s.slidesSizesGrid[i] > s.width + 1;
+  });
+  // Se o foco estava num card que saiu de vista, leva para o primeiro card visível
+  if (active instanceof HTMLElement && active.closest('.swiper-slide')?.hasAttribute('inert')) {
+    s.slides.find((el) => !el.inert)?.querySelector('button')?.focus({ preventScroll: true });
+  }
+}
+
+function SectionHeader({ compact, actions }: { compact?: boolean; actions?: React.ReactNode }) {
+  return (
+    <div className={`flex flex-col gap-6 md:flex-row md:items-end md:justify-between ${compact ? 'mb-8 md:mb-10' : 'mb-10 md:mb-14'}`}>
+      <div className="max-w-2xl">
+        <span className="inline-flex items-center gap-2 rounded-full bg-[#003f7f] px-4 py-1.5 text-xs font-bold tracking-[0.14em] text-white uppercase shadow-sm">
+          <FaCalendarAlt aria-hidden="true" className="text-[#ffd000]" />
+          Agenda CDL Ipirá
+        </span>
+        <h2 id="eventos-titulo" className="mt-4 text-4xl leading-[1.05] font-black tracking-tight text-balance text-[#003f7f] sm:text-5xl lg:text-6xl">
+          Eventos em Destaque
+        </h2>
+        <div className="mt-5 h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" />
+        <p className="mt-5 text-base text-balance text-gray-600 md:text-lg">
+          Participe dos eventos que fortalecem o comércio e a comunidade de Ipirá.
+        </p>
+      </div>
+      {actions}
+    </div>
+  );
+}
+
+function EventsSkeleton() {
+  return (
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className={`overflow-hidden rounded-3xl bg-white ring-1 ring-gray-100 ${SHADOW} ${i === 1 ? 'hidden sm:block' : ''} ${i === 2 ? 'hidden lg:block' : ''}`}
+        >
+          <div className="aspect-16/10 animate-pulse bg-gray-200 motion-reduce:animate-none" />
+          <div className="space-y-3 p-6">
+            <div className="h-5 w-4/5 animate-pulse rounded-full bg-gray-200 motion-reduce:animate-none" />
+            <div className="h-3.5 w-1/2 animate-pulse rounded-full bg-gray-100 motion-reduce:animate-none" />
+            <div className="h-3.5 w-2/3 animate-pulse rounded-full bg-gray-100 motion-reduce:animate-none" />
+            <div className="mt-6 h-11 w-full animate-pulse rounded-full bg-gray-100 motion-reduce:animate-none" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EventCard({ event, featured, sizes, onOpen }: { event: Event; featured?: boolean; sizes: string; onOpen: (event: Event) => void }) {
+  return (
+    <article
+      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-3xl text-left bg-white ring-1 ring-gray-100 ${SHADOW} ${SHADOW_HOVER} transition-all duration-300 hover:-translate-y-1.5 active:scale-[0.98] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#003f7f] has-focus-visible:ring-2 has-focus-visible:ring-[#ffd000] motion-reduce:hover:translate-y-0 ${featured ? 'md:flex-row' : ''}`}
+    >
+      {/* Imagem do Evento */}
+      <div className={`relative aspect-16/10 shrink-0 overflow-hidden bg-linear-to-br ${event.gradient} ${featured ? 'md:aspect-auto md:min-h-96 md:w-1/2' : ''}`}>
+        {event.image ? (
+          <Image
+            src={event.image}
+            alt={event.title}
+            fill
+            sizes={sizes}
+            unoptimized={!isOptimizableImage(event.image)}
+            className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 motion-reduce:group-hover:scale-100"
+          />
+        ) : (
+          <FaCalendarAlt aria-hidden="true" className="absolute inset-0 m-auto text-6xl text-white/30" />
+        )}
+        <div className="absolute inset-0 bg-linear-to-b from-black/30 via-transparent to-black/20" />
+
+        {/* Categoria Badge - amarelo com texto azul */}
+        <span className="absolute top-5 left-5 rounded-full bg-[#ffd000] px-4 py-1.5 text-xs font-black text-[#003f7f] shadow-lg">
+          {event.category}
+        </span>
+
+        {event.status === 'ongoing' && (
+          <span className="absolute bottom-5 left-5 inline-flex items-center gap-2 rounded-full bg-[#00a859] px-3.5 py-1.5 text-xs font-bold text-white shadow-lg">
+            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+            É hoje
+          </span>
+        )}
+
+        {/* Calendário */}
+        <div className="absolute top-5 right-5 overflow-hidden rounded-2xl bg-white text-center shadow-2xl transition-transform duration-500 group-hover:-rotate-3 motion-reduce:group-hover:rotate-0">
+          <div className="bg-[#003f7f] px-4 py-1.5 text-xs font-bold tracking-wider text-white uppercase">{event.month}</div>
+          <div className="px-4 pt-2 pb-2.5">
+            <div className="text-3xl leading-none font-black text-[#003f7f]">{event.day}</div>
+            <div className="mt-1 text-[11px] font-semibold text-gray-500">{event.year}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Conteúdo do Card */}
+      <div className={`flex grow flex-col p-6 md:p-7 ${featured ? 'md:justify-center md:p-10 lg:p-12' : ''}`}>
+        <h3 className={`leading-snug font-black tracking-tight text-gray-900 transition-colors group-hover:text-[#003f7f] ${featured ? 'text-2xl md:text-3xl' : 'text-xl'}`}>
+          {/* Botão "esticado": o ::after cobre o card inteiro, então qualquer clique abre o modal */}
+          <button
+            type="button"
+            onClick={() => onOpen(event)}
+            aria-haspopup="dialog"
+            className="text-left after:absolute after:inset-0 after:z-10 after:content-[''] focus-visible:shadow-none! focus-visible:outline-none!"
+          >
+            <span className="line-clamp-2">{event.title}</span>
+          </button>
+        </h3>
+
+        <ul className="mt-4 space-y-2.5 text-sm text-gray-600">
+          <li className="flex items-center gap-2.5">
+            <FaCalendarAlt aria-hidden="true" className="shrink-0 text-[#00a859]" />
+            <span className="font-semibold text-gray-800">
+              {event.fullDate}
+              {event.time && <span className="font-normal text-gray-500"> · {event.time.slice(0, 5)}</span>}
+            </span>
+          </li>
+          <li className="flex items-center gap-2.5">
+            <FaMapMarkerAlt aria-hidden="true" className="shrink-0 text-[#00a859]" />
+            <span className="line-clamp-1">{event.location}</span>
+          </li>
+          {event.participants && (
+            <li className="flex items-center gap-2.5">
+              <FaUsers aria-hidden="true" className="shrink-0 text-[#00a859]" />
+              <span className="line-clamp-1">{event.participants}</span>
+            </li>
+          )}
+        </ul>
+
+        {event.description && (
+          <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-gray-600">{event.description}</p>
+        )}
+
+        <div className={`mt-auto pt-6 ${featured ? 'md:mt-0 md:pt-8' : ''}`}>
+          <span
+            aria-hidden="true"
+            className={`items-center justify-center gap-2 rounded-full border-2 border-[#003f7f] px-6 py-3 text-sm font-bold text-[#003f7f] transition-colors duration-300 group-hover:bg-[#003f7f] group-hover:text-white ${featured ? 'flex md:inline-flex' : 'flex'}`}
+          >
+            Saiba mais
+            <FaArrowRight className="text-xs transition-transform duration-300 group-hover:translate-x-1" />
+          </span>
+        </div>
+      </div>
+
+      {/* Barra colorida inferior */}
+      <div className={`absolute inset-x-0 bottom-0 h-1.5 bg-linear-to-r ${event.gradient}`} />
+    </article>
+  );
+}
+
+// Sem eventos futuros: faixa compacta com caminhos úteis, em vez de um bloco vazio
+function NoUpcomingEvents() {
+  return (
+    <div className={`rounded-3xl bg-white p-6 ring-1 ring-gray-100 sm:p-8 md:p-10 ${SHADOW}`}>
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+          <div className="relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-[#003f7f] to-[#0066cc] text-2xl text-white shadow-[0_12px_24px_-10px_rgba(0,63,127,0.6)]">
+            <FaCalendarAlt aria-hidden="true" />
+            <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-[#ffd000] ring-4 ring-white" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black tracking-tight text-[#003f7f] md:text-3xl">Novos eventos em breve</h3>
+            <p className="mt-2 max-w-xl text-pretty text-gray-600">
+              Estamos preparando a próxima agenda. Enquanto isso, relembre os eventos realizados e acompanhe nossas campanhas.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row lg:ml-auto lg:shrink-0">
+          <Link href="/imprensa/eventos" className={primaryButtonClass}>
+            Ver eventos realizados
+            <FaArrowRight aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-x-1" />
+          </Link>
+          <Link href="/imprensa/campanhas" className={secondaryButtonClass}>
+            <FaBullhorn aria-hidden="true" className="text-[#00a859]" />
+            Conheça nossas campanhas
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const EventsCarousel = () => {
   const [events, setEvents] = React.useState<Event[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectedEvent, setSelectedEvent] = React.useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [swiper, setSwiper] = React.useState<SwiperClass | null>(null);
+  const [snap, setSnap] = React.useState({ index: 0, count: 1 });
 
   React.useEffect(() => {
     const fetchEvents = async () => {
@@ -42,16 +257,12 @@ const EventsCarousel = () => {
         if (response.ok) {
           const data = await response.json();
 
-          const gradients = [
-            'from-[#003f7f] to-[#0066cc]', // Blue
-            'from-[#00a859] to-[#00d674]', // Green
-            'from-[#e6b800] to-[#ffd000]', // Yellow
-            'from-[#cc0000] to-[#ff3333]', // Red
-            'from-[#4b0082] to-[#8a2be2]', // Purple
-          ];
+          // A coluna status não é mantida no banco: a home mostra só eventos de hoje em diante
+          const today = todayISO();
+          const upcoming = data.filter((item: { date?: string | null }) => isTodayOrFuture(item.date, today) && parseDateOnly(item.date));
 
-          const mappedEvents = data.map((item: any, index: number) => {
-            const dateObj = new Date(item.date);
+          const mappedEvents = upcoming.map((item: { id: number; title: string; description?: string | null; date: string; time?: string | null; location?: string | null; category?: string | null; participants?: string | null; attendees?: number | null; image?: string | null }, index: number): Event => {
+            const dateObj = parseDateOnly(item.date) as Date;
             const day = dateObj.getDate().toString().padStart(2, '0');
             const monthShort = dateObj.toLocaleString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase();
             const year = dateObj.getFullYear().toString();
@@ -60,20 +271,20 @@ const EventsCarousel = () => {
             return {
               id: item.id,
               title: item.title,
-              description: item.description,
-              date: day, // Display day for the calendar icon
-              time: item.time || '19:00', // Default time if missing
+              description: item.description || '',
+              date: formatDateBR(item.date),
+              time: item.time || '',
               location: item.location || 'CDL Ipirá',
               category: item.category || 'Evento',
-              participants: 'Aberto ao público',
-              attendees: item.attendees || 100,
-              image: item.image,
-              gradient: gradients[index % gradients.length],
+              participants: item.participants || '',
+              attendees: item.attendees || undefined,
+              image: item.image || undefined,
+              gradient: GRADIENTS[index % GRADIENTS.length],
               month: monthShort,
               day: day,
               year: year,
               fullDate: fullDate,
-              status: 'upcoming'
+              status: item.date.slice(0, 10) === today ? 'ongoing' : 'upcoming'
             };
           });
 
@@ -91,316 +302,158 @@ const EventsCarousel = () => {
     fetchEvents();
   }, []);
 
+  // Com o modal aberto o carrossel não anda (senão o card de origem sai de vista e o foco não volta para ele)
   const openModal = (event: Event) => {
+    swiper?.autoplay?.stop();
     setSelectedEvent(event);
     setIsModalOpen(true);
   };
 
+  const isEmpty = !isLoading && events.length === 0;
+  const isCarousel = events.length > GRID_MAX;
+  // Só existe no cliente (a lista vem do fetch), então pode ler a preferência direto
+  const reduceMotion = isCarousel && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const sync = (s: SwiperClass) => {
+    setSnap({ index: s.snapIndex, count: s.snapGrid.length });
+    syncInert(s);
+  };
+
+  const viewAll = (
+    <Link href="/imprensa/eventos" className={primaryButtonClass}>
+      Ver agenda completa
+      <FaArrowRight aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-x-1" />
+    </Link>
+  );
+
+  let content: React.ReactNode;
   if (isLoading) {
-    return (
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003f7f]"></div>
+    content = <EventsSkeleton />;
+  } else if (isEmpty) {
+    content = <NoUpcomingEvents />;
+  } else if (!isCarousel) {
+    const sizes = events.length === 3 ? '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw' : '(min-width: 768px) 50vw, 100vw';
+    content = (
+      <div className={`grid gap-6 lg:gap-8 ${events.length === 2 ? 'md:grid-cols-2' : events.length === 3 ? GRID_3 : ''}`}>
+        {events.map((event) => (
+          <EventCard key={event.id} event={event} featured={events.length === 1} sizes={sizes} onOpen={openModal} />
+        ))}
+      </div>
+    );
+  } else {
+    content = (
+      <>
+        <Swiper
+          modules={[A11y, Autoplay]}
+          onSwiper={setSwiper}
+          onAfterInit={sync}
+          onSnapIndexChange={sync}
+          onSnapGridLengthChange={sync}
+          rewind
+          speed={reduceMotion ? 0 : 600}
+          slidesPerView={1.15}
+          spaceBetween={16}
+          breakpoints={{
+            768: { slidesPerView: 2, spaceBetween: 24 },
+            1024: { slidesPerView: 3, spaceBetween: 32 },
+          }}
+          autoplay={reduceMotion ? false : { delay: 5000, disableOnInteraction: false, pauseOnMouseEnter: true }}
+          a11y={{
+            containerRoleDescriptionMessage: 'carrossel',
+            itemRoleDescriptionMessage: 'evento',
+            slideLabelMessage: '{{index}} de {{slidesLength}}',
+            // Só os slides visíveis recebem foco (os demais ficam inert), então não precisa rolar ao focar
+            scrollOnFocus: false,
+          }}
+          className="-mx-4! -mt-3! -mb-12! w-auto! px-4! pt-3! pb-12!"
+        >
+          {events.map((event) => (
+            <SwiperSlide key={event.id} className="h-auto! px-0!">
+              <EventCard event={event} sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 85vw" onOpen={openModal} />
+            </SwiperSlide>
+          ))}
+        </Swiper>
+
+        {snap.count > 1 && (
+          <div className="mt-5 flex justify-center">
+            {Array.from({ length: snap.count }, (_, i) => (
+              // Área de toque de 24px+ ao redor do ponto visível
+              <button
+                key={i}
+                type="button"
+                onClick={() => swiper?.slideTo(i)}
+                aria-label={`Ir para a posição ${i + 1} de ${snap.count}`}
+                aria-current={i === snap.index ? 'true' : undefined}
+                className="group/dot grid h-10 place-items-center rounded-full px-[7px]"
+              >
+                <span className={`block h-2.5 rounded-full transition-all duration-300 motion-reduce:transition-none ${i === snap.index ? 'w-8 bg-[#003f7f]' : 'w-2.5 bg-gray-300 group-hover/dot:bg-gray-400'}`} />
+              </button>
+            ))}
           </div>
-        </div>
-      </section>
+        )}
+      </>
     );
   }
-
-  // Renderiza a estrutura mesmo sem eventos
-  if (events.length === 0) {
-    return (
-      <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-visible">
-        {/* Elementos decorativos de fundo */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl"></div>
-
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="text-center mb-12">
-            <div className="inline-block bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-6 py-3 rounded-full text-sm font-black mb-6 shadow-2xl">
-              📅 Próximos Eventos
-            </div>
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] mb-4 bg-clip-text">
-              Eventos em Destaque
-            </h2>
-            <div className="w-32 h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-6"></div>
-          </div>
-
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-lg">Nenhum evento disponível no momento.</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Loop exige slidesPerView * 2 + 1 slides únicos. Max slidesPerView = 3 → mínimo 7.
-  const shouldLoop = events.length >= 7;
 
   return (
-    <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-visible">
+    <section
+      aria-labelledby="eventos-titulo"
+      aria-busy={isLoading || undefined}
+      className={`relative overflow-hidden bg-white ${isEmpty ? 'py-14 md:py-20' : 'py-16 md:py-24'}`}
+    >
       {/* Elementos decorativos de fundo */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl"></div>
+      <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-[#003f7f]/5 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-[#ffd000]/10 blur-3xl" />
 
-      <div className="container mx-auto px-4 relative z-10">
-        {/* Header da Seção */}
-        <div className="text-center mb-16">
-          <div className="inline-block bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-6 py-3 rounded-full text-sm font-black mb-6 shadow-2xl">
-            📅 Agenda de Eventos CDL Ipirá
-          </div>
-          <h2 className="text-5xl md:text-6xl font-black text-[#003f7f] mb-4">
-            Próximos Eventos
-          </h2>
-          <div className="w-32 h-2 bg-linear-to-r from-[#ffd000] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-6"></div>
-          <p className="text-gray-600 text-xl max-w-3xl mx-auto">
-            Participe dos eventos que fortalecem o comércio e a comunidade de Ipirá
-          </p>
-        </div>
+      {/* Teclado: setas navegam; foco dentro pausa o autoplay (hover é tratado pelo Swiper).
+          Fica fora do modal, que é um portal e também propagaria os eventos. */}
+      <div
+        className="relative container mx-auto px-4"
+        onKeyDown={(e) => {
+          if (!swiper) return;
+          if (e.key === 'ArrowLeft') swiper.slidePrev();
+          if (e.key === 'ArrowRight') swiper.slideNext();
+        }}
+        onFocus={() => swiper?.autoplay?.running && swiper.autoplay.stop()}
+        onBlur={(e) => {
+          if (swiper && !reduceMotion && !isModalOpen && !e.currentTarget.contains(e.relatedTarget)) swiper.autoplay?.start();
+        }}
+      >
+        <SectionHeader
+          compact={isEmpty}
+          actions={
+            events.length > 0 && (
+              <div className="hidden shrink-0 items-center gap-3 md:flex">
+                {isCarousel && (
+                  <>
+                    <button type="button" onClick={() => swiper?.slidePrev()} aria-label="Eventos anteriores" className={navButtonClass}>
+                      <FaChevronLeft aria-hidden="true" />
+                    </button>
+                    <button type="button" onClick={() => swiper?.slideNext()} aria-label="Próximos eventos" className={navButtonClass}>
+                      <FaChevronRight aria-hidden="true" />
+                    </button>
+                  </>
+                )}
+                {viewAll}
+              </div>
+            )
+          }
+        />
 
-        {/* Carrossel de Eventos */}
-        <div className="relative max-w-7xl mx-auto">
-          <div className="px-4 sm:px-8 md:px-12 lg:px-20 relative">
-            <Swiper
-              modules={[Autoplay, Pagination, Navigation]}
-              spaceBetween={24}
-              slidesPerView={1}
-              centeredSlides={true}
-              autoplay={{
-                delay: 5000,
-                disableOnInteraction: false,
-              }}
-              pagination={{
-                clickable: true,
-                dynamicBullets: false,
-              }}
-              navigation={{
-                nextEl: '.events-button-next',
-                prevEl: '.events-button-prev',
-              }}
-              loop={shouldLoop}
-              breakpoints={{
-                768: {
-                  slidesPerView: 2,
-                  spaceBetween: 24,
-                  centeredSlides: true,
-                },
-                1024: {
-                  slidesPerView: 3,
-                  spaceBetween: 30,
-                  centeredSlides: true,
-                },
-              }}
-              className="events-modern-carousel pb-20! !overflow-visible"
-            >
-              {events.map((event) => (
-                <SwiperSlide key={event.id}>
-                  <article
-                    onClick={() => openModal(event)}
-                    className="group bg-white rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl hover:shadow-3xl transition-all duration-500 h-full flex flex-col min-h-[650px] cursor-pointer"
-                  >
-                    {/* Imagem do Evento */}
-                    <div className="relative h-64 sm:h-72 md:h-80 overflow-hidden shrink-0">
-                      <div className={`absolute inset-0 bg-linear-to-br ${event.gradient} opacity-90`}></div>
-                      {event.image && (
-                        <Image
-                          src={event.image}
-                          alt={event.title}
-                          fill
-                          sizes="(min-width: 1024px) 33vw, (min-width: 768px) 45vw, 100vw"
-                          className="object-cover transform group-hover:scale-110 transition-transform duration-700"
-                        />
-                      )}
+        {content}
 
-                      {/* Overlay gradient */}
-                      <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/30 to-transparent"></div>
-
-                      {/* Calendário 3D - estilo correto */}
-                      <div className="absolute top-6 right-6 z-10">
-                        <div className="bg-white rounded-2xl shadow-2xl transform group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500 overflow-hidden">
-                          <div className="bg-[#003f7f] text-white text-center py-3 px-5 rounded-t-2xl font-bold text-sm uppercase">
-                            {event.month}
-                          </div>
-                          <div className="px-5 py-4 text-center bg-white rounded-b-2xl">
-                            <div className="text-5xl font-black text-[#003f7f] leading-none">{event.day}</div>
-                            <div className="text-xs font-semibold text-gray-600 mt-1">{event.year}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Categoria Badge - amarelo com texto azul */}
-                      <div className="absolute top-6 left-6 z-10">
-                        <span className="bg-[#ffd000] text-[#003f7f] px-4 py-2 rounded-full text-xs font-black shadow-lg">
-                          {event.category}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Conteúdo do Card */}
-                    <div className="p-4 sm:p-6 md:p-8 flex flex-col grow min-h-[350px]">
-                      {/* Título */}
-                      <h3 className="text-xl sm:text-2xl md:text-2xl font-black text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors leading-tight line-clamp-2">
-                        {event.title}
-                      </h3>
-
-                      {/* Data Completa */}
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-[#00a859]" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                        </svg>
-                        <span className="font-semibold">{event.fullDate}</span>
-                      </div>
-
-                      {/* Descrição */}
-                      <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 leading-relaxed line-clamp-3 grow">
-                        {event.description}
-                      </p>
-
-                      {/* Informações Extras */}
-                      <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 border-t border-gray-100 pt-4 sm:pt-6">
-                        <div className="flex items-start gap-2 sm:gap-3">
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-linear-to-br from-[#003f7f] to-[#0066cc] rounded-full flex items-center justify-center shrink-0">
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs text-gray-500 font-semibold mb-1">LOCAL</div>
-                            <div className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2">{event.location}</div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2 sm:gap-3">
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-linear-to-br from-[#00a859] to-[#00d670] rounded-full flex items-center justify-center shrink-0">
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs text-gray-500 font-semibold mb-1">PÚBLICO</div>
-                            <div className="text-xs sm:text-sm font-bold text-gray-800">{event.participants}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Botão igual ao Hero */}
-                      <button className="group/btn relative bg-white border-2 border-[#003f7f] text-[#003f7f] px-4 sm:px-6 md:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base overflow-hidden shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-2xl w-full mt-auto">
-                        <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3">
-                          Saiba Mais
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 transform group-hover/btn:translate-x-2 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </span>
-                        <div className="absolute inset-0 bg-linear-to-r from-[#003f7f] to-[#0066cc] transform scale-x-0 group-hover/btn:scale-x-100 transition-transform origin-left"></div>
-                      </button>
-                    </div>
-
-                    {/* Barra colorida inferior animada */}
-                    <div className={`h-2 bg-linear-to-r ${event.gradient} animate-shine`} style={{ backgroundSize: '200% 100%' }}></div>
-                  </article>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-          </div>
-
-          {/* Navegação customizada com cor azul */}
-          <div className="events-button-prev absolute left-2 sm:left-4 md:left-6 lg:left-8 top-1/2 -translate-y-1/2 z-20 cursor-pointer group">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-[#003f7f]/30 backdrop-blur-xl rounded-full flex items-center justify-center hover:bg-[#003f7f]/50 transition-all duration-300 shadow-2xl group-hover:scale-110">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 text-[#003f7f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" />
-              </svg>
-            </div>
-          </div>
-
-          <div className="events-button-next absolute right-2 sm:right-4 md:right-6 lg:right-8 top-1/2 -translate-y-1/2 z-20 cursor-pointer group">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-[#003f7f]/30 backdrop-blur-xl rounded-full flex items-center justify-center hover:bg-[#003f7f]/50 transition-all duration-300 shadow-2xl group-hover:scale-110">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 text-[#003f7f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Botão Ver Todos */}
-        <div className="text-center mt-12 sm:mt-16">
-          <Link
-            href="/imprensa/eventos"
-            className="group relative inline-flex bg-[#003f7f] text-white px-8 sm:px-10 md:px-12 py-4 sm:py-5 rounded-full font-black text-base sm:text-lg overflow-hidden shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-3xl"
-          >
-            <span className="relative z-10 flex items-center justify-center gap-3 sm:gap-4">
-              Ver Calendário Completo
-              <svg className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transform group-hover:rotate-12 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-              </svg>
-            </span>
-            <div className="absolute inset-0 bg-linear-to-r from-[#ffd000] to-[#ffed4e] transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-          </Link>
-        </div>
+        {events.length > 0 && <div className="mt-10 md:hidden [&>a]:w-full">{viewAll}</div>}
       </div>
 
       <EventModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          // Volta a rodar; se o foco retornar ao card, o onFocus acima pausa de novo
+          if (!reduceMotion) swiper?.autoplay?.start();
+        }}
         event={selectedEvent}
       />
-
-      <style jsx global>{`
-        .events-modern-carousel {
-          position: relative;
-          overflow: visible !important;
-          padding-bottom: 60px !important;
-        }
-        .events-modern-carousel .swiper-wrapper {
-          overflow: visible !important;
-        }
-        .events-modern-carousel .swiper-pagination {
-          position: absolute;
-          bottom: 0 !important;
-          left: 50% !important;
-          transform: translateX(-50%) !important;
-          width: auto !important;
-          display: flex;
-          gap: 8px;
-          justify-content: center;
-          align-items: center;
-          z-index: 10;
-        }
-        .events-modern-carousel .swiper-pagination-bullet {
-          width: 14px;
-          height: 14px;
-          background: #003f7f;
-          opacity: 0.3;
-          transition: all 0.3s ease;
-          margin: 0 !important;
-        }
-        .events-modern-carousel .swiper-pagination-bullet-active {
-          width: 50px;
-          border-radius: 7px;
-          opacity: 1;
-          background: linear-gradient(135deg, #003f7f 0%, #0066cc 100%);
-          box-shadow: 0 4px 20px rgba(0, 63, 127, 0.5);
-        }
-        
-        /* Remover setas padrão do Swiper */
-        .events-modern-carousel .swiper-button-next,
-        .events-modern-carousel .swiper-button-prev {
-          display: none !important;
-        }
-        
-        /* Card central destacado */
-        .events-modern-carousel .swiper-slide {
-          transition: transform 0.3s ease;
-        }
-        .events-modern-carousel .swiper-slide-active {
-          transform: scale(1.05);
-        }
-        
-        /* Botão com efeito de preenchimento */
-        .group\/btn:hover span {
-          color: white;
-        }
-      `}</style>
     </section>
   );
 };

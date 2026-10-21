@@ -1,18 +1,20 @@
 import React from 'react';
+import { FaBookOpen } from 'react-icons/fa';
 
 const HeroSection = () => {
   return (
-    <section className="py-8 sm:py-12 md:py-16 bg-linear-to-br from-white via-gray-50 to-gray-100">
+    <section className="py-10 sm:py-14 md:py-16 bg-linear-to-br from-white via-gray-50 to-gray-100">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
-          <div className="inline-block bg-linear-to-r from-[#ffd000] to-[#ffed4e] text-[#003f7f] px-5 sm:px-6 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-2xl">
-            📖 Revista CDL
-          </div>
-          <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] mb-3 sm:mb-4 leading-tight">
+        <div className="max-w-3xl mx-auto text-center animate-blur-fade-in">
+          <span className="inline-flex items-center gap-2 bg-linear-to-r from-[#ffd000] to-[#ffed4e] text-[#003f7f] px-5 sm:px-6 py-2.5 rounded-full text-xs sm:text-sm font-black mb-4 sm:mb-6 shadow-[0_12px_30px_-12px_rgba(255,208,0,0.9)]">
+            <FaBookOpen className="w-3.5 h-3.5" aria-hidden="true" />
+            Revista CDL
+          </span>
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-[#003f7f] mb-4 leading-[1.05]">
             Revista CDL
           </h1>
-          <div className="w-24 sm:w-32 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-4 sm:mb-6"></div>
-          <p className="text-gray-700 text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4 text-justify">
+          <div className="h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] mx-auto mb-5" aria-hidden="true"></div>
+          <p className="text-gray-700 text-base md:text-lg">
             Acesse as edições da Revista CDL Ipirá com notícias, artigos, entrevistas e informações sobre o comércio local e regional.
           </p>
         </div>
@@ -22,6 +24,3 @@ const HeroSection = () => {
 };
 
 export default HeroSection;
-
-
-

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
-import { sanitizeString } from '@/lib/security';
+import { sanitizeString, isSafeLink } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
+
+const UNAUTHORIZED = { error: 'Não autorizado' };
 
 function sanitizePayload(body: Record<string, unknown>) {
   return {
@@ -9,8 +12,8 @@ function sanitizePayload(body: Record<string, unknown>) {
     description: sanitizeString(String(body.description || '')) || null,
     edition: sanitizeString(String(body.edition || '')) || null,
     date: body.date ? String(body.date) : null,
-    cover_url: sanitizeString(String(body.cover_url || '')) || null,
-    file_url: sanitizeString(String(body.file_url || '')),
+    cover_url: String(body.cover_url || '').trim() || null,
+    file_url: String(body.file_url || '').trim(),
     is_active: body.is_active !== false,
   };
 }
@@ -20,10 +23,18 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
     return 'Título, arquivo e data são obrigatórios.';
   }
 
+  if (!isSafeLink(payload.file_url, 1000) || (payload.cover_url && !isSafeLink(payload.cover_url, 1000))) {
+    return 'O arquivo e a capa devem ser endereços http(s):// ou caminhos do site.';
+  }
+
   return null;
 }
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('magazines')
@@ -43,6 +54,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizePayload(body);
@@ -72,6 +87,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const id = Number(body.id);
@@ -108,6 +127,10 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json(UNAUTHORIZED, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));

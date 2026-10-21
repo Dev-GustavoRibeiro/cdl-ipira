@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
-import { sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 
 const VALID_STATUSES = new Set(['pending', 'in_progress', 'completed']);
 
+// Texto puro (mesma regra de /api/juridico): o painel exibe via React, então não escapamos entidades
+// aqui — senão cada edição escaparia de novo o texto já salvo ("&" -> "&amp;" -> "&amp;amp;")
+function cleanText(value: unknown): string {
+  return typeof value === 'string' ? value.replace(/<[^>]*>/g, '').replace(/[\x00-\x1F\x7F]/g, '').trim() : '';
+}
+
 function sanitizePayload(body: Record<string, unknown>) {
-  const nome = sanitizeString(String(body.nome || ''));
-  const empresa = sanitizeString(String(body.empresa || ''));
-  const assunto = sanitizeString(String(body.assunto || ''));
-  const status = sanitizeString(String(body.status || 'pending'));
+  const nome = cleanText(body.nome);
+  const empresa = cleanText(body.empresa);
+  const assunto = cleanText(body.assunto);
+  const status = cleanText(body.status) || 'pending';
 
   return {
     nome,
@@ -32,6 +38,10 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
 }
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('legal_requests')
@@ -51,6 +61,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizePayload(body);
@@ -80,6 +94,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const id = Number(body.id);
@@ -116,6 +134,10 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));

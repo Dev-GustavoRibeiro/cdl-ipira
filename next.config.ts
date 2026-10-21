@@ -2,38 +2,31 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === 'development';
 
+// Host do projeto Supabase (evita liberar *.supabase.co de qualquer pessoa)
+const supabaseHost = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').host;
+  } catch {
+    return '';
+  }
+})() || '*.supabase.co';
+
 // Content Security Policy
-// Em desenvolvimento, é mais permissivo para permitir acesso via IP
-const ContentSecurityPolicy = isDev
-  ? `
+// Em desenvolvimento, é mais permissivo (HMR via websocket e eval do React Refresh)
+const ContentSecurityPolicy = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br https://challenges.cloudflare.com;
+    script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ''} https://challenges.cloudflare.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' data: blob: https: http:;
-    font-src 'self' https://fonts.gstatic.com data:;
-    frame-src 'self' https://www.youtube.com https://www.google.com https://impostometro.com.br https://challenges.cloudflare.com;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://challenges.cloudflare.com ws: wss:;
-    media-src 'self' https://*.supabase.co blob:;
+    img-src 'self' data: blob: https:;
+    font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:;
+    frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://challenges.cloudflare.com;
+    connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://challenges.cloudflare.com ${isDev ? 'ws: wss:' : ''};
+    media-src 'self' https://${supabaseHost} blob:;
     worker-src 'self' blob:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-  `.replace(/\s{2,}/g, ' ').trim()
-  : `
-    default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br https://challenges.cloudflare.com;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' data: blob: https: http:;
-    font-src 'self' https://fonts.gstatic.com data:;
-    frame-src 'self' https://www.youtube.com https://www.google.com https://impostometro.com.br https://challenges.cloudflare.com;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://challenges.cloudflare.com;
-    media-src 'self' https://*.supabase.co blob:;
-    worker-src 'self' blob:;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-    frame-ancestors 'none';
-    upgrade-insecure-requests;
+    ${isDev ? '' : "frame-ancestors 'none'; upgrade-insecure-requests;"}
   `.replace(/\s{2,}/g, ' ').trim();
 
 const nextConfig: NextConfig = {
@@ -64,7 +57,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '*.supabase.co',
+        hostname: supabaseHost,
       },
       {
         protocol: 'https',
@@ -73,10 +66,6 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'img.youtube.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'via.placeholder.com',
       },
     ],
   },

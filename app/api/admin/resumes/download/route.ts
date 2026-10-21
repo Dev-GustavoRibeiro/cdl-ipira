@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 
 function extractResumePath(fileUrl: string): string | null {
   if (!fileUrl) return null;
@@ -12,6 +13,10 @@ function extractResumePath(fileUrl: string): string | null {
 }
 
 export async function GET(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const fileUrl = request.nextUrl.searchParams.get('fileUrl') || '';
     const path = extractResumePath(fileUrl);

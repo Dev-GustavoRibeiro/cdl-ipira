@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
     const { data: jobs, error } = await supabase
       .from('jobs')
-      .select('*')
+      // Só o que a página exibe: contato da empresa (nome, e-mail, telefone) não é público
+      .select('id, title, company, quantity, description, location, date, category, created_at')
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 
@@ -21,7 +22,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   // Desativar cadastro via API para forçar uso do WhatsApp e cadastro via Dashboard
   return NextResponse.json(
     { error: 'O cadastro de vagas pelo site foi desativado. Por favor, atualize a página e use o botão de envio para WhatsApp.' },

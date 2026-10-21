@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaBook, FaSearch, FaSpinner, FaSave, FaEyeSlash, FaUpload, FaLink, FaCloudUploadAlt, FaTimes, FaDownload, FaImage } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import { parseDateOnly, todayISO } from '@/lib/date';
 
 interface Magazine {
   id: number;
@@ -194,7 +194,7 @@ export default function AdminRevistaCDLPage() {
       });
     } catch (error) {
       console.error('Erro ao salvar revista:', error);
-      toast.error('Erro ao salvar revista. Verifique se o bucket de storage foi criado.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar revista.');
     } finally {
       setIsSaving(false);
       setIsUploading(false);
@@ -271,7 +271,7 @@ export default function AdminRevistaCDLPage() {
       setUploadMode('url');
     } else {
       setCurrentMagazine({ 
-        date: new Date().toISOString().split('T')[0],
+        date: todayISO(),
         is_active: true
       });
       setIsEditing(false);
@@ -340,9 +340,10 @@ export default function AdminRevistaCDLPage() {
       {/* Busca */}
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
         <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
           <input
             type="text"
+            aria-label="Buscar edições"
             placeholder="Buscar edições..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -363,7 +364,7 @@ export default function AdminRevistaCDLPage() {
         <div className="bg-white rounded-xl shadow-md p-12 text-center">
           <FaBook className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-gray-700 mb-2">Nenhuma edição encontrada</h3>
-          <p className="text-gray-500">Clique em "Nova Edição" para adicionar uma revista.</p>
+          <p className="text-gray-500">Clique em &quot;Nova Edição&quot; para adicionar uma revista.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
@@ -403,7 +404,7 @@ export default function AdminRevistaCDLPage() {
                   <p className="text-sm text-gray-500 mb-1">Edição: {magazine.edition}</p>
                 )}
                 <p className="text-sm text-gray-600 mb-4">
-                  {new Date(magazine.date).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                  {parseDateOnly(magazine.date)?.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                 </p>
 
                 {/* Ações */}
@@ -425,6 +426,7 @@ export default function AdminRevistaCDLPage() {
                         : 'text-gray-500 hover:bg-gray-100'
                     }`}
                     title={magazine.is_active ? 'Ocultar' : 'Ativar'}
+                    aria-label={`${magazine.is_active ? 'Ocultar' : 'Ativar'} ${magazine.title}`}
                   >
                     {magazine.is_active ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
                   </button>
@@ -432,6 +434,7 @@ export default function AdminRevistaCDLPage() {
                     onClick={() => openModal(magazine)}
                     className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
                     title="Editar"
+                    aria-label={`Editar ${magazine.title}`}
                   >
                     <FaEdit className="w-4 h-4" />
                   </button>
@@ -439,6 +442,7 @@ export default function AdminRevistaCDLPage() {
                     onClick={() => openDeleteDialog(magazine)}
                     className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
                     title="Excluir"
+                    aria-label={`Excluir ${magazine.title}`}
                   >
                     <FaTrash className="w-4 h-4" />
                   </button>
@@ -457,10 +461,11 @@ export default function AdminRevistaCDLPage() {
       >
         <form onSubmit={handleSave} className="space-y-5">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Título *</label>
+            <label htmlFor="mag-title" className="block text-sm font-bold text-gray-700 mb-2">Título *</label>
             <input
               type="text"
               required
+              id="mag-title"
               value={currentMagazine.title || ''}
               onChange={(e) => setCurrentMagazine({ ...currentMagazine, title: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -470,9 +475,10 @@ export default function AdminRevistaCDLPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Edição</label>
+              <label htmlFor="mag-edition" className="block text-sm font-bold text-gray-700 mb-2">Edição</label>
               <input
                 type="text"
+                id="mag-edition"
                 value={currentMagazine.edition || ''}
                 onChange={(e) => setCurrentMagazine({ ...currentMagazine, edition: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -480,10 +486,11 @@ export default function AdminRevistaCDLPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
+              <label htmlFor="mag-date" className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
               <input
                 type="date"
                 required
+                id="mag-date"
                 value={currentMagazine.date ? currentMagazine.date.split('T')[0] : ''}
                 onChange={(e) => setCurrentMagazine({ ...currentMagazine, date: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
@@ -492,8 +499,9 @@ export default function AdminRevistaCDLPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+            <label htmlFor="mag-description" className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
             <textarea
+              id="mag-description"
               value={currentMagazine.description || ''}
               onChange={(e) => setCurrentMagazine({ ...currentMagazine, description: e.target.value })}
               rows={2}
@@ -504,8 +512,9 @@ export default function AdminRevistaCDLPage() {
 
           {/* Upload de Capa */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Imagem da Capa</label>
+            <label htmlFor="mag-cover" className="block text-sm font-bold text-gray-700 mb-2">Imagem da Capa</label>
             <input
+              id="mag-cover"
               ref={coverInputRef}
               type="file"
               accept="image/*"
@@ -514,14 +523,15 @@ export default function AdminRevistaCDLPage() {
             />
             
             {!selectedCover && !currentMagazine.cover_url ? (
-              <div
+              <button
+                type="button"
                 onClick={() => coverInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
+                className="w-full border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
               >
                 <FaImage className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 text-sm font-medium">Clique para selecionar uma imagem de capa</p>
-                <p className="text-xs text-gray-500">JPG, PNG ou WebP (máx. 10MB)</p>
-              </div>
+                <span className="block text-gray-600 text-sm font-medium">Clique para selecionar uma imagem de capa</span>
+                <span className="block text-xs text-gray-500">JPG, PNG ou WebP (máx. 10MB)</span>
+              </button>
             ) : (
               <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-4">
                 <div className="w-16 h-20 bg-gray-200 rounded-lg overflow-hidden relative">
@@ -556,6 +566,7 @@ export default function AdminRevistaCDLPage() {
                     if (!isEditing) setCurrentMagazine(prev => ({ ...prev, cover_url: undefined }));
                   }}
                   className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                  aria-label="Remover imagem da capa selecionada"
                 >
                   <FaTimes className="w-4 h-4" />
                 </button>
@@ -572,7 +583,7 @@ export default function AdminRevistaCDLPage() {
 
           {/* Upload de PDF */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-3">Arquivo PDF *</label>
+            <label htmlFor={uploadMode === 'file' ? 'mag-file' : 'mag-file-url'} className="block text-sm font-bold text-gray-700 mb-3">Arquivo PDF *</label>
             
             {/* Tabs */}
             <div className="flex gap-2 mb-4">
@@ -605,6 +616,7 @@ export default function AdminRevistaCDLPage() {
             {uploadMode === 'file' ? (
               <div>
                 <input
+                  id="mag-file"
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf"
@@ -613,14 +625,15 @@ export default function AdminRevistaCDLPage() {
                 />
                 
                 {!selectedFile ? (
-                  <div
+                  <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
+                    className="w-full border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
                   >
                     <FaCloudUploadAlt className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600 font-medium mb-1">Clique para selecionar o PDF</p>
-                    <p className="text-xs text-gray-500">Máximo 100MB</p>
-                  </div>
+                    <span className="block text-gray-600 font-medium mb-1">Clique para selecionar o PDF</span>
+                    <span className="block text-xs text-gray-500">Máximo 100MB</span>
+                  </button>
                 ) : (
                   <div className="bg-gray-50 rounded-xl p-4">
                     <div className="flex items-center gap-4">
@@ -638,6 +651,7 @@ export default function AdminRevistaCDLPage() {
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                         className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                        aria-label="Remover PDF selecionado"
                       >
                         <FaTimes className="w-4 h-4" />
                       </button>
@@ -656,6 +670,7 @@ export default function AdminRevistaCDLPage() {
             ) : (
               <div>
                 <input
+                  id="mag-file-url"
                   type="url"
                   value={currentMagazine.file_url || ''}
                   onChange={(e) => setCurrentMagazine({ ...currentMagazine, file_url: e.target.value })}

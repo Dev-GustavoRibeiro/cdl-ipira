@@ -5,7 +5,7 @@ import {
   FaHistory, FaSearch, FaFilter, FaNewspaper, FaCalendarAlt, 
   FaVideo, FaImages, FaBriefcase, FaStore, FaUser, FaSignInAlt,
   FaSignOutAlt, FaPlus, FaEdit, FaTrash, FaSpinner, FaChevronLeft,
-  FaChevronRight, FaDatabase
+  FaChevronRight, FaDatabase, FaBullhorn
 } from 'react-icons/fa';
 
 interface AuditLog {
@@ -38,7 +38,12 @@ const TABLE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   'jobs': { label: 'Vagas', icon: <FaBriefcase /> },
   'admin_users': { label: 'Usuários', icon: <FaUser /> },
   'auth': { label: 'Autenticação', icon: <FaSignInAlt /> },
+  'campaigns': { label: 'Campanhas', icon: <FaBullhorn /> },
+  'event_registrations': { label: 'Inscrições em Eventos', icon: <FaCalendarAlt /> },
 };
+
+// Primeiros caracteres do UUID do usuário, para diferenciar administradores com o mesmo nome
+const shortId = (id: string) => id.slice(0, 8);
 
 export default function AuditoriaPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -145,9 +150,10 @@ export default function AuditoriaPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Busca */}
             <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
               <input
                 type="text"
+                aria-label="Buscar por título ou usuário"
                 placeholder="Buscar por título ou usuário..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -159,6 +165,7 @@ export default function AuditoriaPage() {
             <div className="relative">
               <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <select
+                aria-label="Filtrar por ação"
                 value={filterAction}
                 onChange={(e) => {
                   setFilterAction(e.target.value);
@@ -179,6 +186,7 @@ export default function AuditoriaPage() {
             <div className="relative">
               <FaDatabase className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <select
+                aria-label="Filtrar por tabela"
                 value={filterTable}
                 onChange={(e) => {
                   setFilterTable(e.target.value);
@@ -193,6 +201,8 @@ export default function AuditoriaPage() {
                 <option value="hero_slides">Banners</option>
                 <option value="partners">Associados</option>
                 <option value="jobs">Vagas</option>
+                <option value="campaigns">Campanhas</option>
+                <option value="event_registrations">Inscrições em Eventos</option>
                 <option value="auth">Autenticação</option>
               </select>
             </div>
@@ -287,6 +297,11 @@ export default function AuditoriaPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {log.user_name || '-'}
+                          {log.user_id && (
+                            <span className="block text-xs text-gray-400 font-mono" title={log.user_id}>
+                              {shortId(log.user_id)}
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                           {log.ip_address || '-'}
@@ -323,7 +338,12 @@ export default function AuditoriaPage() {
                       )}
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Usuário: {log.user_name || '-'}</span>
+                      <span>
+                        Usuário: {log.user_name || '-'}
+                        {log.user_id && (
+                          <span className="font-mono text-gray-400" title={log.user_id}> ({shortId(log.user_id)})</span>
+                        )}
+                      </span>
                       <span className="font-mono">{log.ip_address || '-'}</span>
                     </div>
                   </div>
@@ -341,6 +361,7 @@ export default function AuditoriaPage() {
                   <button
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
+                    aria-label="Página anterior"
                     className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <FaChevronLeft className="w-4 h-4" />
@@ -348,6 +369,7 @@ export default function AuditoriaPage() {
                   <button
                     onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
+                    aria-label="Próxima página"
                     className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <FaChevronRight className="w-4 h-4" />

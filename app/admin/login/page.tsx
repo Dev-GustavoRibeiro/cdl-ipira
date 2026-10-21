@@ -1,15 +1,14 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
-import { FaLock, FaUser, FaEye, FaEyeSlash, FaShieldAlt } from 'react-icons/fa';
-import { useEffect } from 'react';
+import { FaLock, FaEnvelope, FaEye, FaEyeSlash, FaShieldAlt } from 'react-icons/fa';
 
 export default function AdminLoginPage() {
   const router                                  = useRouter();
-  const [username, setUsername]                 = useState('');
+  const [email, setEmail]                       = useState('');
   const [password, setPassword]                 = useState('');
   const [showPassword, setShowPassword]         = useState(false);
   const [isLoading, setIsLoading]               = useState(false);
@@ -63,21 +62,21 @@ export default function AdminLoginPage() {
       const response = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, turnstileToken }),
+        body: JSON.stringify({ email, password, turnstileToken }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        localStorage.setItem('admin_user', JSON.stringify(data.user));
         router.replace('/admin/dashboard');
+        router.refresh();
       } else if (response.status === 429) {
         setLockoutSeconds(data.retryAfter ?? 900);
         setError('');
         resetTurnstile();
       } else {
         setAttempts(a => a + 1);
-        setError(data.error || 'Usuário ou senha incorretos');
+        setError(data.error || 'E-mail ou senha incorretos');
         resetTurnstile();
       }
     } catch {
@@ -164,7 +163,7 @@ export default function AdminLoginPage() {
 
           {/* Erro */}
           {error && !isLocked && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
+            <div role="alert" className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                   <FaLock className="w-3 h-3 text-red-600" />
@@ -183,35 +182,37 @@ export default function AdminLoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Usuário */}
+            {/* E-mail */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                Usuário
+              <label htmlFor="admin-email" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                E-mail
               </label>
               <div className="relative">
-                <FaUser className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                 <input
-                  data-testid="admin-login-username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  id="admin-email"
+                  data-testid="admin-login-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={isLoading || isLocked}
-                  autoComplete="username"
+                  autoComplete="email"
                   className="w-full pl-11 pr-4 py-3.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:outline-none focus:border-[#003f7f] focus:bg-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 text-sm"
-                  placeholder="Digite seu usuário"
+                  placeholder="seu@email.com.br"
                 />
               </div>
             </div>
 
             {/* Senha */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              <label htmlFor="admin-password" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Senha
               </label>
               <div className="relative">
                 <FaLock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                 <input
+                  id="admin-password"
                   data-testid="admin-login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -227,7 +228,7 @@ export default function AdminLoginPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  tabIndex={-1}
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                 >
                   {showPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
                 </button>

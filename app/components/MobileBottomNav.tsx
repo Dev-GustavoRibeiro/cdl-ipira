@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useModalBehavior } from '@/lib/hooks/useModalBehavior';
 import { 
   FaHome, 
   FaNewspaper, 
@@ -24,6 +25,7 @@ import {
   FaStoreAlt, 
   FaFileAlt,
   FaBook,
+  FaBullhorn,
   FaChevronRight
 } from 'react-icons/fa';
 
@@ -33,17 +35,8 @@ const MobileBottomNav = () => {
   const [activeCategory, setActiveCategory] = useState('institucional');
   const prevPathname = useRef(pathname);
 
-  // Bloquear scroll quando menu estiver aberto
-  useEffect(() => {
-    if (isMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isMenuOpen]);
+  // Menu aberto se comporta como modal: trava o scroll, fecha com Esc e mantém o foco dentro
+  const sheetRef = useModalBehavior<HTMLDivElement>(isMenuOpen, () => setIsMenuOpen(false));
 
   // Fechar menu ao mudar de rota - usando queueMicrotask para evitar cascading renders
   useEffect(() => {
@@ -84,6 +77,7 @@ const MobileBottomNav = () => {
 
     // Imprensa
     { href: '/imprensa/noticias', label: 'Notícias', icon: FaNewspaper, category: 'imprensa', highlight: true },
+    { href: '/imprensa/campanhas', label: 'Campanhas', icon: FaBullhorn, category: 'imprensa', highlight: true },
     { href: '/imprensa/tv-lojista', label: 'TV Lojista', icon: FaVideo, category: 'imprensa' },
     { href: '/imprensa/galeria-fotos', label: 'Fotos', icon: FaImages, category: 'imprensa' },
     { href: '/imprensa/eventos', label: 'Eventos', icon: FaCalendarAlt, category: 'imprensa' },
@@ -97,31 +91,41 @@ const MobileBottomNav = () => {
     <>
       {/* Overlay Escuro */}
       <div 
-        className={`fixed inset-0 bg-black/70 backdrop-blur-sm z-60 md:hidden transition-opacity duration-300 ${
+        aria-hidden="true"
+        className={`fixed inset-0 bg-black/70 backdrop-blur-sm z-60 lg:hidden transition-opacity duration-300 ${
           isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`} 
         onClick={() => setIsMenuOpen(false)} 
       />
 
-      {/* Bottom Sheet (Menu Principal) */}
+      {/* Bottom Sheet (Menu Principal) — fechado fica inerte: fora do Tab e dos leitores de tela */}
       <div 
-        className={`fixed inset-x-0 bottom-0 bg-gray-50 rounded-t-4xl z-70 md:hidden flex flex-col max-h-[85vh] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transition-transform duration-300 cubic-bezier(0.32, 0.72, 0, 1) ${
+        id="menu-mobile"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="menu-mobile-title"
+        tabIndex={-1}
+        inert={!isMenuOpen}
+        className={`fixed inset-x-0 bottom-0 bg-gray-50 rounded-t-4xl z-70 lg:hidden flex flex-col max-h-[85vh] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transition-transform duration-300 ${
           isMenuOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
         {/* Puxador (Handle) */}
-        <div className="w-full flex justify-center pt-3 pb-1" onClick={() => setIsMenuOpen(false)}>
+        <div className="w-full flex justify-center pt-3 pb-1" aria-hidden="true" onClick={() => setIsMenuOpen(false)}>
           <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
         </div>
 
         {/* Header do Menu */}
         <div className="px-6 py-4 flex justify-between items-center bg-white/50 backdrop-blur-sm sticky top-0 z-10">
           <div>
-            <h2 suppressHydrationWarning className="text-xl font-bold text-[#003f7f]">Menu</h2>
+            <h2 id="menu-mobile-title" suppressHydrationWarning className="text-xl font-bold text-[#003f7f]">Menu</h2>
             <p suppressHydrationWarning className="text-xs text-gray-500">Explore nossos serviços</p>
           </div>
           <button 
+            type="button"
             onClick={() => setIsMenuOpen(false)}
+            aria-label="Fechar menu"
             className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
           >
             <FaTimes className="w-5 h-5" />
@@ -133,6 +137,8 @@ const MobileBottomNav = () => {
           {categories.map(cat => (
             <button
               key={cat.id}
+              type="button"
+              aria-pressed={activeCategory === cat.id}
               onClick={() => setActiveCategory(cat.id)}
               className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
                 activeCategory === cat.id
@@ -173,7 +179,7 @@ const MobileBottomNav = () => {
             href="https://app.higestor.com.br/inscricao/empresa/cdl-ipira" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="mt-8 flex items-center justify-between p-4 rounded-2xl bg-linear-to-r from-[#ffd000] to-[#ffed4e] text-[#003f7f] shadow-lg shadow-yellow-500/20 mb-safe"
+            className="mt-8 flex items-center justify-between p-4 rounded-2xl bg-linear-to-r from-[#ffd000] to-[#ffed4e] text-[#003f7f] shadow-lg shadow-yellow-500/20"
           >
             <div className="flex items-center gap-4">
               <div className="p-2 bg-white/30 rounded-xl backdrop-blur-sm">
@@ -189,12 +195,12 @@ const MobileBottomNav = () => {
             </div>
           </a>
           
-          <div className="h-24"></div> {/* Espaço extra para footer */}
+          <div className="h-24" aria-hidden="true"></div> {/* Espaço extra para footer */}
         </div>
       </div>
 
       {/* Barra de Navegação Inferior (App-like) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 pb-[env(safe-area-inset-bottom)] overflow-visible">
+      <nav aria-label="Navegação rápida" className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 pb-[env(safe-area-inset-bottom)] overflow-visible">
         <div className="flex justify-around items-center px-2 py-2 overflow-visible">
           <NavButton 
             href="/" 
@@ -213,7 +219,11 @@ const MobileBottomNav = () => {
           {/* Botão Central de Menu (Floating Action Button Style) */}
           <div className="relative -top-5">
             <button
+              type="button"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label={isMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+              aria-expanded={isMenuOpen}
+              aria-controls="menu-mobile"
               className={`w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-white transition-transform duration-300 active:scale-95 ${
                 isMenuOpen 
                   ? 'bg-gray-800 rotate-90' 
@@ -238,7 +248,7 @@ const MobileBottomNav = () => {
             isActive={pathname.includes('/imprensa/contato')} 
           />
         </div>
-      </div>
+      </nav>
     </>
   );
 };
@@ -246,6 +256,7 @@ const MobileBottomNav = () => {
 const NavButton = ({ href, icon: Icon, label, isActive }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; isActive: boolean }) => (
   <Link 
     href={href} 
+    aria-current={isActive ? 'page' : undefined}
     className={`flex flex-col items-center gap-1 p-2 rounded-xl w-16 transition-colors ${
       isActive 
         ? 'text-[#003f7f]' 

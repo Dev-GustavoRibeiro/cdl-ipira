@@ -1,83 +1,65 @@
 import React from 'react';
-import { FaCheckCircle, FaUsers, FaClock, FaShieldAlt } from 'react-icons/fa';
+import { FaCheckCircle, FaUsers, FaClock, FaShieldAlt, FaStar } from 'react-icons/fa';
+import SectionHeader from './SectionHeader';
+
+const benefits = [
+  {
+    icon: FaCheckCircle,
+    title: 'Gratuito para Associados',
+    text: 'Serviço totalmente gratuito para associados em dia com suas obrigações.',
+    tile: 'bg-[#00a859]/10 text-[#00a859] ring-[#00a859]/15',
+  },
+  {
+    icon: FaUsers,
+    title: 'Profissionais Qualificados',
+    text: 'Equipe de advogados especializados em direito comercial e empresarial.',
+    tile: 'bg-[#003f7f]/10 text-[#003f7f] ring-[#003f7f]/15',
+  },
+  {
+    icon: FaClock,
+    title: 'Atendimento Rápido',
+    text: 'Respostas ágeis para suas dúvidas jurídicas, sem burocracia.',
+    tile: 'bg-[#ffd000]/25 text-[#003f7f] ring-[#ffd000]/40',
+  },
+  {
+    icon: FaShieldAlt,
+    title: 'Proteção do Seu Negócio',
+    text: 'Orientações para proteger seus direitos e evitar problemas jurídicos.',
+    tile: 'bg-[#0066cc]/10 text-[#0066cc] ring-[#0066cc]/15',
+  },
+];
 
 const BenefitsSection = () => {
   return (
-    <section className="py-8 sm:py-12 md:py-16 bg-linear-to-br from-gray-50 to-white">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
-            <h2 className="text-2xl xs:text-3xl sm:text-4xl font-black text-[#003f7f] mb-3 sm:mb-4">
-              Por que escolher nossa Orientação Jurídica?
-            </h2>
-            <div className="w-20 sm:w-24 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto"></div>
-          </div>
+    <section aria-labelledby="beneficios-titulo" className="relative overflow-hidden bg-gray-50 py-16 md:py-24">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-[#ffd000]/10 blur-3xl" />
+      <div className="relative container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.5fr] lg:gap-16">
+          <SectionHeader
+            id="beneficios-titulo"
+            align="left"
+            eyebrow="Vantagens"
+            icon={FaStar}
+            title="Por que escolher nossa Orientação Jurídica?"
+            subtitle="Um benefício pensado para quem empreende em Ipirá: suporte profissional, sem custo e sem burocracia."
+          />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-            <div className="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-md">
-              <div className="flex items-start gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#00a859] rounded-full flex items-center justify-center shrink-0">
-                  <FaCheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                </div>
+          <ul className="grid gap-4 sm:grid-cols-2 sm:gap-5">
+            {benefits.map(({ icon: Icon, title, text, tile }) => (
+              <li
+                key={title}
+                className="flex h-full gap-4 rounded-2xl bg-white p-5 ring-1 ring-gray-100 shadow-[0_10px_30px_-18px_rgba(0,63,127,0.35)] sm:p-6"
+              >
+                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ring-1 ${tile}`}>
+                  <Icon aria-hidden="true" className="h-5 w-5" />
+                </span>
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-2">
-                    Gratuito para Associados
-                  </h3>
-                  <p className="text-sm sm:text-base text-gray-600 text-justify">
-                    Serviço totalmente gratuito para associados em dia com suas obrigações.
-                  </p>
+                  <h3 className="text-base font-black tracking-tight text-[#003f7f] sm:text-lg">{title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-gray-600 sm:text-[15px]">{text}</p>
                 </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-md">
-              <div className="flex items-start gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#003f7f] rounded-full flex items-center justify-center shrink-0">
-                  <FaUsers className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-2">
-                    Profissionais Qualificados
-                  </h3>
-                  <p className="text-sm sm:text-base text-gray-600 text-justify">
-                    Equipe de advogados especializados em direito comercial e empresarial.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-md">
-              <div className="flex items-start gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#ffd000] rounded-full flex items-center justify-center shrink-0">
-                  <FaClock className="w-5 h-5 sm:w-6 sm:h-6 text-[#003f7f]" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-2">
-                    Atendimento Rápido
-                  </h3>
-                  <p className="text-sm sm:text-base text-gray-600 text-justify">
-                    Respostas ágeis para suas dúvidas jurídicas, sem burocracia.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-md">
-              <div className="flex items-start gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#00a859] rounded-full flex items-center justify-center shrink-0">
-                  <FaShieldAlt className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-2">
-                    Proteção do Seu Negócio
-                  </h3>
-                  <p className="text-sm sm:text-base text-gray-600 text-justify">
-                    Orientações para proteger seus direitos e evitar problemas jurídicos.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>
@@ -85,6 +67,3 @@ const BenefitsSection = () => {
 };
 
 export default BenefitsSection;
-
-
-

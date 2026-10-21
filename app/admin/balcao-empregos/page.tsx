@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaBriefcase, FaCheckCircle, FaSpinner, FaSave, FaEnvelope, FaPhone, FaUser, FaFileAlt } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaCheckCircle, FaSpinner, FaSave, FaEnvelope, FaPhone, FaUser, FaFileAlt } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ResumeManagerModal from '../components/ResumeManagerModal';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import { formatDateBR, todayISO } from '@/lib/date';
 
 interface Vaga {
   id: number;
@@ -83,7 +84,7 @@ export default function AdminBalcaoEmpregosPage() {
           title: item.title,
           company: item.company,
           quantity: item.quantity,
-          date: item.date ? new Date(item.date).toLocaleDateString('pt-BR') : '',
+          date: formatDateBR(item.date),
           status: item.is_active ? 'active' : 'pending',
           is_active: item.is_active,
           description: item.description,
@@ -233,7 +234,7 @@ export default function AdminBalcaoEmpregosPage() {
         location: formData.location,
         category: formData.category,
         is_active: formData.status === 'active',
-        date: editingId ? undefined : new Date().toISOString().split('T')[0],
+        date: editingId ? undefined : todayISO(),
         contact_name: formData.contact_name,
         contact_email: formData.contact_email,
         contact_phone: formData.contact_phone
@@ -318,34 +319,41 @@ export default function AdminBalcaoEmpregosPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div 
+        <button
+          type="button"
           onClick={() => setFilterStatus('all')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'all' ? 'border-[#003f7f] ring-2 ring-[#003f7f]/20' : 'border-transparent hover:border-gray-200'}`}
+          aria-pressed={filterStatus === 'all'}
+          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'all' ? 'border-[#003f7f] ring-2 ring-[#003f7f]/20' : 'border-transparent hover:border-gray-200'}`}
         >
           <div className="text-gray-500 text-xs font-bold uppercase mb-1">Total de Vagas</div>
           <div className="text-2xl font-black text-gray-900">{vagas.length}</div>
-        </div>
-        <div 
+        </button>
+        <button
+          type="button"
           onClick={() => setFilterStatus('active')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'active' ? 'border-[#00a859] ring-2 ring-[#00a859]/20' : 'border-transparent hover:border-gray-200'}`}
+          aria-pressed={filterStatus === 'active'}
+          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'active' ? 'border-[#00a859] ring-2 ring-[#00a859]/20' : 'border-transparent hover:border-gray-200'}`}
         >
           <div className="text-[#00a859] text-xs font-bold uppercase mb-1">Vagas Ativas</div>
           <div className="text-2xl font-black text-gray-900">{vagas.filter(v => v.is_active).length}</div>
-        </div>
-        <div 
+        </button>
+        <button
+          type="button"
           onClick={() => setFilterStatus('pending')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'pending' ? 'border-[#ffd000] ring-2 ring-[#ffd000]/20' : 'border-transparent hover:border-gray-200'}`}
+          aria-pressed={filterStatus === 'pending'}
+          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'pending' ? 'border-[#ffd000] ring-2 ring-[#ffd000]/20' : 'border-transparent hover:border-gray-200'}`}
         >
           <div className="text-[#b39200] text-xs font-bold uppercase mb-1">Pendentes/Inativas</div>
           <div className="text-2xl font-black text-gray-900">{vagas.filter(v => !v.is_active).length}</div>
-        </div>
+        </button>
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
         <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
           <input
             type="text"
+            aria-label="Buscar por vaga ou empresa"
             placeholder="Buscar por vaga ou empresa..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -447,6 +455,7 @@ export default function AdminBalcaoEmpregosPage() {
                           onClick={() => handleOpenResumes(vaga)}
                           className="p-2 text-[#003f7f] bg-blue-50 hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
                           title="Gerenciar Currículos"
+                          aria-label={`Gerenciar currículos da vaga ${vaga.title}`}
                         >
                           <FaFileAlt className="w-4 h-4" />
                         </button>
@@ -455,6 +464,7 @@ export default function AdminBalcaoEmpregosPage() {
                           target="_blank"
                           className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                           title="Visualizar no site"
+                          aria-label={`Visualizar vaga ${vaga.title} no site`}
                         >
                           <FaEye className="w-4 h-4" />
                         </Link>
@@ -462,6 +472,7 @@ export default function AdminBalcaoEmpregosPage() {
                           onClick={() => handleOpenModal(vaga)}
                           className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
                           title="Editar"
+                          aria-label={`Editar vaga ${vaga.title}`}
                         >
                           <FaEdit className="w-4 h-4" />
                         </button>
@@ -469,6 +480,7 @@ export default function AdminBalcaoEmpregosPage() {
                           onClick={() => openDeleteDialog(vaga)}
                           className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
                           title="Excluir"
+                          aria-label={`Excluir vaga ${vaga.title}`}
                         >
                           <FaTrash className="w-4 h-4" />
                         </button>
@@ -490,11 +502,12 @@ export default function AdminBalcaoEmpregosPage() {
         <form onSubmit={handleSave} className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="job-title" className="block text-sm font-bold text-gray-700 mb-2">
                 Título da Vaga *
               </label>
               <input
                 type="text"
+                id="job-title"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
@@ -505,11 +518,12 @@ export default function AdminBalcaoEmpregosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="job-company" className="block text-sm font-bold text-gray-700 mb-2">
                 Empresa *
               </label>
               <input
                 type="text"
+                id="job-company"
                 name="company"
                 value={formData.company}
                 onChange={handleChange}
@@ -520,11 +534,12 @@ export default function AdminBalcaoEmpregosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="job-quantity" className="block text-sm font-bold text-gray-700 mb-2">
                 Quantidade *
               </label>
               <input
                 type="number"
+                id="job-quantity"
                 name="quantity"
                 min="1"
                 value={formData.quantity}
@@ -535,11 +550,12 @@ export default function AdminBalcaoEmpregosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="job-location" className="block text-sm font-bold text-gray-700 mb-2">
                 Local
               </label>
               <input
                 type="text"
+                id="job-location"
                 name="location"
                 value={formData.location}
                 onChange={handleChange}
@@ -549,10 +565,11 @@ export default function AdminBalcaoEmpregosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="job-status" className="block text-sm font-bold text-gray-700 mb-2">
                 Status
               </label>
               <select
+                id="job-status"
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
@@ -567,11 +584,12 @@ export default function AdminBalcaoEmpregosPage() {
               <h4 className="font-bold text-[#003f7f] mb-3">Informações de Contato (Interno)</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                  <label htmlFor="job-contact-name" className="block text-sm font-bold text-gray-700 mb-2">
                     Nome do Contato
                   </label>
                   <input
                     type="text"
+                    id="job-contact-name"
                     name="contact_name"
                     value={formData.contact_name}
                     onChange={handleChange}
@@ -579,11 +597,12 @@ export default function AdminBalcaoEmpregosPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                  <label htmlFor="job-contact-phone" className="block text-sm font-bold text-gray-700 mb-2">
                     Telefone do Contato
                   </label>
                   <input
                     type="text"
+                    id="job-contact-phone"
                     name="contact_phone"
                     value={formData.contact_phone}
                     onChange={handleChange}
@@ -591,11 +610,12 @@ export default function AdminBalcaoEmpregosPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                  <label htmlFor="job-contact-email" className="block text-sm font-bold text-gray-700 mb-2">
                     Email do Contato
                   </label>
                   <input
                     type="email"
+                    id="job-contact-email"
                     name="contact_email"
                     value={formData.contact_email}
                     onChange={handleChange}
@@ -606,10 +626,11 @@ export default function AdminBalcaoEmpregosPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="job-description" className="block text-sm font-bold text-gray-700 mb-2">
                 Descrição da Vaga *
               </label>
               <textarea
+                id="job-description"
                 name="description"
                 value={formData.description}
                 onChange={handleChange}

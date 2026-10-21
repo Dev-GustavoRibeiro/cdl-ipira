@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { FaSpinner } from 'react-icons/fa';
 import {
   HeroSection,
   LoadingState,
@@ -22,53 +21,61 @@ function SearchContent() {
   const query = searchParams.get('q') || '';
   
   const [searchTerm, setSearchTerm] = useState(query);
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  // Resposta da última busca, guardada junto com o termo a que pertence
+  const [response, setResponse] = useState<{ query: string; results: SearchResult[]; total: number; error: string | null } | null>(null);
+  // Incrementado pelo "Tentar novamente" para refazer a busca do mesmo termo
+  const [attempt, setAttempt] = useState(0);
+
+  // Mantém o campo e o filtro em sincronia com o ?q= atual (voltar/avançar ou nova busca pelo header)
+  const [syncedQuery, setSyncedQuery] = useState(query);
+  if (syncedQuery !== query) {
+    setSyncedQuery(query);
+    setSearchTerm(query);
+    setActiveFilter(null);
+  }
 
   // Buscar quando o query muda
   useEffect(() => {
-    if (query && query.length >= 2) {
-      performSearch(query);
-    } else {
-      setResults([]);
-      setTotal(0);
-    }
-  }, [query]);
+    if (query.length < 2) return;
 
-  const performSearch = async (term: string) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(term)}`);
-      const data: SearchResponse = await response.json();
-      
-      if (data.error) {
-        setError(data.error);
-        setResults([]);
-        setTotal(0);
-      } else {
-        setResults(data.results);
-        setTotal(data.total);
-      }
-    } catch (err) {
-      console.error('Erro na busca:', err);
-      setError('Ocorreu um erro ao realizar a pesquisa. Tente novamente.');
-      setResults([]);
-      setTotal(0);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // Cancela a busca anterior: uma resposta antiga não pode sobrescrever a mais recente
+    const controller = new AbortController();
+
+    fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
+      .then((res) => res.json() as Promise<SearchResponse>)
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setResponse(data.error
+          ? { query, results: [], total: 0, error: data.error }
+          : { query, results: data.results || [], total: data.total || 0, error: null });
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        console.error('Erro na busca:', err);
+        setResponse({ query, results: [], total: 0, error: 'Ocorreu um erro ao realizar a pesquisa. Tente novamente.' });
+      });
+
+    return () => controller.abort();
+  }, [query, attempt]);
+
+  // Só vale a resposta do termo atual
+  const current = query.length >= 2 && response?.query === query ? response : null;
+  const isLoading = query.length >= 2 && !current;
+  const results = current?.results ?? [];
+  const total = current?.total ?? 0;
+  const error = current?.error ?? null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchTerm.trim().length >= 2) {
       router.push(`/pesquisa?q=${encodeURIComponent(searchTerm.trim())}`);
     }
+  };
+
+  const handleRetry = () => {
+    setResponse(null);
+    setAttempt((n) => n + 1);
   };
 
   const handleClear = () => {
@@ -97,13 +104,14 @@ function SearchContent() {
       />
 
       {/* Resultados */}
-      <section className="py-8 sm:py-12 md:py-16 bg-gray-50 min-h-[50vh]">
+      <section aria-label="Resultados da pesquisa" className="min-h-[50vh] bg-gray-50 py-12 md:py-16">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-5xl">
           {/* Loading */}
           {isLoading && <LoadingState />}
 
           {/* Erro */}
-          {error && !isLoading && <ErrorState error={error} />}
+          {error && !isLoading && <ErrorState error={error} onRetry={handleRetry} />}
 
           {/* Sem query */}
           {!query && !isLoading && <EmptyQueryState />}
@@ -129,9 +137,11 @@ function SearchContent() {
                 results={filteredResults}
                 activeFilter={activeFilter}
                 onClearFilter={() => setActiveFilter(null)}
+                query={query}
               />
             </>
           )}
+          </div>
         </div>
       </section>
     </>
@@ -140,11 +150,8 @@ function SearchContent() {
 
 export default function PesquisaPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <FaSpinner className="w-12 h-12 text-[#003f7f] animate-spin" />
-      </div>
-    }>
+    // Enquanto os parâmetros da URL carregam: só o fundo do banner, sem pular o layout
+    <Suspense fallback={<div aria-hidden="true" className="h-[420px] bg-linear-to-br from-[#003f7f] via-[#0052a3] to-[#0066cc]" />}>
       <SearchContent />
     </Suspense>
   );

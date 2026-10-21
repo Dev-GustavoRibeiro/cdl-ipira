@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaVideo, FaSpinner, FaSave, FaImage } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import { formatDateBR } from '@/lib/date';
 
 interface Video {
   id: number;
@@ -30,6 +32,8 @@ export default function AdminTVLojistaPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -52,7 +56,7 @@ export default function AdminTVLojistaPage() {
       if (!response.ok) throw new Error(data.error || 'Erro ao buscar vídeos');
 
       if (data) {
-        const formatted = data.map((v: any) => ({
+        const formatted = data.map((v: Video) => ({
           id: v.id,
           title: v.title,
           category: v.category,
@@ -73,11 +77,12 @@ export default function AdminTVLojistaPage() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Tem certeza que deseja excluir este vídeo?')) return;
+  async function handleConfirmDelete() {
+    if (!videoToDelete) return;
 
+    setIsDeleting(true);
     try {
-      const response = await fetchWithCSRF(`/api/admin/videos?id=${id}`, {
+      const response = await fetchWithCSRF(`/api/admin/videos?id=${videoToDelete.id}`, {
         method: 'DELETE'
       });
 
@@ -85,10 +90,13 @@ export default function AdminTVLojistaPage() {
       if (!response.ok) throw new Error(data.error || 'Erro ao excluir vídeo');
 
       toast.success('Vídeo excluído com sucesso');
+      setVideoToDelete(null);
       fetchVideos();
     } catch (error) {
       console.error('Erro ao excluir vídeo:', error);
       toast.error('Erro ao excluir vídeo');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -126,8 +134,8 @@ export default function AdminTVLojistaPage() {
         ...(editingId && { id: editingId }),
         title: formData.title,
         description: formData.description,
-        video_url: formData.video_url,
-        thumbnail: formData.thumbnail,
+        video_url: formData.video_url.trim(),
+        thumbnail: formData.thumbnail.trim(),
         category: formData.category,
         duration: formData.duration || '00:00'
       };
@@ -146,7 +154,7 @@ export default function AdminTVLojistaPage() {
       fetchVideos();
     } catch (error) {
       console.error('Erro ao salvar vídeo:', error);
-      toast.error('Erro ao salvar vídeo.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar vídeo.');
     } finally {
       setIsSaving(false);
     }
@@ -186,9 +194,10 @@ export default function AdminTVLojistaPage() {
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
         <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
           <input
             type="text"
+            aria-label="Buscar vídeos"
             placeholder="Buscar vídeos..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -240,7 +249,7 @@ export default function AdminTVLojistaPage() {
                       </span>
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
-                      {new Date(video.date).toLocaleDateString('pt-BR')}
+                      {formatDateBR(video.date)}
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
                       {video.views}
@@ -255,6 +264,7 @@ export default function AdminTVLojistaPage() {
                           target="_blank"
                           className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
                           title="Visualizar"
+                          aria-label={`Visualizar ${video.title} no site`}
                         >
                           <FaEye className="w-4 h-4" />
                         </Link>
@@ -262,13 +272,15 @@ export default function AdminTVLojistaPage() {
                           onClick={() => handleOpenModal(video)}
                           className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
                           title="Editar"
+                          aria-label={`Editar ${video.title}`}
                         >
                           <FaEdit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(video.id)}
+                          onClick={() => setVideoToDelete(video)}
                           className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
                           title="Excluir"
+                          aria-label={`Excluir ${video.title}`}
                         >
                           <FaTrash className="w-4 h-4" />
                         </button>
@@ -290,11 +302,12 @@ export default function AdminTVLojistaPage() {
         <form onSubmit={handleSave} className="space-y-6">
           {/* Título */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">
+            <label htmlFor="video-title" className="block text-sm font-bold text-gray-700 mb-2">
               Título do Vídeo *
             </label>
             <input
               type="text"
+              id="video-title"
               name="title"
               required
               value={formData.title}
@@ -307,13 +320,14 @@ export default function AdminTVLojistaPage() {
           {/* URL e Duração */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="video-url" className="block text-sm font-bold text-gray-700 mb-2">
                 Link do YouTube *
               </label>
               <div className="relative">
                 <FaVideo className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="url"
+                  id="video-url"
                   name="video_url"
                   required
                   value={formData.video_url}
@@ -325,11 +339,12 @@ export default function AdminTVLojistaPage() {
               <p className="mt-1 text-xs text-gray-500">Cole o link completo do vídeo do YouTube</p>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label htmlFor="video-duration" className="block text-sm font-bold text-gray-700 mb-2">
                 Duração
               </label>
               <input
                 type="text"
+                id="video-duration"
                 name="duration"
                 value={formData.duration}
                 onChange={handleChange}
@@ -341,10 +356,11 @@ export default function AdminTVLojistaPage() {
 
           {/* Categoria */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">
+            <label htmlFor="video-category" className="block text-sm font-bold text-gray-700 mb-2">
               Categoria *
             </label>
             <select
+              id="video-category"
               name="category"
               required
               value={formData.category}
@@ -359,13 +375,14 @@ export default function AdminTVLojistaPage() {
 
           {/* Thumbnail (Opcional se for YouTube) */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">
+            <label htmlFor="video-thumbnail" className="block text-sm font-bold text-gray-700 mb-2">
               Thumbnail Personalizada (Opcional)
             </label>
             <div className="relative">
               <FaImage className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="url"
+                id="video-thumbnail"
                 name="thumbnail"
                 value={formData.thumbnail}
                 onChange={handleChange}
@@ -377,10 +394,11 @@ export default function AdminTVLojistaPage() {
 
           {/* Descrição */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">
+            <label htmlFor="video-description" className="block text-sm font-bold text-gray-700 mb-2">
               Descrição
             </label>
             <textarea
+              id="video-description"
               name="description"
               rows={4}
               value={formData.description}
@@ -410,6 +428,18 @@ export default function AdminTVLojistaPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!videoToDelete}
+        onClose={() => setVideoToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir Vídeo"
+        message={`Tem certeza que deseja excluir o vídeo "${videoToDelete?.title ?? ''}"? Esta ação não pode ser desfeita.`}
+        type="delete"
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

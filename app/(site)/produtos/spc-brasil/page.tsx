@@ -12,7 +12,7 @@ import {
 
 const SPCBrasilPage = () => {
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50">
+    <div className="min-h-screen bg-white">
       <HeroSection />
       <IntroSection />
       <FeaturesCards />

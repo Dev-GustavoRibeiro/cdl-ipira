@@ -8,7 +8,7 @@ import {
 } from './components';
 
 export const metadata: Metadata = {
-  title: 'Compromisso da CDL - CDL Ipirá',
+  title: 'Compromisso da CDL',
   description: 'Conheça o compromisso da CDL Ipirá com o desenvolvimento do comércio local e o fortalecimento dos associados.',
 };
 

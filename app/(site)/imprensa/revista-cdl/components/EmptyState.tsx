@@ -1,19 +1,24 @@
 import React from 'react';
-import { FaBook } from 'react-icons/fa';
+import Link from 'next/link';
+import { FaBookOpen } from 'react-icons/fa';
+import { StateBlock, secondaryButton } from '../../noticias/components/LoadStates';
 
 const EmptyState = () => {
   return (
-    <section className="py-16 bg-white">
-      <div className="container mx-auto px-4 text-center">
-        <FaBook className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-        <h3 className="text-xl font-bold text-gray-700 mb-2">Nenhuma edição disponível</h3>
-        <p className="text-gray-500">Em breve teremos novas edições da Revista CDL.</p>
+    <section className="py-10 sm:py-12 md:py-16 bg-white">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <StateBlock
+          icon={FaBookOpen}
+          title="Nenhuma edição disponível"
+          description="Em breve teremos novas edições da Revista CDL. Enquanto isso, acompanhe as notícias da CDL Ipirá."
+        >
+          <Link href="/imprensa/noticias" className={secondaryButton}>
+            Ver notícias
+          </Link>
+        </StateBlock>
       </div>
     </section>
   );
 };
 
 export default EmptyState;
-
-
-

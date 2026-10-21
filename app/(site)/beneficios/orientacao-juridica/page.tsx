@@ -24,33 +24,33 @@ export default function OrientacaoJuridicaPage() {
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // e.currentTarget vira null depois do await, então guardamos o form antes
+    const form = e.currentTarget;
     setIsFormSubmitting(true);
     setFormStatus('idle');
 
-    const formData = new FormData(e.currentTarget);
-    const requestData = {
-      nome: formData.get('nome'),
-      empresa: formData.get('empresa'),
-      contato: formData.get('contato'),
-      email: formData.get('email'),
-      assunto: formData.get('assunto'),
-      descricao: formData.get('descricao'),
-      dataSolicitacao: new Date().toISOString(),
-    };
+    const formData = new FormData(form);
 
     try {
-      console.log('Solicitação de orientação jurídica:', requestData);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      const response = await fetch('/api/juridico', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: formData.get('nome'),
+          empresa: formData.get('empresa'),
+          telefone: formData.get('telefone'),
+          email: formData.get('email'),
+          assunto: formData.get('assunto'),
+          descricao: formData.get('descricao'),
+        }),
+      });
+
+      if (!response.ok) throw new Error('Falha ao enviar solicitação');
+
+      form.reset();
+      // O painel de sucesso fica até o usuário pedir outro envio
       setFormStatus('success');
-      e.currentTarget.reset();
-      
-      setTimeout(() => {
-        setFormStatus('idle');
-      }, 3000);
-      
-    } catch (error) {
-      console.error('Erro ao enviar solicitação:', error);
+    } catch {
       setFormStatus('error');
     } finally {
       setIsFormSubmitting(false);
@@ -67,6 +67,7 @@ export default function OrientacaoJuridicaPage() {
         isFormSubmitting={isFormSubmitting}
         formStatus={formStatus}
         onSubmit={handleFormSubmit}
+        onReset={() => setFormStatus('idle')}
       />
       <FAQSection 
         faqs={faqs}

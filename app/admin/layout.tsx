@@ -8,7 +8,7 @@ import { fetchWithCSRF } from '@/lib/csrf-client';
 import { 
   FaHome, FaNewspaper, FaCalendarAlt, FaVideo, FaImages, 
   FaBriefcase, FaGavel, FaFileAlt, FaBook, 
-  FaSignOutAlt, FaBars, FaTimes, FaCog, FaUsers, FaHistory
+  FaSignOutAlt, FaBars, FaTimes, FaCog, FaUsers, FaHistory, FaBullhorn
 } from 'react-icons/fa';
 
 export default function AdminLayout({
@@ -22,13 +22,13 @@ export default function AdminLayout({
 
   const handleLogout = async () => {
     try {
-      // Limpar cookie no servidor
+      // Encerra a sessão Supabase no servidor
       await fetchWithCSRF('/api/admin/logout', { method: 'POST' });
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     } finally {
-      localStorage.removeItem('admin_user');
-      router.push('/admin/login');
+      router.replace('/admin/login');
+      router.refresh();
     }
   };
 
@@ -47,6 +47,7 @@ export default function AdminLayout({
     { icon: <FaCalendarAlt />, label: 'Eventos', href: '/admin/eventos' },
     { icon: <FaVideo />, label: 'TV Lojista', href: '/admin/tv-lojista' },
     { icon: <FaImages />, label: 'Galeria de Fotos', href: '/admin/galeria-fotos' },
+    { icon: <FaBullhorn />, label: 'Campanhas', href: '/admin/campanhas' },
     { icon: <FaBriefcase />, label: 'Balcão de Empregos', href: '/admin/balcao-empregos' },
     { icon: <FaGavel />, label: 'Orientação Jurídica', href: '/admin/orientacao-juridica' },
     { icon: <FaFileAlt />, label: 'Portal Transparência', href: '/admin/portal-transparencia' },
@@ -92,6 +93,7 @@ export default function AdminLayout({
             <button
               onClick={() => setIsMobileMenuOpen(false)}
               className="lg:hidden text-white hover:text-[#ffd000] transition-colors"
+              aria-label="Fechar menu"
             >
               <FaTimes className="w-5 h-5" />
             </button>
@@ -111,6 +113,7 @@ export default function AdminLayout({
                   href={item.href}
                   onClick={() => setIsMobileMenuOpen(false)}
                   data-testid={`admin-nav-${toTestId(item.label)}`}
+                  aria-current={pathname === item.href ? 'page' : undefined}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
                     isActive
                       ? 'bg-linear-to-r from-[#00a859] to-[#00d670] text-white shadow-lg font-bold'
@@ -171,6 +174,8 @@ export default function AdminLayout({
               <button
                 onClick={() => setIsMobileMenuOpen(true)}
                 className="lg:hidden text-gray-600 hover:text-[#003f7f] p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="Abrir menu"
+                aria-expanded={isMobileMenuOpen}
               >
                 <FaBars className="w-5 h-5" />
               </button>

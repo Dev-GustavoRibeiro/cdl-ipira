@@ -2,7 +2,6 @@
 
 import React from 'react';
 import {
-  GlobalStyles,
   Breadcrumb,
   HeroSection,
   QuoteSection,
@@ -15,7 +14,6 @@ import {
 export default function MissaoVisaoValoresPage() {
   return (
     <>
-      <GlobalStyles />
       <Breadcrumb />
       <HeroSection />
       <QuoteSection />

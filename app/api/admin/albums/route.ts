@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
 import { sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
+
+/** campaign_id do corpo: id > 0, null (sem campanha) ou undefined (campo ausente, não altera). false = inválido. */
+function parseCampaignId(value: unknown): number | null | undefined | false {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const id = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  return Number.isInteger(id) && id > 0 ? id : false;
+}
 
 function sanitizeAlbumPayload(body: Record<string, unknown>) {
   return {
@@ -25,6 +34,10 @@ function validateAlbumPayload(payload: ReturnType<typeof sanitizeAlbumPayload>) 
 }
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { data: albums, error } = await supabaseAdmin
       .from('albums')
@@ -60,6 +73,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizeAlbumPayload(body);
@@ -69,10 +86,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
+    const campaignId = parseCampaignId(body.campaign_id);
+    if (campaignId === false) {
+      return NextResponse.json({ error: 'Campanha inválida.' }, { status: 400 });
+    }
+
     const insertPayload = {
       ...payload,
       cover_url: payload.cover_url || payload.cover,
       cover: payload.cover || payload.cover_url,
+      ...(campaignId !== undefined && { campaign_id: campaignId }),
     };
 
     const { data, error } = await supabaseAdmin
@@ -95,6 +118,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const id = Number(body.id);
@@ -110,10 +137,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
+    const campaignId = parseCampaignId(body.campaign_id);
+    if (campaignId === false) {
+      return NextResponse.json({ error: 'Campanha inválida.' }, { status: 400 });
+    }
+
+    // Sem campaign_id no corpo (ex.: botão ativar/ocultar) o vínculo atual é mantido
     const updatePayload = {
       ...payload,
       cover_url: payload.cover_url || payload.cover,
       cover: payload.cover || payload.cover_url,
+      ...(campaignId !== undefined && { campaign_id: campaignId }),
     };
 
     const { data, error } = await supabaseAdmin
@@ -137,6 +171,10 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));

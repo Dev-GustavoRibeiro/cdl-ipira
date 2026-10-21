@@ -1,121 +1,142 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { validateAdminSession, verifyCSRFToken, addSecurityHeaders, checkRateLimit, getClientIP } from '@/lib/security';
+import { createServerClient } from '@supabase/ssr';
+import {
+  verifyCSRFToken,
+  generateCSRFToken,
+  addSecurityHeaders,
+  checkRateLimit,
+  getClientIP,
+  CSRF_COOKIE,
+  CSRF_COOKIE_OPTIONS,
+} from '@/lib/security';
+import { supabaseUrl, supabasePublicKey, AUTH_COOKIE_OPTIONS, toAdminUser, isSessionExpired } from '@/lib/supabase-server';
 
-const CSRF_PROTECTED_PATHS = [
-  '/api/admin',
-  '/api/upload',
-  '/api/hero',
-  '/api/parceiros',
-  '/api/setup-storage',
-];
+const LOGIN_PAGE = '/admin/login';
+const LOGIN_API = '/api/admin/auth';
+
+const CSRF_PROTECTED_PATHS = ['/api/admin', '/api/upload'];
 
 function isMutationMethod(method: string): boolean {
   return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
 }
 
-function requiresCSRFProtection(pathname: string): boolean {
-  return CSRF_PROTECTED_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+function matchesPath(pathname: string, path: string): boolean {
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
 // ==================== PROXY PRINCIPAL (Next.js 16+) ====================
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
   const ip = getClientIP(request);
+
+  // O roteador decodifica o caminho (/api/%61dmin -> /api/admin): as checagens precisam ver o mesmo caminho
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(request.nextUrl.pathname);
+  } catch {
+    return addSecurityHeaders(NextResponse.json({ error: 'Requisição inválida' }, { status: 400 }));
+  }
 
   // ==================== PROTEÇÃO DE RATE LIMITING ====================
 
-  // Rate limiting para autenticação (mais restritivo)
-  if (pathname === '/api/admin/auth') {
-    const rateLimitResponse = checkRateLimit(request, 'auth');
+  const rateLimitType =
+    pathname === LOGIN_API ? 'auth'
+    : pathname === '/api/upload' ? 'upload'
+    : pathname.startsWith('/api/admin') ? 'admin'
+    // Leituras públicas não entram: várias pessoas na mesma rede (CGNAT da operadora) dividem o IP
+    : pathname.startsWith('/api/') && isMutationMethod(request.method) ? 'public'
+    : null;
+
+  if (rateLimitType) {
+    const rateLimitResponse = checkRateLimit(request, rateLimitType);
     if (rateLimitResponse) {
-      console.warn(`[SECURITY] Rate limit auth excedido: IP=${ip}`);
+      console.warn(`[SECURITY] Rate limit ${rateLimitType} excedido: IP=${ip}`);
       return addSecurityHeaders(rateLimitResponse);
     }
   }
 
-  // Rate limiting para upload
-  if (pathname === '/api/upload') {
-    const rateLimitResponse = checkRateLimit(request, 'upload');
-    if (rateLimitResponse) {
-      console.warn(`[SECURITY] Rate limit upload excedido: IP=${ip}`);
-      return addSecurityHeaders(rateLimitResponse);
-    }
-  }
+  // ==================== CSRF ====================
 
-  // Rate limiting para APIs admin (exceto auth que já tem rate limit específico)
-  if (pathname.startsWith('/api/admin') && pathname !== '/api/admin/auth') {
-    const rateLimitResponse = checkRateLimit(request, 'admin');
-    if (rateLimitResponse) {
-      console.warn(`[SECURITY] Rate limit admin excedido: IP=${ip}`);
-      return addSecurityHeaders(rateLimitResponse);
-    }
-  }
-
-  // Rate limiting para APIs públicas
-  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/admin')) {
-    const rateLimitResponse = checkRateLimit(request, 'public');
-    if (rateLimitResponse) {
-      console.warn(`[SECURITY] Rate limit API excedido: IP=${ip}`);
-      return addSecurityHeaders(rateLimitResponse);
-    }
-  }
-
-  // ==================== AUTENTICAÇÃO ====================
-
-  // Ignorar rota de login/logout (não requer autenticação)
-  if (pathname === '/admin/login' || pathname === '/api/admin/auth') {
-    const response = NextResponse.next();
-    return addSecurityHeaders(response);
-  }
-
-  if (isMutationMethod(request.method) && requiresCSRFProtection(pathname)) {
-    const csrfValid = await verifyCSRFToken(request);
-    if (!csrfValid) {
+  if (
+    isMutationMethod(request.method) &&
+    pathname !== LOGIN_API &&
+    CSRF_PROTECTED_PATHS.some((path) => matchesPath(pathname, path))
+  ) {
+    if (!(await verifyCSRFToken(request))) {
       console.warn(`[SECURITY] CSRF inválido: IP=${ip}, path=${pathname}`);
-      const response = NextResponse.json(
-        { error: 'Token CSRF inválido' },
-        { status: 403 }
-      );
-      return addSecurityHeaders(response);
+      return addSecurityHeaders(NextResponse.json({ error: 'Token CSRF inválido' }, { status: 403 }));
     }
   }
 
-  // Proteção para rotas de API Administrativa
-  if (pathname.startsWith('/api/admin')) {
-    const session = await validateAdminSession(request);
+  const isAdminApi = matchesPath(pathname, '/api/admin');
+  const isAdminPage = matchesPath(pathname, '/admin');
 
-    if (!session.valid) {
-      console.warn(`[SECURITY] Sessão inválida em API admin: IP=${ip}, erro=${session.error}`);
-      const response = NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      );
-      return addSecurityHeaders(response);
-    }
+  if (!isAdminApi && !isAdminPage) {
+    return addSecurityHeaders(NextResponse.next());
+  }
 
-    const response = NextResponse.next();
+  // ==================== AUTENTICAÇÃO (Supabase Auth) ====================
+
+  // Renova a sessão e repassa os cookies atualizados para a rota e para o navegador
+  let response = NextResponse.next({ request });
+  const supabase = createServerClient(supabaseUrl, supabasePublicKey, {
+    cookieOptions: AUTH_COOKIE_OPTIONS,
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet, headers) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        Object.entries(headers ?? {}).forEach(([key, value]) => response.headers.set(key, value));
+      },
+    },
+  });
+
+  // Não colocar código entre createServerClient e getClaims (recomendação do Supabase)
+  const { data } = await supabase.auth.getClaims();
+  let admin = toAdminUser(data?.claims);
+
+  // Login com mais de 4h: encerra a sessão (os cookies limpos seguem no redirect/401 abaixo)
+  if (admin && isSessionExpired(data?.claims)) {
+    await supabase.auth.signOut({ scope: 'local' });
+    admin = null;
+  }
+
+  // Respostas próprias (redirect/401) precisam levar os cookies renovados
+  const withSession = (res: NextResponse) => {
+    response.cookies.getAll().forEach((cookie) => res.cookies.set(cookie));
+    return addSecurityHeaders(res);
+  };
+
+  if (isAdminPage) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
+
+  if (pathname === LOGIN_API) {
     return addSecurityHeaders(response);
   }
 
-  // Proteção para rotas de Interface Administrativa
-  if (pathname.startsWith('/admin')) {
-    const session = await validateAdminSession(request);
-
-    if (!session.valid) {
-      console.warn(`[SECURITY] Sessão inválida na interface: IP=${ip}, erro=${session.error}`);
-      const response = NextResponse.redirect(new URL('/admin/login', request.url));
-      response.cookies.delete('admin_session');
-      return addSecurityHeaders(response);
-    }
-
-    const response = NextResponse.next();
-    return addSecurityHeaders(response);
+  if (pathname === LOGIN_PAGE) {
+    return admin
+      ? withSession(NextResponse.redirect(new URL('/admin/dashboard', request.url)))
+      : addSecurityHeaders(response);
   }
 
-  // Adicionar headers de segurança à resposta para outras rotas
-  const response = NextResponse.next();
+  if (!admin) {
+    console.warn(`[SECURITY] Acesso admin sem sessão válida: IP=${ip}, path=${pathname}`);
+    return isAdminApi
+      ? withSession(NextResponse.json({ error: 'Não autorizado' }, { status: 401 }))
+      : withSession(NextResponse.redirect(new URL(LOGIN_PAGE, request.url)));
+  }
+
+  // Garante o token CSRF usado pelas mutações do painel
+  if (!request.cookies.get(CSRF_COOKIE)) {
+    response.cookies.set(CSRF_COOKIE, generateCSRFToken(), CSRF_COOKIE_OPTIONS);
+  }
+
   return addSecurityHeaders(response);
 }
 
@@ -125,5 +146,3 @@ export const config = {
     '/api/:path*'
   ],
 };
-
-

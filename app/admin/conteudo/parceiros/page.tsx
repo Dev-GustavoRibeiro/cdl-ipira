@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaSave, FaImage, FaSpinner, FaSearch, FaTimes } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { fetchWithCSRF } from '@/lib/csrf-client';
 
 interface Partner {
@@ -31,6 +32,8 @@ export default function AdminParceirosPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [partnerToDelete, setPartnerToDelete] = useState<Partner | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredPartners = useMemo(() => {
@@ -54,7 +57,7 @@ export default function AdminParceirosPage() {
       if (!response.ok) throw new Error(data.error || 'Erro ao carregar associados');
 
       if (data) {
-        const mappedPartners = data.map((item: any) => ({
+        const mappedPartners = data.map((item: { id: number; name: string; logo: string; website: string | null; order_index: number }) => ({
           id: item.id,
           name: item.name,
           logo: item.logo,
@@ -99,7 +102,7 @@ export default function AdminParceirosPage() {
       const payload = {
         name: formData.name,
         logo: formData.logo,
-        website: formData.website,
+        website: formData.website?.trim(),
         order: formData.order
       };
 
@@ -112,7 +115,8 @@ export default function AdminParceirosPage() {
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) throw new Error('Erro ao salvar');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar associado');
 
       toast.success(isAdding ? 'Associado criado!' : 'Associado atualizado!');
       fetchPartners();
@@ -121,24 +125,28 @@ export default function AdminParceirosPage() {
       setIsAdding(false);
     } catch (error) {
       console.error('Erro ao salvar associado:', error);
-      toast.error('Erro ao salvar associado');
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar associado');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este associado?')) return;
+  const handleConfirmDelete = async () => {
+    if (!partnerToDelete) return;
 
+    setIsDeleting(true);
     try {
-      const response = await fetchWithCSRF(`/api/admin/parceiros?id=${id}`, { method: 'DELETE' });
+      const response = await fetchWithCSRF(`/api/admin/parceiros?id=${partnerToDelete.id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Erro ao excluir');
       
       toast.success('Associado excluído!');
+      setPartnerToDelete(null);
       fetchPartners();
     } catch (error) {
       console.error('Erro ao excluir associado:', error);
       toast.error('Erro ao excluir associado');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -171,9 +179,9 @@ export default function AdminParceirosPage() {
       const data = await response.json();
       handleChange('logo', data.url);
       toast.success('Logo enviada com sucesso!');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao enviar imagem:', error);
-      toast.error(`Erro ao enviar imagem: ${error.message}`);
+      toast.error(`Erro ao enviar imagem: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -188,6 +196,7 @@ export default function AdminParceirosPage() {
         <div className="flex items-center gap-4">
           <Link
             href="/admin/dashboard"
+            aria-label="Voltar ao painel"
             className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <FaArrowLeft className="w-5 h-5" />
@@ -204,9 +213,10 @@ export default function AdminParceirosPage() {
         <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
           {!isLoading && partners.length > 0 && (
             <div className="relative w-full sm:w-[320px]">
-              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" aria-hidden="true" />
               <input
                 type="text"
+                aria-label="Buscar associado"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar associado por nome ou site..."
@@ -215,6 +225,7 @@ export default function AdminParceirosPage() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
+                  aria-label="Limpar pesquisa"
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <FaTimes className="w-3.5 h-3.5" />
@@ -240,9 +251,10 @@ export default function AdminParceirosPage() {
       >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Nome *</label>
+              <label htmlFor="partner-name" className="block text-sm font-bold text-gray-700 mb-2">Nome *</label>
               <input
                 type="text"
+                id="partner-name"
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -251,9 +263,10 @@ export default function AdminParceirosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Ordem</label>
+              <label htmlFor="partner-order" className="block text-sm font-bold text-gray-700 mb-2">Ordem</label>
               <input
                 type="number"
+                id="partner-order"
                 value={formData.order}
                 onChange={(e) => handleChange('order', parseInt(e.target.value))}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -262,10 +275,11 @@ export default function AdminParceirosPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">URL do Logo *</label>
+              <label htmlFor="partner-logo" className="block text-sm font-bold text-gray-700 mb-2">URL do Logo *</label>
               <div className="flex gap-3">
                 <input
                   type="text"
+                  id="partner-logo"
                   value={formData.logo}
                   onChange={(e) => handleChange('logo', e.target.value)}
                   className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
@@ -284,6 +298,7 @@ export default function AdminParceirosPage() {
                   disabled={isUploading}
                   className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
                   title="Fazer upload de imagem"
+                  aria-label="Fazer upload do logo"
                 >
                   {isUploading ? <FaSpinner className="animate-spin w-5 h-5" /> : <FaImage className="w-5 h-5" />}
                 </button>
@@ -296,14 +311,19 @@ export default function AdminParceirosPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Website (opcional)</label>
+              <label htmlFor="partner-website" className="block text-sm font-bold text-gray-700 mb-2">Website (opcional)</label>
               <input
                 type="url"
+                id="partner-website"
                 value={formData.website || ''}
                 onChange={(e) => handleChange('website', e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
                 placeholder="https://..."
+                aria-describedby="partner-website-hint"
               />
+              <p id="partner-website-hint" className="mt-1 text-xs text-gray-500">
+                Endereço completo começando com https://
+              </p>
             </div>
           </div>
 
@@ -366,8 +386,10 @@ export default function AdminParceirosPage() {
                     Editar
                   </button>
                   <button
-                    onClick={() => handleDelete(partner.id)}
+                    onClick={() => setPartnerToDelete(partner)}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Excluir"
+                    aria-label={`Excluir associado ${partner.name}`}
                   >
                     <FaTrash className="w-4 h-4" />
                   </button>
@@ -387,6 +409,18 @@ export default function AdminParceirosPage() {
           }
         </p>
       )}
+
+      <ConfirmDialog
+        isOpen={!!partnerToDelete}
+        onClose={() => setPartnerToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir Associado"
+        message={`Tem certeza que deseja excluir o associado "${partnerToDelete?.name ?? ''}"? Esta ação não pode ser desfeita.`}
+        type="delete"
+        confirmText="Sim, Excluir"
+        cancelText="Cancelar"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

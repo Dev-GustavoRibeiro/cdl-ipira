@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 import { validateAndSanitize } from '@/lib/security';
 import { auditServer } from '@/lib/audit-server';
 
-// GET - Listar todos os eventos (incluindo inativos para admin)
+/** campaign_id do corpo: id > 0, null (sem campanha) ou undefined (campo ausente, não altera). false = inválido. */
+function parseCampaignId(value: unknown): number | null | undefined | false {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const id = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  return Number.isInteger(id) && id > 0 ? id : false;
+}
+
 // GET - Listar todos os eventos (incluindo inativos para admin)
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { data: events, error } = await supabaseAdmin
       .from('events')
@@ -14,7 +26,7 @@ export async function GET() {
 
     if (error) {
       console.error('Erro ao buscar eventos:', error);
-      return NextResponse.json({ error: 'Erro ao buscar eventos', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao buscar eventos' }, { status: 500 });
     }
 
     // Transform the data to flatten the count
@@ -32,6 +44,10 @@ export async function GET() {
 
 // POST - Criar novo evento
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
 
@@ -57,6 +73,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
     }
 
+    const campaignId = parseCampaignId(body.campaign_id);
+    if (campaignId === false) {
+      return NextResponse.json({ error: 'Campanha inválida.' }, { status: 400 });
+    }
+
     const { data, error } = await supabaseAdmin
       .from('events')
       .insert([
@@ -71,7 +92,8 @@ export async function POST(request: NextRequest) {
           image: sanitized.image || null,
           gradient: sanitized.gradient || 'from-[#003f7f] to-[#0066cc]',
           attendees: body.attendees ? parseInt(body.attendees) : 0,
-          is_active: true
+          is_active: true,
+          ...(campaignId !== undefined && { campaign_id: campaignId })
         }
       ])
       .select()
@@ -79,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao criar evento:', error);
-      return NextResponse.json({ error: 'Erro ao criar evento', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao criar evento' }, { status: 500 });
     }
 
     // Registrar auditoria
@@ -100,6 +122,10 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar evento existente
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
 
@@ -131,7 +157,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
     }
 
-    const updatePayload: any = {
+    const campaignId = parseCampaignId(updateData.campaign_id);
+    if (campaignId === false) {
+      return NextResponse.json({ error: 'Campanha inválida.' }, { status: 400 });
+    }
+
+    const updatePayload: Record<string, unknown> = {
       title: sanitized.title,
       description: sanitized.description || '',
       date: sanitized.date,
@@ -148,6 +179,10 @@ export async function PUT(request: NextRequest) {
       updatePayload.attendees = parseInt(body.attendees);
     }
 
+    if (campaignId !== undefined) {
+      updatePayload.campaign_id = campaignId;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('events')
       .update(updatePayload)
@@ -157,7 +192,7 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao atualizar evento:', error);
-      return NextResponse.json({ error: 'Erro ao atualizar evento', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao atualizar evento' }, { status: 500 });
     }
 
     // Registrar auditoria
@@ -178,6 +213,10 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Excluir evento
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -200,7 +239,7 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao excluir evento:', error);
-      return NextResponse.json({ error: 'Erro ao excluir evento', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao excluir evento' }, { status: 500 });
     }
 
     // Registrar auditoria
