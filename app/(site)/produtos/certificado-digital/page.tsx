@@ -2,8 +2,8 @@
 
 import React from 'react';
 import {
-  Breadcrumb,
   HeroSection,
+  IntroSection,
   CertificateTypesSection,
   BenefitsSection,
   EmissionProcessSection,
@@ -12,14 +12,14 @@ import {
 
 const CertificadoDigitalPage = () => {
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50">
-      <Breadcrumb />
+    <>
       <HeroSection />
+      <IntroSection />
       <CertificateTypesSection />
       <BenefitsSection />
       <EmissionProcessSection />
       <CTASection />
-    </div>
+    </>
   );
 };
 

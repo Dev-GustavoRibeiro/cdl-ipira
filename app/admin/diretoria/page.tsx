@@ -1,746 +1,540 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { FaUsers, FaUser, FaPlus, FaEdit, FaTrash, FaSearch, FaSave, FaSpinner, FaEye, FaEyeSlash, FaUpload, FaArrowUp, FaArrowDown, FaCrown, FaBriefcase, FaUserTie, FaUserShield, FaUserFriends } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
+import {
+  FaArrowDown, FaArrowUp, FaBriefcase, FaCamera, FaCrown, FaEdit, FaExclamationTriangle, FaExternalLinkAlt, FaEye, FaEyeSlash,
+  FaPlus, FaRedo, FaTrash, FaUser, FaUserFriends, FaUserShield, FaUserTie,
+} from 'react-icons/fa';
+import { toast } from 'sonner';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { toast } from 'sonner';
 import { fetchWithCSRF } from '@/lib/csrf-client';
+import { isOptimizableImage } from '@/lib/images';
+import {
+  AdminCard, AdminPageHeader, AdminSection, Button, Checkbox, EmptyState, FormField, IconButton, Input, SearchInput, Select,
+  ImageRightsNotice, StatusBadge, Textarea, buttonClass, cx,
+} from '../_components';
+
+type Role = 'presidente' | 'vice_presidente' | 'diretor' | 'suplente' | 'colaborador';
 
 interface TeamMember {
   id: number;
   name: string;
-  role: 'presidente' | 'vice_presidente' | 'diretor' | 'suplente' | 'colaborador';
+  role: Role;
   position: string;
-  photo_url?: string;
-  bio?: string;
-  contribution?: string;
-  function_description?: string;
+  photo_url?: string | null;
+  bio?: string | null;
+  contribution?: string | null;
+  function_description?: string | null;
   display_order: number;
   is_active: boolean;
 }
 
-const roleConfig = {
-  presidente: { label: 'Presidente', icon: FaCrown, color: 'bg-[#ffd000] text-[#003f7f]' },
-  vice_presidente: { label: 'Vice-Presidente', icon: FaUserShield, color: 'bg-[#e6b800] text-[#003f7f]' },
-  diretor: { label: 'Diretor', icon: FaUserTie, color: 'bg-[#003f7f] text-white' },
-  suplente: { label: 'Suplente', icon: FaUserFriends, color: 'bg-[#0066cc] text-white' },
-  colaborador: { label: 'Colaborador', icon: FaBriefcase, color: 'bg-[#00a859] text-white' },
-};
+interface FormState {
+  id?: number;
+  name: string;
+  role: Role;
+  position: string;
+  photo_url: string;
+  bio: string;
+  contribution: string;
+  function_description: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+const ROLES: { role: Role; label: string; plural: string; icon: IconType; tile: string; description: string; position: string }[] = [
+  { role: 'presidente', label: 'Presidente', plural: 'Presidência', icon: FaCrown, tile: 'bg-[#ffd000] text-[#003f7f]', description: 'Destaque no topo da página, com biografia.', position: 'Presidente' },
+  { role: 'vice_presidente', label: 'Vice-presidente', plural: 'Vice-presidência', icon: FaUserShield, tile: 'bg-[#ffd000]/30 text-[#003f7f]', description: 'Exibido logo abaixo do presidente.', position: 'Vice-presidente' },
+  { role: 'diretor', label: 'Diretor(a)', plural: 'Diretores', icon: FaUserTie, tile: 'bg-[#003f7f] text-white', description: 'Diretoria executiva, na ordem abaixo.', position: '' },
+  { role: 'suplente', label: 'Suplente', plural: 'Suplentes', icon: FaUserFriends, tile: 'bg-[#0066cc]/10 text-[#0066cc]', description: 'Membros suplentes da diretoria.', position: 'Suplente' },
+  { role: 'colaborador', label: 'Colaborador(a)', plural: 'Colaboradores', icon: FaBriefcase, tile: 'bg-[#00a859]/10 text-[#00703c]', description: 'Equipe de atendimento e administrativo.', position: '' },
+];
+
+const roleInfo = (role: Role) => ROLES.find((r) => r.role === role) ?? ROLES[2];
+const byOrder = (a: TeamMember, b: TeamMember) => a.display_order - b.display_order || a.id - b.id;
+const MAX_PHOTO_MB = 10;
+
+/** fetch + JSON; erro com a mensagem da API */
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await (init ? fetchWithCSRF(url, init) : fetch(url));
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.details?.join(' ') || data?.error || 'Não foi possível concluir a operação.');
+  return data as T;
+}
+
+const jsonInit = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Não foi possível concluir a operação.');
+
+const toPayload = (m: TeamMember | FormState) => ({
+  name: m.name,
+  role: m.role,
+  position: m.position,
+  photo_url: m.photo_url || null,
+  // Mantém a biografia gravada mesmo se o campo estiver oculto (só o presidente mostra no site)
+  bio: m.bio || null,
+  contribution: m.contribution || null,
+  function_description: m.function_description || null,
+  display_order: m.display_order,
+  is_active: m.is_active,
+});
+
+/** Foto 4:5 (mesmo recorte do site: object-cover, alinhada ao topo) */
+function Photo({ src, name, className }: { src?: string | null; name: string; className?: string }) {
+  return (
+    <span className={cx('relative block aspect-4/5 shrink-0 overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200', className)}>
+      {src ? (
+        <Image src={src} alt={`Foto de ${name}`} fill sizes="96px" className="object-cover object-top" unoptimized={!isOptimizableImage(src)} />
+      ) : (
+        <span className="flex h-full items-center justify-center text-gray-300">
+          <FaUser aria-hidden="true" className="h-1/3 w-1/3" />
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function AdminDiretoriaPage() {
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'presidente' | 'vice_presidente' | 'diretor' | 'suplente' | 'colaborador'>('presidente');
+  const [version, setVersion] = useState(0);
+  const [list, setList] = useState<{ v: number; rows: TeamMember[]; error?: string }>({ v: -1, rows: [] });
+  const [search, setSearch] = useState('');
 
-  // Modal states
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentMember, setCurrentMember] = useState<Partial<TeamMember>>({});
-  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState<FormState | null>(null);
+  const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Upload states
-  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
-
-  // Dialog states
-  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean, id: number | null, name: string }>({
-    isOpen: false,
-    id: null,
-    name: ''
-  });
+  const [toDelete, setToDelete] = useState<TeamMember | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [successDialog, setSuccessDialog] = useState<{ isOpen: boolean, message: string, type: 'success' | 'edit' | 'delete' }>({
-    isOpen: false,
-    message: '',
-    type: 'success'
-  });
-
-  const fetchMembers = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/admin/team-members');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao carregar membros');
-      setMembers(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar membros:', error);
-      toast.error('Erro ao carregar membros da equipe');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const photoInputId = useId();
 
   useEffect(() => {
-    fetchMembers();
-  }, []);
+    let active = true;
+    api<TeamMember[]>('/api/admin/team-members').then(
+      (rows) => active && setList({ v: version, rows: rows || [] }),
+      (error) => active && setList((prev) => ({ v: version, rows: prev.rows, error: errorMessage(error) }))
+    );
+    return () => {
+      active = false;
+    };
+  }, [version]);
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('Imagem muito grande. Máximo permitido: 10MB');
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        toast.error('Por favor, selecione uma imagem');
-        return;
-      }
-      setSelectedPhoto(file);
+  const reload = () => setVersion((v) => v + 1);
+  const isLoading = list.v === -1;
+  const rows = list.rows;
+
+  const groups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return ROLES.map((info) => {
+      const all = rows.filter((m) => m.role === info.role).sort(byOrder);
+      const shown = q ? all.filter((m) => [m.name, m.position, m.function_description].some((v) => v?.toLowerCase().includes(q))) : all;
+      return { ...info, all, shown };
+    });
+  }, [rows, search]);
+
+  const activePresidents = rows.filter((m) => m.role === 'presidente' && m.is_active).length;
+
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => (f ? { ...f, [key]: value } : f));
+
+  const clearPhoto = () => {
+    if (photo) URL.revokeObjectURL(photo.preview);
+    setPhoto(null);
+  };
+
+  const openForm = (member?: TeamMember, role: Role = 'diretor') => {
+    clearPhoto();
+    setPhotoError(null);
+    if (member) {
+      setForm({
+        id: member.id,
+        name: member.name,
+        role: member.role,
+        position: member.position,
+        photo_url: member.photo_url ?? '',
+        bio: member.bio ?? '',
+        contribution: member.contribution ?? '',
+        function_description: member.function_description ?? '',
+        display_order: member.display_order,
+        is_active: member.is_active,
+      });
+    } else {
+      const sameRole = rows.filter((m) => m.role === role);
+      setForm({
+        name: '',
+        role,
+        position: roleInfo(role).position,
+        photo_url: '',
+        bio: '',
+        contribution: '',
+        function_description: '',
+        display_order: sameRole.length ? Math.max(...sameRole.map((m) => m.display_order)) + 1 : 0,
+        is_active: true,
+      });
     }
   };
 
-  const uploadPhoto = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('bucket', 'team-photos');
-    formData.append('folder', 'photos');
+  const closeForm = () => {
+    if (isSaving) return;
+    clearPhoto();
+    setForm(null);
+  };
 
-    const response = await fetchWithCSRF('/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    const data = await response.json();
-
-    if (!response.ok || !data.url) {
-      throw new Error(data.error || 'Erro ao enviar foto');
+  const pickPhoto = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Escolha uma imagem (JPG, PNG ou WebP).');
+      return;
     }
-
-    return data.url;
+    if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
+      setPhotoError(`Imagem muito grande. Máximo: ${MAX_PHOTO_MB} MB.`);
+      return;
+    }
+    setPhotoError(null);
+    if (photo) URL.revokeObjectURL(photo.preview);
+    setPhoto({ file, preview: URL.createObjectURL(file) });
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form) return;
     setIsSaving(true);
-    setIsUploading(true);
-
     try {
-      let photoUrl = currentMember.photo_url;
-
-      if (selectedPhoto) {
-        photoUrl = await uploadPhoto(selectedPhoto);
+      let photoUrl = form.photo_url;
+      if (photo) {
+        const body = new FormData();
+        body.append('file', photo.file);
+        body.append('bucket', 'team-photos');
+        body.append('folder', 'photos');
+        const uploaded = await api<{ url?: string }>('/api/upload', { method: 'POST', body });
+        if (!uploaded.url) throw new Error('O envio da foto não retornou o endereço.');
+        photoUrl = uploaded.url;
       }
-
-      const memberData = {
-        name: currentMember.name,
-        role: currentMember.role || activeTab,
-        position: currentMember.position,
-        photo_url: photoUrl || null,
-        bio: currentMember.bio || null,
-        contribution: currentMember.contribution || null,
-        function_description: currentMember.function_description || null,
-        display_order: currentMember.display_order || 0,
-        is_active: currentMember.is_active !== false,
-      };
-
-      let response: Response;
-      if (isEditing && currentMember.id) {
-        response = await fetchWithCSRF('/api/admin/team-members', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: currentMember.id, ...memberData }),
-        });
-      } else {
-        response = await fetchWithCSRF('/api/admin/team-members', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(memberData),
-        });
-      }
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao salvar membro');
-
-      const wasEditing = isEditing;
-      await fetchMembers();
-      closeModal();
-
-      setSuccessDialog({
-        isOpen: true,
-        message: wasEditing
-          ? 'O membro foi atualizado com sucesso!'
-          : 'O novo membro foi cadastrado com sucesso!',
-        type: wasEditing ? 'edit' : 'success'
-      });
+      const payload = toPayload({ ...form, photo_url: photoUrl });
+      await api('/api/admin/team-members', jsonInit(form.id ? 'PUT' : 'POST', form.id ? { id: form.id, ...payload } : payload));
+      toast.success(form.id ? 'Membro atualizado.' : 'Membro cadastrado.');
+      clearPhoto();
+      setForm(null);
+      reload();
     } catch (error) {
-      console.error('Erro ao salvar membro:', error);
-      toast.error('Erro ao salvar. Verifique se o bucket de storage foi criado.');
+      toast.error(errorMessage(error));
     } finally {
       setIsSaving(false);
-      setIsUploading(false);
     }
   };
 
-  const openDeleteDialog = (member: TeamMember) => {
-    setDeleteDialog({
-      isOpen: true,
-      id: member.id,
-      name: member.name
-    });
+  const toggleActive = async (member: TeamMember) => {
+    setBusyId(member.id);
+    try {
+      await api('/api/admin/team-members', jsonInit('PUT', { id: member.id, ...toPayload({ ...member, is_active: !member.is_active }) }));
+      setList((l) => ({ ...l, rows: l.rows.map((r) => (r.id === member.id ? { ...r, is_active: !member.is_active } : r)) }));
+      toast.success(member.is_active ? `${member.name} foi ocultado(a) do site.` : `${member.name} agora aparece no site.`);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** Troca com o vizinho e renumera o grupo (0, 1, 2…); só envia quem mudou de posição */
+  const move = async (member: TeamMember, direction: -1 | 1) => {
+    const group = rows.filter((m) => m.role === member.role).sort(byOrder);
+    const index = group.findIndex((m) => m.id === member.id);
+    const target = index + direction;
+    if (target < 0 || target >= group.length) return;
+    [group[index], group[target]] = [group[target], group[index]];
+    const changed = group.map((m, i) => ({ id: m.id, display_order: i })).filter((it) => group.find((m) => m.id === it.id)!.display_order !== it.display_order);
+    const previous = rows;
+    const orderOf = new Map(changed.map((it) => [it.id, it.display_order]));
+    setList((l) => ({ ...l, rows: l.rows.map((r) => (orderOf.has(r.id) ? { ...r, display_order: orderOf.get(r.id)! } : r)) }));
+    setBusyId(member.id);
+    try {
+      await api('/api/admin/team-members', jsonInit('PATCH', { items: changed }));
+    } catch (error) {
+      setList((l) => ({ ...l, rows: previous }));
+      toast.error(errorMessage(error));
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const handleConfirmDelete = async () => {
-    if (!deleteDialog.id) return;
-
+    if (!toDelete) return;
     setIsDeleting(true);
     try {
-      const response = await fetchWithCSRF(`/api/admin/team-members?id=${deleteDialog.id}`, {
-        method: 'DELETE',
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao excluir membro');
-
-      setMembers(current => current.filter(m => m.id !== deleteDialog.id));
-      setDeleteDialog({ isOpen: false, id: null, name: '' });
-
-      setSuccessDialog({
-        isOpen: true,
-        message: 'O membro foi removido permanentemente do sistema.',
-        type: 'delete'
-      });
+      await api(`/api/admin/team-members?id=${toDelete.id}`, { method: 'DELETE' });
+      setList((l) => ({ ...l, rows: l.rows.filter((r) => r.id !== toDelete.id) }));
+      toast.success('Membro excluído.');
+      setToDelete(null);
     } catch (error) {
-      console.error('Erro ao excluir membro:', error);
-      setDeleteDialog({ isOpen: false, id: null, name: '' });
-      toast.error('Erro ao excluir membro');
+      toast.error(errorMessage(error));
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleToggleActive = async (member: TeamMember) => {
-    try {
-      const response = await fetchWithCSRF('/api/admin/team-members', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: member.id,
-          name: member.name,
-          role: member.role,
-          position: member.position,
-          photo_url: member.photo_url,
-          bio: member.bio,
-          contribution: member.contribution,
-          function_description: member.function_description,
-          display_order: member.display_order,
-          is_active: !member.is_active,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status');
-
-      toast.success(member.is_active ? 'Membro ocultado' : 'Membro ativado');
-      fetchMembers();
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status');
-    }
-  };
-
-  const handleChangeOrder = async (member: TeamMember, direction: 'up' | 'down') => {
-    const currentRoleMembers = members.filter(m => m.role === member.role);
-    const currentIndex = currentRoleMembers.findIndex(m => m.id === member.id);
-
-    if (direction === 'up' && currentIndex === 0) return;
-    if (direction === 'down' && currentIndex === currentRoleMembers.length - 1) return;
-
-    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    const swapMember = currentRoleMembers[swapIndex];
-
-    try {
-      const firstResponse = await fetchWithCSRF('/api/admin/team-members', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...member,
-          id: member.id,
-          display_order: swapMember.display_order,
-        }),
-      });
-      const firstData = await firstResponse.json();
-      if (!firstResponse.ok) throw new Error(firstData.error || 'Erro ao reordenar');
-
-      const secondResponse = await fetchWithCSRF('/api/admin/team-members', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...swapMember,
-          id: swapMember.id,
-          display_order: member.display_order,
-        }),
-      });
-      const secondData = await secondResponse.json();
-      if (!secondResponse.ok) throw new Error(secondData.error || 'Erro ao reordenar');
-
-      fetchMembers();
-    } catch (error) {
-      console.error('Erro ao reordenar:', error);
-      toast.error('Erro ao reordenar');
-    }
-  };
-
-  const openModal = (member?: TeamMember) => {
-    if (member) {
-      setCurrentMember(member);
-      setIsEditing(true);
-    } else {
-      const maxOrder = members.filter(m => m.role === activeTab).length;
-      setCurrentMember({
-        role: activeTab,
-        is_active: true,
-        display_order: maxOrder
-      });
-      setIsEditing(false);
-    }
-    setSelectedPhoto(null);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setCurrentMember({});
-    setIsEditing(false);
-    setSelectedPhoto(null);
-  };
-
-  const filteredMembers = members.filter(m => {
-    const matchesSearch = m.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.position?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = m.role === activeTab;
-    return matchesSearch && matchesRole;
-  });
-
-  const presidente = members.find(m => m.role === 'presidente' && m.is_active);
-  const vicePresidenteCount = members.filter(m => m.role === 'vice_presidente').length;
-  const diretoresCount = members.filter(m => m.role === 'diretor').length;
-  const suplentesCount = members.filter(m => m.role === 'suplente').length;
-  const colaboradoresCount = members.filter(m => m.role === 'colaborador').length;
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
+  const previewSrc = photo?.preview || form?.photo_url || null;
+  const searching = search.trim() !== '';
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] mb-2">
-            Diretoria
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
-            Gerencie presidente, diretores e colaboradores
-          </p>
-        </div>
-        <button
-          onClick={() => openModal()}
-          className="inline-flex items-center gap-2 bg-[#003f7f] text-white px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 shadow-lg"
-        >
-          <FaPlus />
-          Novo Membro
-        </button>
-      </div>
-
-      {/* Cards de estatísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div
-          onClick={() => setActiveTab('presidente')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'presidente' ? 'border-[#ffd000] ring-2 ring-[#ffd000]/20' : 'border-transparent hover:border-gray-200'}`}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#ffd000] rounded-lg flex items-center justify-center">
-              <FaCrown className="w-5 h-5 text-[#003f7f]" />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs font-bold uppercase">Presidente</div>
-              <div className="text-xl font-black text-gray-900">{presidente ? '1' : '0'}</div>
-            </div>
-          </div>
-        </div>
-        <div
-          onClick={() => setActiveTab('vice_presidente')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'vice_presidente' ? 'border-[#e6b800] ring-2 ring-[#e6b800]/20' : 'border-transparent hover:border-gray-200'}`}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#e6b800] rounded-lg flex items-center justify-center">
-              <FaUserShield className="w-5 h-5 text-[#003f7f]" />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs font-bold uppercase">Vice-Presidente</div>
-              <div className="text-xl font-black text-gray-900">{vicePresidenteCount}</div>
-            </div>
-          </div>
-        </div>
-        <div
-          onClick={() => setActiveTab('diretor')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'diretor' ? 'border-[#003f7f] ring-2 ring-[#003f7f]/20' : 'border-transparent hover:border-gray-200'}`}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#003f7f] rounded-lg flex items-center justify-center">
-              <FaUserTie className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs font-bold uppercase">Diretores</div>
-              <div className="text-xl font-black text-gray-900">{diretoresCount}</div>
-            </div>
-          </div>
-        </div>
-        <div
-          onClick={() => setActiveTab('suplente')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'suplente' ? 'border-[#0066cc] ring-2 ring-[#0066cc]/20' : 'border-transparent hover:border-gray-200'}`}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#0066cc] rounded-lg flex items-center justify-center">
-              <FaUserFriends className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs font-bold uppercase">Suplentes</div>
-              <div className="text-xl font-black text-gray-900">{suplentesCount}</div>
-            </div>
-          </div>
-        </div>
-        <div
-          onClick={() => setActiveTab('colaborador')}
-          className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${activeTab === 'colaborador' ? 'border-[#00a859] ring-2 ring-[#00a859]/20' : 'border-transparent hover:border-gray-200'}`}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#00a859] rounded-lg flex items-center justify-center">
-              <FaBriefcase className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs font-bold uppercase">Colaboradores</div>
-              <div className="text-xl font-black text-gray-900">{colaboradoresCount}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Busca */}
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-        <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-          <input
-            type="text"
-            placeholder={`Buscar ${roleConfig[activeTab].label.toLowerCase()}...`}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-          />
-        </div>
-      </div>
-
-      {/* Lista de membros */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className={`px-6 py-4 ${roleConfig[activeTab].color}`}>
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            {React.createElement(roleConfig[activeTab].icon, { className: 'w-5 h-5' })}
-            {activeTab === 'presidente' ? 'Presidente' : activeTab === 'vice_presidente' ? 'Vice-Presidente' : activeTab === 'diretor' ? 'Diretores' : activeTab === 'suplente' ? 'Suplentes' : 'Colaboradores'}
-          </h2>
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center items-center py-16">
-            <div className="flex items-center gap-3 text-[#003f7f]">
-              <FaSpinner className="animate-spin w-6 h-6" />
-              <span className="text-lg font-medium">Carregando...</span>
-            </div>
-          </div>
-        ) : filteredMembers.length === 0 ? (
-          <div className="text-center py-16">
-            <FaUsers className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-700 mb-2">
-              Nenhum {roleConfig[activeTab].label.toLowerCase()} cadastrado
-            </h3>
-            <p className="text-gray-500 mb-4">Clique em &quot;Novo Membro&quot; para adicionar.</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-200">
-            {filteredMembers.map((member, index) => (
-              <div key={member.id} className={`p-4 sm:p-6 hover:bg-gray-50 transition-colors ${!member.is_active ? 'opacity-60' : ''}`}>
-                <div className="flex items-center gap-4">
-                  {/* Foto */}
-                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-gray-200 shrink-0">
-                    {member.photo_url ? (
-                      <Image
-                        src={member.photo_url}
-                        alt={member.name}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <FaUser className="w-8 h-8 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold text-gray-900 truncate">{member.name}</h3>
-                    <p className="text-sm text-gray-600">{member.position}</p>
-                    {member.function_description && (
-                      <p className="text-sm text-gray-500 mt-1 line-clamp-1">{member.function_description}</p>
-                    )}
-                  </div>
-
-                  {/* Ações */}
-                  <div className="flex items-center gap-2">
-                    {activeTab !== 'presidente' && (
-                      <>
-                        <button
-                          onClick={() => handleChangeOrder(member, 'up')}
-                          disabled={index === 0}
-                          className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
-                          title="Mover para cima"
-                        >
-                          <FaArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleChangeOrder(member, 'down')}
-                          disabled={index === filteredMembers.length - 1}
-                          className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
-                          title="Mover para baixo"
-                        >
-                          <FaArrowDown className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => handleToggleActive(member)}
-                      className={`p-2 rounded-lg transition-colors ${member.is_active
-                        ? 'text-green-600 hover:bg-green-100'
-                        : 'text-gray-500 hover:bg-gray-100'
-                        }`}
-                      title={member.is_active ? 'Ocultar' : 'Ativar'}
-                    >
-                      {member.is_active ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
-                    </button>
-                    <button
-                      onClick={() => openModal(member)}
-                      className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
-                      title="Editar"
-                    >
-                      <FaEdit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => openDeleteDialog(member)}
-                      className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
-                      title="Excluir"
-                    >
-                      <FaTrash className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Modal de Edição/Criação */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        title={isEditing ? 'Editar Membro' : 'Novo Membro'}
-      >
-        <form onSubmit={handleSave} className="space-y-5">
-          {/* Foto */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Foto</label>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoSelect}
-              className="hidden"
-            />
-
-            <div className="flex items-center gap-4">
-              <div className="relative w-24 h-24 rounded-full overflow-hidden bg-gray-100 shrink-0">
-                {selectedPhoto ? (
-                  <Image
-                    src={URL.createObjectURL(selectedPhoto)}
-                    alt="Preview"
-                    fill
-                    className="object-cover"
-                  />
-                ) : currentMember.photo_url ? (
-                  <Image
-                    src={currentMember.photo_url}
-                    alt="Foto atual"
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <FaUser className="w-10 h-10 text-gray-400" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                <button
-                  type="button"
-                  onClick={() => photoInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
-                >
-                  <FaUpload className="w-4 h-4" />
-                  {selectedPhoto ? 'Trocar foto' : 'Selecionar foto'}
-                </button>
-                {selectedPhoto && (
-                  <p className="text-xs text-gray-500 mt-2">{selectedPhoto.name} ({formatFileSize(selectedPhoto.size)})</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Nome *</label>
-              <input
-                type="text"
-                required
-                value={currentMember.name || ''}
-                onChange={(e) => setCurrentMember({ ...currentMember, name: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                placeholder="Nome completo"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Tipo *</label>
-              <select
-                value={currentMember.role || activeTab}
-                onChange={(e) => setCurrentMember({ ...currentMember, role: e.target.value as 'presidente' | 'vice_presidente' | 'diretor' | 'suplente' | 'colaborador' })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              >
-                <option value="presidente">Presidente</option>
-                <option value="vice_presidente">Vice-Presidente</option>
-                <option value="diretor">Diretor</option>
-                <option value="suplente">Suplente</option>
-                <option value="colaborador">Colaborador</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Cargo *</label>
-            <input
-              type="text"
-              required
-              value={currentMember.position || ''}
-              onChange={(e) => setCurrentMember({ ...currentMember, position: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              placeholder="Ex: Vice-Presidente, Diretor Financeiro, Secretária"
-            />
-          </div>
-
-          {currentMember.role === 'presidente' && (
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Biografia</label>
-              <textarea
-                value={currentMember.bio || ''}
-                onChange={(e) => setCurrentMember({ ...currentMember, bio: e.target.value })}
-                rows={3}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent resize-none"
-                placeholder="Breve biografia do presidente"
-              />
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Função</label>
-            <input
-              type="text"
-              value={currentMember.function_description || ''}
-              onChange={(e) => setCurrentMember({ ...currentMember, function_description: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              placeholder="Descrição das funções"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Contribuição</label>
-            <textarea
-              value={currentMember.contribution || ''}
-              onChange={(e) => setCurrentMember({ ...currentMember, contribution: e.target.value })}
-              rows={2}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent resize-none"
-              placeholder="Principais contribuições"
-            />
-          </div>
-
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={currentMember.is_active !== false}
-              onChange={(e) => setCurrentMember({ ...currentMember, is_active: e.target.checked })}
-              className="w-5 h-5 text-[#00a859] border-gray-300 rounded focus:ring-[#00a859]"
-            />
-            <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
-              Membro visível no site
-            </label>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving ? (
-                <>
-                  <FaSpinner className="animate-spin" />
-                  {isUploading ? 'Enviando foto...' : 'Salvando...'}
-                </>
-              ) : (
-                <>
-                  <FaSave />
-                  Salvar
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={closeModal}
-              disabled={isSaving}
-              className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-all duration-300 disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Dialog de Confirmação de Exclusão */}
-      <ConfirmDialog
-        isOpen={deleteDialog.isOpen}
-        onClose={() => setDeleteDialog({ isOpen: false, id: null, name: '' })}
-        onConfirm={handleConfirmDelete}
-        title="Excluir Membro"
-        message={`Tem certeza que deseja excluir ${deleteDialog.name}? Esta ação não pode ser desfeita.`}
-        type="delete"
-        confirmText="Sim, Excluir"
-        cancelText="Cancelar"
-        isLoading={isDeleting}
+    <div className="space-y-6 sm:space-y-8">
+      <AdminPageHeader
+        title="Diretoria e equipe"
+        description="Quem aparece na página Diretoria do site, separado por função. Use as setas para definir a ordem."
+        actions={
+          <>
+            <a href="/institucional/diretoria" target="_blank" rel="noopener noreferrer" className={buttonClass('secondary')}>
+              <FaExternalLinkAlt aria-hidden="true" className="h-3.5 w-3.5" />
+              Ver no site
+              <span className="sr-only">(abre em nova aba)</span>
+            </a>
+            <Button icon={FaPlus} onClick={() => openForm()}>
+              Novo membro
+            </Button>
+          </>
+        }
       />
 
-      {/* Dialog de Sucesso */}
+      {/* Resumo por função + busca */}
+      <AdminCard className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:flex lg:flex-wrap" aria-label="Membros por função">
+          {groups.map(({ role, plural, icon: Icon, tile, all }) => (
+            <li key={role} className="flex items-center gap-2.5">
+              <span className={cx('flex size-9 shrink-0 items-center justify-center rounded-xl', tile)}>
+                <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+              </span>
+              <span className="min-w-0 leading-tight">
+                <span className="block text-lg font-black text-gray-900 tabular-nums">{isLoading || (list.error && rows.length === 0) ? '–' : all.length}</span>
+                <span className="block truncate text-xs font-medium text-gray-500">{plural}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <SearchInput label="Buscar por nome ou cargo" placeholder="Buscar por nome ou cargo…" value={search} onChange={setSearch} className="xl:w-72 xl:shrink-0" />
+      </AdminCard>
+
+      {list.error && rows.length === 0 ? (
+        <AdminCard>
+          <EmptyState
+            icon={FaExclamationTriangle}
+            title="Não foi possível carregar a diretoria"
+            description={list.error}
+            action={<Button icon={FaRedo} onClick={reload}>Tentar novamente</Button>}
+          />
+        </AdminCard>
+      ) : (
+        groups
+          .filter((g) => !searching || g.shown.length > 0)
+          .map(({ role, label, plural, icon: Icon, tile, description, all, shown }) => (
+            <AdminSection
+              key={role}
+              title={`${plural} (${all.length})`}
+              description={
+                role === 'presidente' && activePresidents > 1
+                  ? 'Atenção: há mais de um presidente visível. O site mostra só o primeiro da lista.'
+                  : description
+              }
+              flush
+              actions={
+                <Button variant="secondary" size="sm" icon={FaPlus} onClick={() => openForm(undefined, role)}>
+                  Adicionar
+                </Button>
+              }
+            >
+              {isLoading ? (
+                <ul aria-hidden="true" className="divide-y divide-gray-100">
+                  {[0, 1].map((i) => (
+                    <li key={i} className="flex items-center gap-4 px-4 py-4 sm:px-6">
+                      <span className="aspect-4/5 w-12 animate-pulse rounded-xl bg-gray-100" />
+                      <span className="flex-1 space-y-2">
+                        <span className="block h-4 w-1/3 animate-pulse rounded bg-gray-100" />
+                        <span className="block h-3 w-1/4 animate-pulse rounded bg-gray-100" />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : shown.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 px-4 py-8 text-center sm:flex-row sm:px-6 sm:text-left">
+                  <span className={cx('flex size-10 shrink-0 items-center justify-center rounded-xl', tile)}>
+                    <Icon aria-hidden="true" className="h-4 w-4" />
+                  </span>
+                  <p className="text-sm text-gray-500">Nenhum(a) {label.toLowerCase()} cadastrado(a).</p>
+                </div>
+              ) : (
+                <ol className="divide-y divide-gray-100">
+                  {shown.map((m) => {
+                    const index = all.findIndex((x) => x.id === m.id);
+                    return (
+                      <li key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 sm:flex-nowrap sm:px-6">
+                        <div className="flex min-w-0 flex-1 basis-full items-center gap-4 sm:basis-auto">
+                          <span aria-hidden="true" className="hidden w-5 shrink-0 text-center text-xs font-bold text-gray-500 tabular-nums sm:block">
+                            {index + 1}
+                          </span>
+                          <Photo src={m.photo_url} name={m.name} className={cx('w-12', !m.is_active && 'opacity-50 grayscale')} />
+                          <div className="min-w-0 flex-1">
+                            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className={cx('font-semibold', m.is_active ? 'text-gray-900' : 'text-gray-500')}>{m.name}</span>
+                              {!m.is_active && <StatusBadge variant="neutral">Oculto no site</StatusBadge>}
+                              {!m.photo_url && <StatusBadge variant="warning">Sem foto</StatusBadge>}
+                            </p>
+                            <p className="text-sm text-gray-600">{m.position}</p>
+                            {m.function_description && m.function_description !== m.position && (
+                              <p className="line-clamp-1 text-xs text-gray-500">{m.function_description}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="ml-auto flex shrink-0 items-center gap-1">
+                          {!searching && all.length > 1 && (
+                            <>
+                              <IconButton icon={FaArrowUp} label={`Mover ${m.name} para cima`} onClick={() => move(m, -1)} disabled={index === 0 || busyId !== null} />
+                              <IconButton icon={FaArrowDown} label={`Mover ${m.name} para baixo`} onClick={() => move(m, 1)} disabled={index === all.length - 1 || busyId !== null} />
+                              <span aria-hidden="true" className="mx-1 h-6 w-px bg-gray-200" />
+                            </>
+                          )}
+                          <IconButton
+                            icon={m.is_active ? FaEyeSlash : FaEye}
+                            label={m.is_active ? `Ocultar ${m.name} do site` : `Mostrar ${m.name} no site`}
+                            onClick={() => toggleActive(m)}
+                            disabled={busyId === m.id}
+                          />
+                          <IconButton icon={FaEdit} label={`Editar ${m.name}`} onClick={() => openForm(m)} />
+                          <IconButton icon={FaTrash} variant="danger" label={`Excluir ${m.name}`} onClick={() => setToDelete(m)} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </AdminSection>
+          ))
+      )}
+
+      {!isLoading && searching && groups.every((g) => g.shown.length === 0) && (
+        <AdminCard>
+          <EmptyState
+            title="Ninguém encontrado"
+            description={`Nenhum membro com "${search.trim()}" no nome ou cargo.`}
+            action={<Button variant="secondary" onClick={() => setSearch('')}>Limpar busca</Button>}
+          />
+        </AdminCard>
+      )}
+
+      <Modal isOpen={!!form} onClose={closeForm} title={form?.id ? 'Editar membro' : 'Novo membro'}>
+        {form && (
+          <form onSubmit={handleSave} className="space-y-5">
+            {/* Foto */}
+            <div className="flex flex-col gap-4 rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-200/80 sm:flex-row sm:items-center">
+              <Photo src={previewSrc} name={form.name || 'novo membro'} className="w-28 self-center bg-white sm:self-auto" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-700">Foto</p>
+                <p id={`${photoInputId}-hint`} className="mt-1 text-xs leading-relaxed text-gray-500">
+                  Foto vertical (proporção 4:5, ex.: 800 × 1000 px), com o rosto no terço de cima e fundo neutro. O site recorta as
+                  sobras pelas laterais e pela base, como na prévia.
+                </p>
+                <ImageRightsNotice id={`${photoInputId}-rights`} className="mt-1" />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <label
+                    htmlFor={photoInputId}
+                    className={cx(
+                      buttonClass('secondary', 'sm'),
+                      'cursor-pointer has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-[#0066cc]'
+                    )}
+                  >
+                    <FaCamera aria-hidden="true" className="h-3.5 w-3.5" />
+                    {previewSrc ? 'Trocar foto' : 'Enviar foto'}
+                    <input
+                      id={photoInputId}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      aria-describedby={`${photoInputId}-hint ${photoInputId}-rights`}
+                      onChange={(e) => {
+                        pickPhoto(e.target.files?.[0]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {previewSrc && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={FaTrash}
+                      className="text-red-700 hover:bg-red-50 hover:text-red-700"
+                      onClick={() => {
+                        clearPhoto();
+                        setField('photo_url', '');
+                      }}
+                    >
+                      Remover
+                    </Button>
+                  )}
+                </div>
+                {photoError && (
+                  <p role="alert" className="mt-2 text-sm font-medium text-red-700">
+                    {photoError}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <FormField label="Nome" required>
+                <Input value={form.name} onChange={(e) => setField('name', e.target.value)} required maxLength={120} autoComplete="off" />
+              </FormField>
+              <FormField label="Função na página" required>
+                <Select value={form.role} onChange={(e) => setField('role', e.target.value as Role)}>
+                  {ROLES.map((r) => (
+                    <option key={r.role} value={r.role}>
+                      {r.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Cargo" required hint="Ex.: Diretor Financeiro, Secretária, Atendente.">
+                <Input value={form.position} onChange={(e) => setField('position', e.target.value)} required maxLength={120} />
+              </FormField>
+              <FormField label="Atribuição" hint="Opcional. Frase curta sobre o que faz.">
+                <Input value={form.function_description} onChange={(e) => setField('function_description', e.target.value)} maxLength={200} />
+              </FormField>
+              {form.role === 'presidente' && (
+                <FormField label="Biografia" className="sm:col-span-2">
+                  <Textarea value={form.bio} onChange={(e) => setField('bio', e.target.value)} rows={4} maxLength={2000} />
+                </FormField>
+              )}
+              <FormField label="Contribuição" className="sm:col-span-2" hint="Opcional. Aparece no cartão do membro no site.">
+                <Textarea value={form.contribution} onChange={(e) => setField('contribution', e.target.value)} rows={3} maxLength={1000} />
+              </FormField>
+            </div>
+
+            <Checkbox label="Visível no site" checked={form.is_active} onChange={(e) => setField('is_active', e.target.checked)} />
+
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={closeForm} disabled={isSaving}>
+                Cancelar
+              </Button>
+              <Button type="submit" loading={isSaving}>
+                {isSaving ? (photo ? 'Enviando foto…' : 'Salvando…') : form.id ? 'Salvar alterações' : 'Cadastrar membro'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
       <ConfirmDialog
-        isOpen={successDialog.isOpen}
-        onClose={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
-        title={
-          successDialog.type === 'delete' ? 'Membro Removido' :
-            successDialog.type === 'edit' ? 'Membro Atualizado' :
-              'Membro Cadastrado'
-        }
-        message={successDialog.message}
-        type={successDialog.type === 'delete' ? 'success' : successDialog.type}
-        confirmText="OK"
-        showCancel={false}
-        onConfirm={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
+        isOpen={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir membro"
+        message={`Excluir ${toDelete?.name ?? ''} da diretoria? Para só tirar do site, use "Ocultar". Esta ação não pode ser desfeita.`}
+        type="delete"
+        confirmText="Sim, excluir"
+        isLoading={isDeleting}
       />
     </div>
   );

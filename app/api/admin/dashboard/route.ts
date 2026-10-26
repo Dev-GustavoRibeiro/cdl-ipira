@@ -1,44 +1,56 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
+
+// Contagens com head:true (só o total, sem trazer linhas)
+const headCount = (table: string) => supabaseAdmin.from(table).select('*', { count: 'exact', head: true });
+
+const COUNTS = {
+  news: () => headCount('news'),
+  events: () => headCount('events'),
+  campaigns: () => headCount('campaigns'),
+  videos: () => headCount('videos'),
+  albums: () => headCount('albums'),
+  magazines: () => headCount('magazines'),
+  hero_slides: () => headCount('hero_slides'),
+  partners: () => headCount('partners'),
+  jobs: () => headCount('jobs'),
+  registrations: () => headCount('event_registrations'),
+  legal_pending: () => headCount('legal_requests').eq('status', 'pending'),
+};
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
-    const [
-      { count: newsCount, error: newsError },
-      { count: eventsCount, error: eventsError },
-      { count: videosCount, error: videosError },
-      { count: heroCount, error: heroError },
-      { count: partnersCount, error: partnersError },
-      { count: jobsCount, error: jobsError },
-    ] = await Promise.all([
-      supabaseAdmin.from('news').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('events').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('videos').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('hero_slides').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('partners').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('jobs').select('*', { count: 'exact', head: true }),
+    const keys = Object.keys(COUNTS) as Array<keyof typeof COUNTS>;
+    const [results, recentResult] = await Promise.all([
+      Promise.all(keys.map((key) => COUNTS[key]())),
+      supabaseAdmin
+        .from('audit_log')
+        .select('id, action, table_name, record_title, user_name, created_at')
+        .order('created_at', { ascending: false })
+        .limit(6),
     ]);
 
-    const firstError =
-      newsError ||
-      eventsError ||
-      videosError ||
-      heroError ||
-      partnersError ||
-      jobsError;
+    // Uma tabela com problema (ex.: migração pendente) vira null ("—" no painel) em vez de derrubar o dashboard
+    const counts = {} as Record<keyof typeof COUNTS, number | null>;
+    results.forEach(({ count, error }, i) => {
+      if (error) console.error(`Erro ao contar ${keys[i]}:`, error);
+      counts[keys[i]] = error ? null : count ?? 0;
+    });
 
-    if (firstError) {
-      throw firstError;
+    if (keys.every((key) => counts[key] === null)) {
+      throw new Error('Nenhuma contagem disponível');
     }
 
-    return NextResponse.json({
-      news: newsCount || 0,
-      events: eventsCount || 0,
-      videos: videosCount || 0,
-      hero_slides: heroCount || 0,
-      partners: partnersCount || 0,
-      jobs: jobsCount || 0,
-    });
+    if (recentResult.error) {
+      console.error('Erro ao buscar atividade recente:', recentResult.error);
+    }
+
+    return NextResponse.json({ ...counts, recent: recentResult.data ?? [] });
   } catch (error) {
     console.error('Erro ao carregar estatísticas do dashboard:', error);
     return NextResponse.json({ error: 'Erro ao carregar estatísticas.' }, { status: 500 });

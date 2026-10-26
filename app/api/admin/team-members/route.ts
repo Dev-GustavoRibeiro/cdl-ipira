@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
-import { sanitizeString } from '@/lib/security';
+import { isSafeLink, sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 
 const VALID_ROLES = new Set(['presidente', 'vice_presidente', 'diretor', 'suplente', 'colaborador']);
 
@@ -32,10 +33,18 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
     return 'Ordem inválida.';
   }
 
+  if (payload.photo_url && !isSafeLink(payload.photo_url, 1000)) {
+    return 'A foto deve ser um endereço http(s):// ou um caminho do site.';
+  }
+
   return null;
 }
 
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('team_members')
@@ -55,6 +64,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizePayload(body);
@@ -84,6 +97,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const id = Number(body.id);
@@ -119,7 +136,51 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// PATCH - reordenação: { items: [{ id, display_order }] } (só a ordem muda)
+export async function PATCH(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const items: unknown = body?.items;
+    const valid =
+      Array.isArray(items) &&
+      items.length > 0 &&
+      items.length <= 200 &&
+      items.every(
+        (it) => Number.isInteger(it?.id) && it.id > 0 && Number.isInteger(it?.display_order) && it.display_order >= 0 && it.display_order <= 9999
+      );
+
+    if (!valid) {
+      return NextResponse.json({ error: 'Ordem inválida.' }, { status: 400 });
+    }
+
+    const results = await Promise.all(
+      (items as { id: number; display_order: number }[]).map(({ id, display_order }) =>
+        supabaseAdmin.from('team_members').update({ display_order }).eq('id', id)
+      )
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      console.error('Erro ao reordenar membros:', failed.error);
+      return NextResponse.json({ error: 'Erro ao salvar a nova ordem.' }, { status: 500 });
+    }
+
+    await auditServer.update('team_members', 'ordem', 'Ordem da diretoria', { itens: (items as unknown[]).length }, request);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao reordenar membros:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor.' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));

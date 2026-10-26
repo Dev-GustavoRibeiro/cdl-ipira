@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
-import { FaTimes, FaBriefcase, FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCheckCircle } from 'react-icons/fa';
-import { createPortal } from 'react-dom';
+import React, { useId } from 'react';
+import { FaBriefcase, FaBuilding, FaCalendarAlt, FaMapMarkerAlt, FaUserFriends, FaWhatsapp } from 'react-icons/fa';
+import { ModalBody, ModalChip, ModalProse, ModalShell, ModalTitle, ShareButton, modalButton } from './Modal';
+import { CONTACT } from './navigation/navItems';
 
 interface JobModalProps {
   isOpen: boolean;
@@ -19,113 +20,128 @@ interface JobModalProps {
   } | null;
 }
 
+// Mesmos cartões de destaque do EventModal ("Quando"/"Onde")
+const FACT = 'flex gap-3.5 rounded-2xl bg-[#f4f8fc] p-4 ring-1 ring-[#003f7f]/8';
+const FACT_ICON = 'grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-[#003f7f] shadow-[0_6px_16px_-8px_rgba(0,63,127,0.45)] ring-1 ring-[#003f7f]/10';
+const FACT_LABEL = 'text-[11px] font-bold tracking-[0.12em] text-[#003f7f]/80 uppercase';
+
+// "Magazine Ipirá" → "MI"; uma palavra → uma letra (o "logo" da empresa no cartão sobre a faixa)
+const initials = (company: string) =>
+  company
+    .split(/\s+/)
+    .filter((word) => /^\p{L}/u.test(word))
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase())
+    .join('');
+
+// O balcão não zera `job` ao fechar, mas o ModalShell já segura o último conteúdo durante a saída de qualquer forma
 export default function JobModal({ isOpen, onClose, job }: JobModalProps) {
-  const [mounted, setMounted] = React.useState(false);
+  const titleId = useId();
+  const mark = job ? initials(job.company || '') : '';
+  // WhatsApp oficial (fonte única em navItems); o cadastro de vagas do Balcão já usa o mesmo número
+  const whatsappUrl =
+    job ? `${CONTACT.whatsapp.href}?text=${encodeURIComponent(`Olá, gostaria de me candidatar à vaga de *${job.title}* na empresa *${job.company}*.`)}` : undefined;
 
-  React.useEffect(() => {
-    setMounted(true);
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
-
-  if (!mounted || !isOpen || !job) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
-      ></div>
-      
-      <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl relative z-10 flex flex-col animate-scale-in">
-        {/* Header com Gradiente */}
-        <div className="relative bg-linear-to-br from-[#003f7f] to-[#0066cc] p-6 sm:p-8 text-white shrink-0">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 z-20 p-2 bg-white/20 hover:bg-white/30 backdrop-blur text-white rounded-full transition-all"
-          >
-            <FaTimes className="w-5 h-5" />
-          </button>
-
-          <div className="mt-4">
-            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium mb-4">
-              <FaBriefcase className="w-4 h-4 text-[#ffd000]" />
-              <span>{job.category || 'Vaga de Emprego'}</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black leading-tight mb-2">
-              {job.title}
-            </h2>
-            <div className="flex items-center gap-2 text-white/90 text-lg font-medium">
-              <FaBuilding className="w-5 h-5" />
-              {job.company}
-            </div>
-          </div>
-        </div>
-
-        {/* Conteúdo */}
-        <div className="p-6 sm:p-8 flex flex-col grow">
-          {/* Grid de Informações */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <div className="flex items-center gap-2 text-gray-500 text-xs font-bold uppercase mb-1">
-                <FaMapMarkerAlt className="text-[#00a859]" />
-                Localização
-              </div>
-              <div className="text-gray-900 font-semibold">
-                {job.location || 'Não informado'}
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <div className="flex items-center gap-2 text-gray-500 text-xs font-bold uppercase mb-1">
-                <FaCalendarAlt className="text-[#ffd000]" />
-                Publicado em
-              </div>
-              <div className="text-gray-900 font-semibold">
-                {job.date || 'Recente'}
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <div className="flex items-center gap-2 text-gray-500 text-xs font-bold uppercase mb-1">
-                <FaCheckCircle className="text-[#003f7f]" />
-                Vagas
-              </div>
-              <div className="text-gray-900 font-semibold">
-                {job.quantity} {job.quantity === 1 ? 'vaga disponível' : 'vagas disponíveis'}
-              </div>
-            </div>
-          </div>
-
-          <div className="prose prose-lg text-gray-600 text-justify mb-8">
-            <h3 className="text-[#003f7f] font-bold text-xl mb-4">Descrição da Vaga</h3>
-            <div className="whitespace-pre-wrap leading-relaxed">
-              {job.description}
-            </div>
-          </div>
-
-          <div className="mt-auto pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
-            <p className="text-sm text-gray-500 text-center sm:text-left">
-              Interessado? Entre em contato diretamente com a empresa ou envie seu currículo para a CDL.
-            </p>
-            <a 
-              href={`https://wa.me/557532541356?text=${encodeURIComponent(`Olá, gostaria de me candidatar à vaga de *${job.title}* na empresa *${job.company}*.`)}`}
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="bg-[#00a859] text-white px-6 py-3 rounded-full font-bold hover:bg-[#008f4c] transition-all shadow-lg hover:scale-105 whitespace-nowrap"
-            >
-              Candidatar-se via WhatsApp
+  return (
+    <ModalShell
+      isOpen={isOpen && !!job}
+      onClose={onClose}
+      labelledBy={titleId}
+      size="md"
+      footer={
+        job && (
+          <>
+            <ShareButton title={`Vaga: ${job.title}`} text={[job.title, job.company].filter(Boolean).join(' · ')} url="/produtos/balcao-empregos" />
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className={`ml-auto max-sm:flex-1 ${modalButton.primary}`}>
+              <FaWhatsapp className="h-5 w-5" aria-hidden="true" />
+              {/* Em telas estreitas o rótulo completo quebrava em duas linhas na pílula; o ícone já diz "WhatsApp" */}
+              <span>
+                Candidatar-se<span className="max-[400px]:sr-only"> via WhatsApp</span>
+              </span>
+              <span className="sr-only">(abre em nova aba)</span>
             </a>
+          </>
+        )
+      }
+    >
+      {job && (
+        <>
+          {/* Faixa da marca (vaga não tem foto): degradê, pontos e a maleta grande ao fundo */}
+          <div aria-hidden="true" className="relative h-28 overflow-hidden bg-linear-to-br from-[#003f7f] via-[#0052a3] to-[#0066cc] sm:h-36">
+            <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.16)_1px,transparent_1.6px)] bg-size-[18px_18px]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_0%,rgba(0,168,89,0.45),transparent_45%),radial-gradient(circle_at_55%_140%,rgba(255,208,0,0.28),transparent_45%)]" />
+            <FaBriefcase className="absolute top-1/2 right-[8%] h-24 w-24 -translate-y-1/2 -rotate-12 text-white/12 sm:h-32 sm:w-32" />
           </div>
-        </div>
-      </div>
-    </div>,
-    document.body
+
+          <ModalBody className="pt-0!">
+            {/* "Logo" da empresa sobre a faixa + etiquetas */}
+            <div className="relative flex items-end gap-4">
+              <div
+                aria-hidden="true"
+                className="-mt-9 grid h-[4.5rem] w-[4.5rem] shrink-0 place-items-center rounded-2xl bg-white text-2xl font-black tracking-tight text-[#003f7f] shadow-[0_18px_40px_-14px_rgba(0,26,61,0.55)] ring-1 ring-black/5 sm:-mt-11 sm:h-[5.25rem] sm:w-[5.25rem] sm:text-[1.75rem]"
+              >
+                {mark || <FaBuilding className="h-7 w-7" />}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pb-1">
+                <ModalChip tone="accent" icon={FaBriefcase}>
+                  {job.category || 'Vaga de emprego'}
+                </ModalChip>
+                {job.date && <ModalChip icon={FaCalendarAlt}>Publicada em {job.date}</ModalChip>}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <ModalTitle id={titleId}>{job.title}</ModalTitle>
+            </div>
+            {job.company && (
+              <p className="mt-3 flex items-center gap-2 text-base font-semibold text-gray-700 sm:text-lg">
+                <FaBuilding className="h-4 w-4 shrink-0 text-[#003f7f]/60" aria-hidden="true" />
+                <span className="sr-only">Empresa:</span>
+                {job.company}
+              </p>
+            )}
+
+            <ul aria-label="Resumo da vaga" className={`mt-7 grid gap-3 ${job.location ? 'sm:grid-cols-2' : ''}`}>
+              <li className={FACT}>
+                <span className={FACT_ICON}>
+                  <FaUserFriends className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className={FACT_LABEL}>Vagas</p>
+                  <p className="mt-1 font-bold text-gray-900">
+                    {job.quantity} {job.quantity === 1 ? 'vaga disponível' : 'vagas disponíveis'}
+                  </p>
+                </div>
+              </li>
+              {job.location && (
+                <li className={FACT}>
+                  <span className={FACT_ICON}>
+                    <FaMapMarkerAlt className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className={FACT_LABEL}>Local</p>
+                    <p className="mt-1 font-bold text-pretty break-words text-gray-900">{job.location}</p>
+                  </div>
+                </li>
+              )}
+            </ul>
+
+            {job.description && (
+              <section className="mt-9" aria-labelledby={`${titleId}-descricao`}>
+                <h3 id={`${titleId}-descricao`} className="text-xs font-bold tracking-[0.14em] text-[#003f7f] uppercase">
+                  Descrição da vaga
+                </h3>
+                <div aria-hidden="true" className="mt-3 h-1 w-12 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" />
+                <ModalProse className="mt-5" text={job.description} />
+              </section>
+            )}
+
+            <p className="mt-9 rounded-2xl bg-[#003f7f]/5 p-4 text-sm leading-relaxed text-gray-700 ring-1 ring-[#003f7f]/10 sm:p-5">
+              <strong className="font-bold text-[#003f7f]">Interessado?</strong> Entre em contato diretamente com a empresa ou envie seu currículo para a CDL.
+            </p>
+          </ModalBody>
+        </>
+      )}
+    </ModalShell>
   );
 }
-

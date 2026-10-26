@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
 import { isValidEmail, sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 
 function sanitizePhone(value: string | undefined): string | null {
   if (!value) return null;
@@ -43,6 +44,10 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
 }
 
 export async function GET(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const jobId = Number(searchParams.get('jobId'));
@@ -70,6 +75,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const payload = sanitizePayload(body);
@@ -90,7 +99,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao salvar currículo.' }, { status: 500 });
     }
 
-    await auditServer.create('resumes', data.id.toString(), payload.candidate_name, { job_id: payload.job_id }, request);
+    // Sem o nome do candidato no log: se ele pedir a exclusão, o nome não pode ficar na auditoria
+    await auditServer.create('resumes', data.id.toString(), `Currículo #${data.id}`, { job_id: payload.job_id }, request);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('Erro ao criar currículo:', error);
@@ -99,6 +109,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));
@@ -106,12 +120,6 @@ export async function DELETE(request: NextRequest) {
     if (!Number.isInteger(id) || id <= 0) {
       return NextResponse.json({ error: 'ID do currículo é obrigatório.' }, { status: 400 });
     }
-
-    const { data: existing } = await supabaseAdmin
-      .from('resumes')
-      .select('candidate_name')
-      .eq('id', id)
-      .single();
 
     const { error } = await supabaseAdmin
       .from('resumes')
@@ -123,7 +131,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao excluir currículo.' }, { status: 500 });
     }
 
-    await auditServer.delete('resumes', id.toString(), existing?.candidate_name || 'Currículo', {}, request);
+    await auditServer.delete('resumes', id.toString(), `Currículo #${id}`, {}, request);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Erro ao excluir currículo:', error);

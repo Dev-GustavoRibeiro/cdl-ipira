@@ -3,84 +3,253 @@
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Autoplay, Pagination, Navigation } from 'swiper/modules';
+import { FaArrowRight, FaBullhorn, FaCalendarAlt, FaMapMarkerAlt, FaRegClock } from 'react-icons/fa';
 import EventModal from './EventModal';
-import 'swiper/css';
-import 'swiper/css/pagination';
-import 'swiper/css/navigation';
+import SectionCarousel, { MOUSE_FOCUS, SectionHeading, mediaFitClass, useCardsMotion } from './carousel/SectionCarousel';
+import { useReveal } from './motion/useReveal';
+import { ScrollTrigger } from '@/lib/motion';
+import { isTodayOrFuture, parseDateOnly, todayISO } from '@/lib/date';
+import { isOptimizableImage } from '@/lib/images';
 
-interface Event {
+interface EventItem {
   id: number;
   title: string;
   description: string;
-  date: string; // Database date string YYYY-MM-DD
-  time: string;
+  date: string; // YYYY-MM-DD (o modal formata)
+  time: string; // HH:MM ('' = não informado)
   location: string;
   category: string;
-  participants: string; // String for display in card
-  attendees: number; // Number for modal
+  attendees?: number;
   image?: string;
   gradient: string;
-  month: string; // Derived for display
-  day: string;   // Derived for display
-  year: string;  // Derived for display
-  fullDate: string; // Derived for display
-  status: 'upcoming' | 'ongoing' | 'past';
+  day: string;
+  month: string;
+  weekday: string;
+  isToday: boolean;
+  registration_enabled: boolean;
+}
+
+type ApiEvent = { id: number; title: string; description?: string | null; date?: string | null; time?: string | null; location?: string | null; category?: string | null; attendees?: number | null; image?: string | null; registration_enabled?: boolean | null };
+
+// Cores da marca para eventos sem imagem (também usadas no topo do modal)
+const GRADIENTS = [
+  'from-[#003f7f] to-[#0066cc]',
+  'from-[#00a859] to-[#00d670]',
+  'from-[#0052a3] to-[#0066cc]',
+  'from-[#ffd000] to-[#ffed4e]',
+];
+
+const short = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString('pt-BR', opts).replace('.', '');
+
+function EventCard({ event, featured, sizes, onOpen }: { event: EventItem; featured?: boolean; sizes: string; onOpen: (event: EventItem) => void }) {
+  return (
+    // transition só de translate/sombra: transform e opacity ficam livres para a entrada (GSAP)
+    <article
+      data-card
+      className={`group relative flex h-full flex-col rounded-[1.75rem] bg-white p-2 ring-1 ring-[#003f7f]/8 shadow-[0_14px_34px_-22px_rgba(0,63,127,0.5)] transition-[translate,box-shadow] duration-500 ease-out hover:-translate-y-1 hover:shadow-[0_20px_40px_-22px_rgba(0,63,127,0.55)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#003f7f] motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${featured ? 'md:flex-row' : ''}`}
+    >
+      <div
+        data-card-media
+        className={`relative w-full shrink-0 overflow-hidden rounded-[1.3rem] bg-linear-to-br ${event.gradient} ${mediaFitClass} max-md:[@media(max-height:700px)]:max-h-[clamp(7.5rem,21svh,17rem)] ${featured ? 'md:aspect-auto md:max-h-none md:min-h-[clamp(15rem,44svh,24rem)] md:w-[56%]' : ''}`}
+      >
+        {event.image ? (
+          // Camada própria para o parallax (a imagem mantém o zoom do hover com transição CSS)
+          <div data-card-parallax className="absolute inset-0">
+            <Image
+              src={event.image}
+              alt=""
+              fill
+              sizes={sizes}
+              unoptimized={!isOptimizableImage(event.image)}
+              className="object-cover transition-transform duration-900 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            />
+          </div>
+        ) : (
+          // Sem foto: pontilhado claro + o dia em tipografia grande (mesma ideia da capa do modal)
+          <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.28)_1px,transparent_1.6px)] bg-size-[16px_16px]">
+            <span className="absolute -right-[0.06em] -bottom-[0.2em] text-[clamp(7rem,18svh,11rem)] leading-none font-black tracking-tighter text-white/25 tabular-nums">{event.day}</span>
+          </div>
+        )}
+        {/* Véu só no topo: legibilidade dos selos sem escurecer a foto */}
+        <div className="absolute inset-x-0 top-0 h-1/2 bg-linear-to-b from-black/30 to-transparent" />
+
+        {/* Sem backdrop-blur: sobre a foto em parallax faz o Safari repintar/piscar ao rolar */}
+        <span className="absolute top-2.5 left-2.5 inline-flex max-w-[calc(100%-6.5rem)] items-center gap-1.5 rounded-full bg-white/92 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-[#003f7f] uppercase shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)] md:top-3 md:left-3">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#00a859]" />
+          <span className="truncate">{event.category}</span>
+        </span>
+        {event.isToday && (
+          <span className="absolute top-2.5 right-2.5 rounded-full bg-[#ffd000] px-3 py-1 text-[11px] font-black tracking-[0.08em] text-[#003f7f] uppercase shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)] md:top-3 md:right-3">
+            É hoje
+          </span>
+        )}
+      </div>
+
+      <div className={`flex grow flex-col px-3 pt-3 pb-1.5 md:pt-3.5 ${featured ? 'md:justify-center md:px-8 md:py-6 lg:px-10' : ''}`}>
+        <div className={`flex items-start gap-3.5 ${featured ? 'md:gap-5' : ''}`}>
+          {/* Data grande em bloco (mês · dia · dia da semana): é o que se procura primeiro numa agenda */}
+          <time
+            data-card-pop
+            dateTime={event.date}
+            className={`flex w-[3.75rem] shrink-0 flex-col items-center rounded-2xl bg-[#003f7f] pt-1.5 pb-2 text-center text-white shadow-[0_10px_22px_-12px_rgba(0,63,127,0.8)] ${featured ? 'md:w-20 md:pt-2 md:pb-2.5' : ''}`}
+          >
+            <span className="text-[11px] leading-tight font-bold tracking-[0.14em] text-[#ffd000] uppercase">{event.month}</span>
+            <span className={`text-[1.75rem] leading-none font-black tracking-tight tabular-nums ${featured ? 'md:text-[2.5rem]' : ''}`}>{event.day}</span>
+            <span className="mt-0.5 text-[10px] font-semibold tracking-[0.1em] text-white/75 uppercase">{event.weekday}</span>
+          </time>
+
+          <div className="min-w-0 grow">
+            <h3 className={`leading-snug font-bold tracking-tight text-pretty text-gray-900 transition-colors duration-300 group-hover:text-[#003f7f] ${featured ? 'text-lg md:text-2xl lg:text-3xl' : 'text-[1.0625rem] md:text-lg'}`}>
+              {/* Botão "esticado": o ::after cobre o card inteiro, então qualquer clique abre o modal */}
+              <button
+                type="button"
+                // Foca no clique (o arraste do carrossel impede o foco no mousedown) para o modal devolver o foco ao cartão;
+                // sem anel no clique, e só se o foco não estiver nele (teclado)
+                onClick={(e) => {
+                  if (document.activeElement !== e.currentTarget) e.currentTarget.focus(MOUSE_FOCUS);
+                  onOpen(event);
+                }}
+                aria-haspopup="dialog"
+                className="cursor-pointer text-left after:absolute after:inset-0 after:z-10 after:rounded-[1.75rem] after:content-[''] focus-visible:shadow-none! focus-visible:outline-none!"
+              >
+                {/* Lado a lado (md+) o título reserva 2 linhas: horário/local ficam na mesma altura em todos os cartões.
+                    Destaque: coluna de texto estreita no tablet/notebook com título grande, então até 3 linhas. */}
+                <span className={featured ? 'line-clamp-2 md:line-clamp-3' : 'line-clamp-2 md:min-h-[2lh]'}>{event.title}</span>
+              </button>
+            </h3>
+            {/* Horário e local numa linha; o local encurta com reticências */}
+            <p className="mt-1.5 flex min-w-0 items-center gap-3 text-[13px] font-medium text-gray-600">
+              {event.time && (
+                <span className="inline-flex shrink-0 items-center gap-1.5 tabular-nums">
+                  <FaRegClock aria-hidden="true" className="text-[#00a859]" />
+                  {event.time}
+                </span>
+              )}
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <FaMapMarkerAlt aria-hidden="true" className="shrink-0 text-[#00a859]" />
+                <span className="truncate">{event.location}</span>
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* Destaque único: a descrição cabe ao lado da foto no desktop */}
+        {featured && event.description && (
+          <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-gray-600 md:mt-5 md:line-clamp-3 md:text-[15px] max-md:[@media(max-height:700px)]:hidden">{event.description}</p>
+        )}
+
+        <div className={`mt-auto flex items-center justify-between gap-3 pt-3 [@media(max-height:700px)]:pt-2 ${featured ? 'md:pt-6' : ''}`}>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#00a859]/10 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap text-[#00703a]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#00a859]" />
+            {/* Sorteio, feira…: o evento não pede inscrição */}
+            {event.registration_enabled ? 'Inscrições abertas' : 'Entrada livre'}
+          </span>
+          <span aria-hidden="true" className="inline-flex items-center gap-2 text-sm font-bold text-[#003f7f]">
+            {/* Cartão estreito (celular): só a seta, para o rodapé não quebrar em duas linhas */}
+            <span className="max-sm:hidden">Ver evento</span>
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[#003f7f]/8 transition-[background-color,color,translate] duration-300 group-hover:translate-x-0.5 group-hover:bg-[#003f7f] group-hover:text-white motion-reduce:transition-none">
+              <FaArrowRight className="text-[11px]" />
+            </span>
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+// Sem eventos futuros: faixa compacta com caminhos úteis, em vez de um bloco vazio
+function NoUpcomingEvents() {
+  const month = short(new Date(), { month: 'short' });
+  return (
+    <div data-card className="relative overflow-hidden rounded-[1.75rem] bg-[#f4f8fc] p-5 ring-1 ring-[#003f7f]/8 sm:p-7 lg:px-10 lg:py-8">
+      <div className="flex flex-col gap-5 md:flex-row md:items-center md:gap-8">
+        <div className="flex items-center gap-4 sm:gap-6">
+          {/* Calendário "folheando": página do mês atual sobre outra inclinada, com os três pontos da marca no lugar do dia */}
+          <div data-card-pop aria-hidden="true" className="relative w-16 shrink-0 sm:w-20">
+            <div className="absolute inset-0 translate-x-1.5 -translate-y-1 rotate-[8deg] rounded-2xl bg-[#ffd000]" />
+            <div className="relative overflow-hidden rounded-2xl bg-white text-center shadow-[0_14px_28px_-14px_rgba(0,63,127,0.6)] ring-1 ring-[#003f7f]/10">
+              <div className="bg-[#003f7f] py-1 text-[11px] font-bold tracking-[0.14em] text-[#ffd000] uppercase">{month}</div>
+              <div className="flex h-11 items-center justify-center gap-1.5 sm:h-14">
+                <span className="h-2 w-2 rounded-full bg-[#003f7f]" />
+                <span className="h-2 w-2 rounded-full bg-[#00a859]" />
+                <span className="h-2 w-2 rounded-full bg-[#ffd000]" />
+              </div>
+            </div>
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-xl font-black tracking-tight text-balance text-[#003f7f] sm:text-2xl lg:text-[1.75rem]">Novos eventos em breve</h3>
+            <p className="mt-1 max-w-xl text-sm text-pretty text-gray-600 sm:mt-1.5 sm:text-[15px]">
+              Estamos preparando a próxima agenda. Enquanto isso, relembre os eventos realizados e acompanhe nossas campanhas.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2.5 sm:flex-row md:ml-auto md:shrink-0 md:flex-col lg:flex-row">
+          <Link
+            href="/imprensa/eventos"
+            className="group inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#003f7f] px-6 text-sm font-bold text-white shadow-[0_12px_26px_-14px_rgba(0,63,127,0.8)] transition-[background-color,translate] duration-200 hover:-translate-y-0.5 hover:bg-[#0052a3] active:translate-y-0 motion-reduce:hover:translate-y-0"
+          >
+            Ver eventos realizados
+            <FaArrowRight aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+          </Link>
+          <Link
+            href="/imprensa/campanhas"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-[#003f7f] ring-1 ring-[#003f7f]/15 transition-[background-color,color,box-shadow] duration-200 hover:bg-[#003f7f] hover:text-white hover:ring-[#003f7f]"
+          >
+            <FaBullhorn aria-hidden="true" className="text-xs" />
+            Nossas campanhas
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const EventsCarousel = () => {
-  const [events, setEvents] = React.useState<Event[]>([]);
+  const [events, setEvents] = React.useState<EventItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [selectedEvent, setSelectedEvent] = React.useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = React.useState<EventItem | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const sectionRef = React.useRef<HTMLElement>(null);
+
+  // Cabeçalho e cartões entram ao rolar; reprocessa quando os eventos chegam
+  useReveal(sectionRef, [isLoading, events.length]);
+  useCardsMotion(sectionRef, [isLoading, events.length]);
 
   React.useEffect(() => {
     const fetchEvents = async () => {
       try {
         const response = await fetch('/api/eventos');
-        if (response.ok) {
-          const data = await response.json();
+        if (!response.ok) return setEvents([]);
+        const data: ApiEvent[] = await response.json();
+        // A coluna status não é mantida no banco: a home mostra só eventos de hoje em diante, do mais próximo ao mais longe
+        const today = todayISO();
+        const upcoming = data
+          .filter((item) => isTodayOrFuture(item.date, today) && parseDateOnly(item.date))
+          .sort((a, b) => `${a.date}${a.time ?? ''}`.localeCompare(`${b.date}${b.time ?? ''}`));
 
-          const gradients = [
-            'from-[#003f7f] to-[#0066cc]', // Blue
-            'from-[#00a859] to-[#00d674]', // Green
-            'from-[#e6b800] to-[#ffd000]', // Yellow
-            'from-[#cc0000] to-[#ff3333]', // Red
-            'from-[#4b0082] to-[#8a2be2]', // Purple
-          ];
-
-          const mappedEvents = data.map((item: any, index: number) => {
-            const dateObj = new Date(item.date);
-            const day = dateObj.getDate().toString().padStart(2, '0');
-            const monthShort = dateObj.toLocaleString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase();
-            const year = dateObj.getFullYear().toString();
-            const fullDate = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
+        setEvents(
+          upcoming.map((item, index) => {
+            const date = parseDateOnly(item.date) as Date;
+            const iso = (item.date as string).slice(0, 10);
             return {
               id: item.id,
               title: item.title,
-              description: item.description,
-              date: day, // Display day for the calendar icon
-              time: item.time || '19:00', // Default time if missing
+              description: item.description || '',
+              date: iso,
+              time: item.time?.slice(0, 5) || '',
               location: item.location || 'CDL Ipirá',
               category: item.category || 'Evento',
-              participants: 'Aberto ao público',
-              attendees: item.attendees || 100,
-              image: item.image,
-              gradient: gradients[index % gradients.length],
-              month: monthShort,
-              day: day,
-              year: year,
-              fullDate: fullDate,
-              status: 'upcoming'
+              attendees: item.attendees || undefined,
+              image: item.image || undefined,
+              gradient: GRADIENTS[index % GRADIENTS.length],
+              day: String(date.getDate()).padStart(2, '0'),
+              month: short(date, { month: 'short' }),
+              weekday: short(date, { weekday: 'short' }),
+              isToday: iso === today,
+              registration_enabled: item.registration_enabled !== false,
             };
-          });
-
-          setEvents(mappedEvents);
-        } else {
-          setEvents([]);
-        }
+          }),
+        );
       } catch (error) {
         console.error('Erro ao carregar eventos:', error);
         setEvents([]);
@@ -91,316 +260,73 @@ const EventsCarousel = () => {
     fetchEvents();
   }, []);
 
-  const openModal = (event: Event) => {
-    setSelectedEvent(event);
-    setIsModalOpen(true);
-  };
+  const isEmpty = !isLoading && events.length === 0;
 
-  if (isLoading) {
-    return (
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003f7f]"></div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Renderiza a estrutura mesmo sem eventos
-  if (events.length === 0) {
-    return (
-      <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-visible">
-        {/* Elementos decorativos de fundo */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl"></div>
-
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="text-center mb-12">
-            <div className="inline-block bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-6 py-3 rounded-full text-sm font-black mb-6 shadow-2xl">
-              📅 Próximos Eventos
-            </div>
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] mb-4 bg-clip-text">
-              Eventos em Destaque
-            </h2>
-            <div className="w-32 h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-6"></div>
-          </div>
-
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-lg">Nenhum evento disponível no momento.</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Loop exige slidesPerView * 2 + 1 slides únicos. Max slidesPerView = 3 → mínimo 7.
-  const shouldLoop = events.length >= 7;
+  // A altura da seção muda quando os dados chegam (o estado vazio encolhe; janela baixa não tem altura mínima) depois que
+  // os gatilhos de rolagem das seções de baixo já foram medidos: sem remedir, a entrada da TV/galeria disparava
+  // centenas de px tarde (conteúdo na tela ainda invisível)
+  React.useEffect(() => {
+    if (!isLoading) ScrollTrigger.refresh();
+  }, [isLoading]);
+  // Até 2 eventos os cartões ficam mais largos no desktop (a vista nunca passa do total)
+  const sizes = events.length <= 2 ? '(min-width: 768px) 50vw, 88vw' : '(min-width: 1536px) 25vw, (min-width: 1024px) 33vw, (min-width: 768px) 46vw, (min-width: 640px) 62vw, 88vw';
 
   return (
-    <section className="py-24 bg-linear-to-br from-gray-50 via-white to-gray-100 relative overflow-visible">
-      {/* Elementos decorativos de fundo */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl"></div>
+    <section
+      ref={sectionRef}
+      aria-labelledby="eventos-titulo"
+      aria-busy={isLoading || undefined}
+      // Bloco branco da home (borda reta entre as seções): com eventos ocupa a área útil da tela com o conteúdo
+      // centrado; vazio fica compacto (só o aviso). Janela muito baixa (celular deitado): altura natural.
+      className={`relative flex flex-col justify-center overflow-hidden bg-white py-(--scene-blend) ${isEmpty ? '' : '[@media(min-height:560px)]:min-h-(--screen-fit)'}`}
+    >
+      {/* Brilho discreto: gradiente radial em vez de filter: blur (área grande sob o header de vidro piscava ao rolar) */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(30rem_24rem_at_92%_12%,rgba(255,208,0,0.08),transparent_70%),radial-gradient(26rem_26rem_at_2%_90%,rgba(0,63,127,0.04),transparent_70%)]" />
 
-      <div className="container mx-auto px-4 relative z-10">
-        {/* Header da Seção */}
-        <div className="text-center mb-16">
-          <div className="inline-block bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-6 py-3 rounded-full text-sm font-black mb-6 shadow-2xl">
-            📅 Agenda de Eventos CDL Ipirá
-          </div>
-          <h2 className="text-5xl md:text-6xl font-black text-[#003f7f] mb-4">
-            Próximos Eventos
-          </h2>
-          <div className="w-32 h-2 bg-linear-to-r from-[#ffd000] via-[#00a859] to-[#ffd000] rounded-full mx-auto mb-6"></div>
-          <p className="text-gray-600 text-xl max-w-3xl mx-auto">
-            Participe dos eventos que fortalecem o comércio e a comunidade de Ipirá
-          </p>
-        </div>
-
-        {/* Carrossel de Eventos */}
-        <div className="relative max-w-7xl mx-auto">
-          <div className="px-4 sm:px-8 md:px-12 lg:px-20 relative">
-            <Swiper
-              modules={[Autoplay, Pagination, Navigation]}
-              spaceBetween={24}
-              slidesPerView={1}
-              centeredSlides={true}
-              autoplay={{
-                delay: 5000,
-                disableOnInteraction: false,
+      <div className="relative container mx-auto w-full px-4">
+        <SectionCarousel
+          label="Próximos eventos"
+          itemName="evento"
+          header={
+            <SectionHeading
+              id="eventos-titulo"
+              eyebrow={
+                <>
+                  <FaCalendarAlt aria-hidden="true" />
+                  Agenda CDL Ipirá
+                </>
+              }
+              eyebrowClass="bg-[#ffd000] text-[#003f7f]"
+              title="Eventos em Destaque"
+              text="Participe dos eventos que fortalecem o comércio e a comunidade de Ipirá."
+            />
+          }
+          // Sem eventos futuros o aviso do estado vazio já leva à agenda
+          action={isEmpty ? undefined : { href: '/imprensa/eventos', label: 'Ver agenda' }}
+          prevLabel="Eventos anteriores"
+          nextLabel="Próximos eventos"
+          loading={isLoading}
+          empty={<NoUpcomingEvents />}
+          autoplay={7000}
+          // Com o modal aberto o carrossel não anda (senão o card de origem sai de vista e o foco não volta para ele)
+          paused={isModalOpen}
+        >
+          {events.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              featured={events.length === 1}
+              sizes={sizes}
+              onOpen={(e) => {
+                setSelectedEvent(e);
+                setIsModalOpen(true);
               }}
-              pagination={{
-                clickable: true,
-                dynamicBullets: false,
-              }}
-              navigation={{
-                nextEl: '.events-button-next',
-                prevEl: '.events-button-prev',
-              }}
-              loop={shouldLoop}
-              breakpoints={{
-                768: {
-                  slidesPerView: 2,
-                  spaceBetween: 24,
-                  centeredSlides: true,
-                },
-                1024: {
-                  slidesPerView: 3,
-                  spaceBetween: 30,
-                  centeredSlides: true,
-                },
-              }}
-              className="events-modern-carousel pb-20! !overflow-visible"
-            >
-              {events.map((event) => (
-                <SwiperSlide key={event.id}>
-                  <article
-                    onClick={() => openModal(event)}
-                    className="group bg-white rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl hover:shadow-3xl transition-all duration-500 h-full flex flex-col min-h-[650px] cursor-pointer"
-                  >
-                    {/* Imagem do Evento */}
-                    <div className="relative h-64 sm:h-72 md:h-80 overflow-hidden shrink-0">
-                      <div className={`absolute inset-0 bg-linear-to-br ${event.gradient} opacity-90`}></div>
-                      {event.image && (
-                        <Image
-                          src={event.image}
-                          alt={event.title}
-                          fill
-                          sizes="(min-width: 1024px) 33vw, (min-width: 768px) 45vw, 100vw"
-                          className="object-cover transform group-hover:scale-110 transition-transform duration-700"
-                        />
-                      )}
-
-                      {/* Overlay gradient */}
-                      <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/30 to-transparent"></div>
-
-                      {/* Calendário 3D - estilo correto */}
-                      <div className="absolute top-6 right-6 z-10">
-                        <div className="bg-white rounded-2xl shadow-2xl transform group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500 overflow-hidden">
-                          <div className="bg-[#003f7f] text-white text-center py-3 px-5 rounded-t-2xl font-bold text-sm uppercase">
-                            {event.month}
-                          </div>
-                          <div className="px-5 py-4 text-center bg-white rounded-b-2xl">
-                            <div className="text-5xl font-black text-[#003f7f] leading-none">{event.day}</div>
-                            <div className="text-xs font-semibold text-gray-600 mt-1">{event.year}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Categoria Badge - amarelo com texto azul */}
-                      <div className="absolute top-6 left-6 z-10">
-                        <span className="bg-[#ffd000] text-[#003f7f] px-4 py-2 rounded-full text-xs font-black shadow-lg">
-                          {event.category}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Conteúdo do Card */}
-                    <div className="p-4 sm:p-6 md:p-8 flex flex-col grow min-h-[350px]">
-                      {/* Título */}
-                      <h3 className="text-xl sm:text-2xl md:text-2xl font-black text-gray-900 mb-2 sm:mb-3 group-hover:text-[#003f7f] transition-colors leading-tight line-clamp-2">
-                        {event.title}
-                      </h3>
-
-                      {/* Data Completa */}
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-[#00a859]" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                        </svg>
-                        <span className="font-semibold">{event.fullDate}</span>
-                      </div>
-
-                      {/* Descrição */}
-                      <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 leading-relaxed line-clamp-3 grow">
-                        {event.description}
-                      </p>
-
-                      {/* Informações Extras */}
-                      <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 border-t border-gray-100 pt-4 sm:pt-6">
-                        <div className="flex items-start gap-2 sm:gap-3">
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-linear-to-br from-[#003f7f] to-[#0066cc] rounded-full flex items-center justify-center shrink-0">
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs text-gray-500 font-semibold mb-1">LOCAL</div>
-                            <div className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2">{event.location}</div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2 sm:gap-3">
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-linear-to-br from-[#00a859] to-[#00d670] rounded-full flex items-center justify-center shrink-0">
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs text-gray-500 font-semibold mb-1">PÚBLICO</div>
-                            <div className="text-xs sm:text-sm font-bold text-gray-800">{event.participants}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Botão igual ao Hero */}
-                      <button className="group/btn relative bg-white border-2 border-[#003f7f] text-[#003f7f] px-4 sm:px-6 md:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base overflow-hidden shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-2xl w-full mt-auto">
-                        <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3">
-                          Saiba Mais
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 transform group-hover/btn:translate-x-2 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </span>
-                        <div className="absolute inset-0 bg-linear-to-r from-[#003f7f] to-[#0066cc] transform scale-x-0 group-hover/btn:scale-x-100 transition-transform origin-left"></div>
-                      </button>
-                    </div>
-
-                    {/* Barra colorida inferior animada */}
-                    <div className={`h-2 bg-linear-to-r ${event.gradient} animate-shine`} style={{ backgroundSize: '200% 100%' }}></div>
-                  </article>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-          </div>
-
-          {/* Navegação customizada com cor azul */}
-          <div className="events-button-prev absolute left-2 sm:left-4 md:left-6 lg:left-8 top-1/2 -translate-y-1/2 z-20 cursor-pointer group">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-[#003f7f]/30 backdrop-blur-xl rounded-full flex items-center justify-center hover:bg-[#003f7f]/50 transition-all duration-300 shadow-2xl group-hover:scale-110">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 text-[#003f7f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" />
-              </svg>
-            </div>
-          </div>
-
-          <div className="events-button-next absolute right-2 sm:right-4 md:right-6 lg:right-8 top-1/2 -translate-y-1/2 z-20 cursor-pointer group">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-[#003f7f]/30 backdrop-blur-xl rounded-full flex items-center justify-center hover:bg-[#003f7f]/50 transition-all duration-300 shadow-2xl group-hover:scale-110">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 text-[#003f7f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Botão Ver Todos */}
-        <div className="text-center mt-12 sm:mt-16">
-          <Link
-            href="/imprensa/eventos"
-            className="group relative inline-flex bg-[#003f7f] text-white px-8 sm:px-10 md:px-12 py-4 sm:py-5 rounded-full font-black text-base sm:text-lg overflow-hidden shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-3xl"
-          >
-            <span className="relative z-10 flex items-center justify-center gap-3 sm:gap-4">
-              Ver Calendário Completo
-              <svg className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transform group-hover:rotate-12 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-              </svg>
-            </span>
-            <div className="absolute inset-0 bg-linear-to-r from-[#ffd000] to-[#ffed4e] transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-          </Link>
-        </div>
+            />
+          ))}
+        </SectionCarousel>
       </div>
 
-      <EventModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        event={selectedEvent}
-      />
-
-      <style jsx global>{`
-        .events-modern-carousel {
-          position: relative;
-          overflow: visible !important;
-          padding-bottom: 60px !important;
-        }
-        .events-modern-carousel .swiper-wrapper {
-          overflow: visible !important;
-        }
-        .events-modern-carousel .swiper-pagination {
-          position: absolute;
-          bottom: 0 !important;
-          left: 50% !important;
-          transform: translateX(-50%) !important;
-          width: auto !important;
-          display: flex;
-          gap: 8px;
-          justify-content: center;
-          align-items: center;
-          z-index: 10;
-        }
-        .events-modern-carousel .swiper-pagination-bullet {
-          width: 14px;
-          height: 14px;
-          background: #003f7f;
-          opacity: 0.3;
-          transition: all 0.3s ease;
-          margin: 0 !important;
-        }
-        .events-modern-carousel .swiper-pagination-bullet-active {
-          width: 50px;
-          border-radius: 7px;
-          opacity: 1;
-          background: linear-gradient(135deg, #003f7f 0%, #0066cc 100%);
-          box-shadow: 0 4px 20px rgba(0, 63, 127, 0.5);
-        }
-        
-        /* Remover setas padrão do Swiper */
-        .events-modern-carousel .swiper-button-next,
-        .events-modern-carousel .swiper-button-prev {
-          display: none !important;
-        }
-        
-        /* Card central destacado */
-        .events-modern-carousel .swiper-slide {
-          transition: transform 0.3s ease;
-        }
-        .events-modern-carousel .swiper-slide-active {
-          transform: scale(1.05);
-        }
-        
-        /* Botão com efeito de preenchimento */
-        .group\/btn:hover span {
-          color: white;
-        }
-      `}</style>
+      <EventModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} event={selectedEvent} />
     </section>
   );
 };

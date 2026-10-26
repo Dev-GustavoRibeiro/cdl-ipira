@@ -4,7 +4,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from './supabase-admin';
 
 // ==================== RATE LIMITING ====================
 
@@ -17,15 +16,6 @@ interface RateLimitEntry {
 // Store de rate limiting em memória (em produção, use Redis)
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
-/**
- * Quando `E2E_RELAX_RATE_LIMIT=true`, desliga rate limiting HTTP (proxy) para
- * ferramentas como TestSprite e suites CRUD sem 429 em sequência.
- * NUNCA ativar em produção.
- */
-export function isE2ERateLimitBypassEnabled(): boolean {
-  return process.env.E2E_RELAX_RATE_LIMIT === 'true';
-}
-
 // Configurações de rate limiting por tipo de endpoint
 export const RATE_LIMIT_CONFIG = {
   // Endpoints públicos (mais permissivos)
@@ -34,11 +24,12 @@ export const RATE_LIMIT_CONFIG = {
     maxRequests: 100,    // 100 requests por minuto
     blockDurationMs: 5 * 60 * 1000, // 5 minutos de bloqueio
   },
-  // Endpoints de autenticação (mais restritivos)
+  // Login: aqui só um freio contra rajadas (conta TODAS as requisições, inclusive logins certos). O bloqueio
+  // por senha errada fica na rota /api/admin/auth (5 falhas por IP → 15 min), além do limite do próprio Supabase.
   auth: {
     windowMs: 15 * 60 * 1000, // 15 minutos
-    maxRequests: 5,           // 5 tentativas por 15 minutos
-    blockDurationMs: 30 * 60 * 1000, // 30 minutos de bloqueio
+    maxRequests: 20,          // 20 requisições por 15 minutos
+    blockDurationMs: 15 * 60 * 1000, // 15 minutos de bloqueio
   },
   // Endpoints de upload (moderado)
   upload: {
@@ -57,18 +48,17 @@ export const RATE_LIMIT_CONFIG = {
 type RateLimitType = keyof typeof RATE_LIMIT_CONFIG;
 
 /**
- * Obtém o IP do cliente da requisição
+ * Obtém o IP do cliente da requisição.
+ * Na Vercel estes cabeçalhos são reescritos pela plataforma, então o cliente não consegue forjá-los
+ * (cf-connecting-ip não é usado: sem Cloudflare na frente ele chega direto do cliente).
  */
-export function getClientIP(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const realIP = request.headers.get('x-real-ip');
-  const cfIP = request.headers.get('cf-connecting-ip'); // Cloudflare
-  
-  if (cfIP) return cfIP;
-  if (forwarded) return forwarded.split(',')[0].trim();
-  if (realIP) return realIP;
-  
-  return 'unknown';
+export function getClientIP(request: Pick<Request, 'headers'>): string {
+  const ip =
+    request.headers.get('x-vercel-forwarded-for') ||
+    request.headers.get('x-real-ip') ||
+    request.headers.get('x-forwarded-for');
+
+  return ip?.split(',')[0].trim() || 'unknown';
 }
 
 /**
@@ -79,10 +69,6 @@ export function checkRateLimit(
   request: NextRequest,
   type: RateLimitType = 'public'
 ): NextResponse | null {
-  if (isE2ERateLimitBypassEnabled()) {
-    return null;
-  }
-
   const ip = getClientIP(request);
   const config = RATE_LIMIT_CONFIG[type];
   const key = `${type}:${ip}`;
@@ -169,23 +155,19 @@ function cleanupRateLimitStore(): void {
 // ==================== VALIDAÇÃO DE INPUT ====================
 
 /**
- * Sanitiza string removendo caracteres perigosos
+ * Limpa texto puro: remove tags HTML e caracteres de controle (mantém quebras de linha e tab).
+ * Não escapa entidades: o React já escapa ao renderizar, e escapar aqui gravava "&amp;" no banco
+ * (e "&amp;amp;" a cada nova edição).
  */
 export function sanitizeString(input: string): string {
   if (typeof input !== 'string') return '';
-  
+
   return input
-    .trim()
     // Remove tags HTML
     .replace(/<[^>]*>/g, '')
-    // Remove caracteres de controle
-    .replace(/[\x00-\x1F\x7F]/g, '')
-    // Escapa caracteres especiais para prevenir XSS
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
+    // Remove caracteres de controle, exceto \t, \n e \r
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .trim();
 }
 
 /**
@@ -202,7 +184,10 @@ export function isValidEmail(email: string): boolean {
 export function isValidUrl(url: string): boolean {
   // Aceitar strings vazias
   if (!url || url.trim() === '') return true;
-  
+
+  // "//host" e "/\\host" parecem relativas, mas o navegador abre outro site; caracteres de controle também são recusados
+  if (/^\/[\/\\]/.test(url) || /[\x00-\x1F\x7F]/.test(url)) return false;
+
   // Aceitar URLs relativas (começam com /)
   if (url.startsWith('/')) return true;
   
@@ -213,6 +198,13 @@ export function isValidUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Link seguro para gravar e usar em href/src: URL http(s) ou caminho relativo do próprio site
+ */
+export function isSafeLink(value: unknown, maxLength: number = 500): value is string {
+  return typeof value === 'string' && value.length <= maxLength && isValidUrl(value);
 }
 
 /**
@@ -315,17 +307,10 @@ const ALLOWED_IMAGE_TYPES = [
   'image/gif',
 ] as const;
 
-const ALLOWED_DOCUMENT_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-] as const;
-
 // Magic bytes para validar tipos de arquivo
 const FILE_SIGNATURES: Record<string, number[][]> = {
   'image/jpeg': [[0xFF, 0xD8, 0xFF]],
+  'image/jpg': [[0xFF, 0xD8, 0xFF]],
   'image/png': [[0x89, 0x50, 0x4E, 0x47]],
   'image/gif': [[0x47, 0x49, 0x46, 0x38]],
   'image/webp': [[0x52, 0x49, 0x46, 0x46]],
@@ -337,8 +322,8 @@ const FILE_SIGNATURES: Record<string, number[][]> = {
 };
 
 const MIME_ALLOWED_EXTENSIONS: Record<string, string[]> = {
-  'image/jpeg': ['jpg', 'jpeg'],
-  'image/jpg': ['jpg', 'jpeg'],
+  'image/jpeg': ['jpg', 'jpeg', 'jpe', 'jfif'],
+  'image/jpg': ['jpg', 'jpeg', 'jpe', 'jfif'],
   'image/png': ['png'],
   'image/webp': ['webp'],
   'image/gif': ['gif'],
@@ -387,12 +372,16 @@ export async function validateFile(
     return { valid: false, error: 'Extensão de arquivo não permitida' };
   }
 
-  // Verificar magic bytes (assinatura do arquivo)
-  if (validateMagicBytes && FILE_SIGNATURES[file.type]) {
+  // Verificar magic bytes (assinatura do arquivo). Tipo sem assinatura conhecida é recusado: antes a checagem
+  // era pulada e um HTML enviado como 'image/jpg' entrava no storage público
+  if (validateMagicBytes) {
+    const signatures = FILE_SIGNATURES[file.type];
+    if (!signatures) {
+      return { valid: false, error: `Tipo de arquivo não permitido: ${file.type}` };
+    }
     const buffer = await file.slice(0, 8).arrayBuffer();
     const bytes = new Uint8Array(buffer);
-    const signatures = FILE_SIGNATURES[file.type];
-    
+
     const isValidSignature = signatures.some(sig => 
       sig.every((byte, index) => bytes[index] === byte)
     );
@@ -403,7 +392,7 @@ export async function validateFile(
   }
 
   // Verificar nome do arquivo
-  const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-_]/g, '_');
+  const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   if (sanitizedName.includes('..') || sanitizedName.startsWith('.')) {
     return { valid: false, error: 'Nome de arquivo inválido' };
   }
@@ -412,6 +401,15 @@ export async function validateFile(
 }
 
 // ==================== PROTEÇÃO CSRF ====================
+
+// Double-submit: o cookie é legível pelo JS do painel, que o reenvia no header x-csrf-token
+export const CSRF_COOKIE = 'csrf_token';
+export const CSRF_COOKIE_OPTIONS = {
+  path: '/',
+  httpOnly: false,
+  sameSite: 'strict' as const,
+  secure: process.env.NODE_ENV === 'production',
+};
 
 /**
  * Gera um token CSRF
@@ -426,7 +424,7 @@ export function generateCSRFToken(): string {
  * Verifica se o token CSRF é válido
  */
 export async function verifyCSRFToken(request: NextRequest): Promise<boolean> {
-  const cookieToken = request.cookies.get('csrf_token')?.value;
+  const cookieToken = request.cookies.get(CSRF_COOKIE)?.value;
   const headerToken = request.headers.get('x-csrf-token');
   
   if (!cookieToken || !headerToken) return false;
@@ -440,65 +438,6 @@ export async function verifyCSRFToken(request: NextRequest): Promise<boolean> {
   }
   
   return result === 0;
-}
-
-// ==================== VALIDAÇÃO DE SESSÃO ====================
-
-// Tamanho esperado do token de sessão (32 bytes = 64 caracteres hex)
-export const SESSION_TOKEN_LENGTH = 64;
-
-/**
- * Valida a sessão do administrador contra a tabela admin_sessions.
- * 
- * Aceita apenas tokens de sessão válidos (64 caracteres hexadecimais).
- * Não aceita mais IDs numéricos (modo legacy removido).
- */
-export async function validateAdminSession(request: NextRequest): Promise<{
-  valid: boolean;
-  userId?: string;
-  adminId?: number;
-  error?: string;
-}> {
-  // Ler token do cookie da requisição (funciona no middleware)
-  const sessionCookie = request.cookies.get('admin_session');
-  
-  if (!sessionCookie?.value) {
-    return { valid: false, error: 'Sessão não encontrada' };
-  }
-  
-  const token = sessionCookie.value;
-  
-  // Validar formato: deve ser exatamente 64 caracteres hexadecimais
-  if (token.length !== SESSION_TOKEN_LENGTH || !/^[a-f0-9]+$/.test(token)) {
-    return { valid: false, error: 'Formato de sessão inválido' };
-  }
-  
-  // Validar token contra o banco
-  try {
-    const now = new Date().toISOString();
-    
-    // Buscar sessão no banco, verificando se não está expirada
-    const { data, error } = await supabaseAdmin
-      .from('admin_sessions')
-      .select('admin_id, expires_at')
-      .eq('token', token)
-      .gt('expires_at', now)
-      .single();
-    
-    if (error || !data) {
-      // Sessão não encontrada ou expirada
-      return { valid: false, error: 'Sessão expirada ou inválida' };
-    }
-    
-    return { 
-      valid: true, 
-      userId: String(data.admin_id),
-      adminId: data.admin_id
-    };
-  } catch (err) {
-    console.error('[Security] Erro ao validar sessão:', err);
-    return { valid: false, error: 'Erro ao validar sessão' };
-  }
 }
 
 // ==================== HEADERS DE SEGURANÇA ====================
@@ -565,73 +504,3 @@ export function logSecurityEvent(event: Omit<SecurityEvent, 'timestamp'>): void 
 export function getSecurityLogs(limit: number = 100): SecurityEvent[] {
   return securityLogs.slice(-limit);
 }
-
-// ==================== DETECÇÃO DE ATAQUES ====================
-
-// Padrões suspeitos em inputs
-const SUSPICIOUS_PATTERNS = [
-  // SQL Injection
-  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|EXEC)\b)/i,
-  /(\b(OR|AND)\s+\d+\s*=\s*\d+)/i,
-  // Removido # pois é usado em cores hexadecimais (#003f7f), mantido -- e comentários /* */
-  /(--|\/\*|\*\/)/,
-  
-  // XSS
-  /<script\b[^>]*>/i,
-  /javascript:/i,
-  /on\w+\s*=/i,
-  
-  // Path Traversal
-  /\.\.\//,
-  /\.\.%2f/i,
-  
-  // Command Injection (removido & pois é comum em URLs)
-  /[|`$]/,
-];
-
-/**
- * Verifica se um input contém padrões suspeitos
- */
-export function detectSuspiciousInput(input: string): boolean {
-  if (typeof input !== 'string') return false;
-  
-  return SUSPICIOUS_PATTERNS.some(pattern => pattern.test(input));
-}
-
-/**
- * Verifica todos os campos de um objeto em busca de inputs suspeitos
- */
-export function scanForThreats(
-  data: Record<string, unknown>,
-  request: NextRequest
-): { safe: boolean; threats: string[] } {
-  const threats: string[] = [];
-  
-  function scan(obj: unknown, path: string = ''): void {
-    if (typeof obj === 'string') {
-      if (detectSuspiciousInput(obj)) {
-        threats.push(`Padrão suspeito em ${path || 'root'}`);
-      }
-    } else if (Array.isArray(obj)) {
-      obj.forEach((item, index) => scan(item, `${path}[${index}]`));
-    } else if (obj && typeof obj === 'object') {
-      Object.entries(obj).forEach(([key, value]) => {
-        scan(value, path ? `${path}.${key}` : key);
-      });
-    }
-  }
-  
-  scan(data);
-  
-  if (threats.length > 0) {
-    logSecurityEvent({
-      type: 'suspicious_activity',
-      ip: getClientIP(request),
-      path: request.nextUrl.pathname,
-      details: { threats },
-    });
-  }
-  
-  return { safe: threats.length === 0, threats };
-}
-

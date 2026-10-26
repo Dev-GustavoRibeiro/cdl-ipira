@@ -1,27 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-
-export interface AuditLogEntry {
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT';
-  table_name: string;
-  record_id?: string;
-  record_title?: string;
-  user_id?: string;
-  user_name?: string;
-  details?: Record<string, unknown>;
-  ip_address?: string;
-}
-
-export async function POST(request: NextRequest) {
-  void request;
-  return NextResponse.json(
-    { error: 'Criação direta de auditoria desabilitada. Use o backend server-side.' },
-    { status: 405 }
-  );
-}
+import { getAdminUser } from '@/lib/supabase-server';
 
 // GET - Buscar logs de auditoria
 export async function GET(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
@@ -43,7 +29,11 @@ export async function GET(request: NextRequest) {
       query = query.eq('table_name', table_name);
     }
     if (search) {
-      query = query.or(`record_title.ilike.%${search}%,user_name.ilike.%${search}%`);
+      // Remove caracteres de sintaxe do filtro PostgREST (vírgula, parênteses, aspas, curingas)
+      const term = search.replace(/[,()"'%*\\]/g, ' ').trim().slice(0, 100);
+      if (term) {
+        query = query.or(`record_title.ilike.%${term}%,user_name.ilike.%${term}%`);
+      }
     }
 
     // Paginação
@@ -55,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao buscar logs de auditoria:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao buscar os registros de auditoria' }, { status: 500 });
     }
 
     return NextResponse.json({

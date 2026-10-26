@@ -1,2 +1,1 @@
-export { GET, POST } from '../audit/route';
-
+export { GET } from '../audit/route';

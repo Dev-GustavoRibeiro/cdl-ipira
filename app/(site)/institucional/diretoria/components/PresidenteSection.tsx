@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { FaUser } from 'react-icons/fa';
+import { FaCrown, FaStar, FaUser } from 'react-icons/fa';
+import { isOptimizableImage } from '@/lib/images';
 import { TeamMember } from './types';
 
 interface PresidenteSectionProps {
@@ -11,127 +12,71 @@ interface PresidenteSectionProps {
 
 const PresidenteSection = ({ presidente }: PresidenteSectionProps) => {
   return (
-    <section className="py-12 sm:py-16 md:py-20 bg-white">
+    <section className="bg-white py-16 sm:py-20 lg:py-24">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Card Principal com efeito premium */}
-          <div className="relative">
-            {/* Glow dourado intenso */}
-            <div className="absolute -inset-2 bg-[#ffd000]/30 rounded-[2rem] blur-2xl"></div>
+        <article className="relative isolate mx-auto max-w-6xl overflow-hidden rounded-[2rem] bg-linear-to-br from-[#001a3d] via-[#003f7f] to-[#0052a3] p-5 shadow-[0_30px_70px_-30px_rgba(0,26,61,0.8)] sm:p-8 lg:p-10">
+          <div aria-hidden="true" className="absolute -top-28 -right-20 -z-10 h-80 w-80 rounded-full bg-[#ffd000]/15 blur-3xl" />
+          <div aria-hidden="true" className="absolute -bottom-32 -left-24 -z-10 h-80 w-80 rounded-full bg-[#0066cc]/40 blur-3xl" />
 
-            <div className="relative bg-linear-to-br from-[#002855] via-[#003f7f] to-[#002855] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-[#ffd000]/40 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)]">
-              {/* Barra dourada superior mais grossa */}
-              <div className="h-3 bg-linear-to-r from-[#ffd000] via-[#ffdd33] to-[#ffd000]"></div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2">
-                {/* Foto do Presidente */}
-                <div className="relative h-[450px] sm:h-[550px] lg:h-auto lg:min-h-[600px]">
-                  <div className="absolute inset-0 bg-[#002855]">
-                    {presidente.photo_url ? (
-                      <Image
-                        src={presidente.photo_url}
-                        alt={presidente.name}
-                        fill
-                        className="object-cover object-top"
-                        priority
-                        sizes="(max-width: 1024px) 100vw, 50vw"
-                        quality={100}
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full bg-linear-to-br from-[#002855] to-[#003f7f]">
-                        <FaUser className="w-40 h-40 text-white/20" />
-                      </div>
-                    )}
-                  </div>
-                  {/* Gradientes premium */}
-                  <div className="absolute inset-0 bg-linear-to-t from-[#001a33] via-transparent to-transparent"></div>
-                  <div className="absolute inset-0 bg-linear-to-r from-transparent to-[#002855]/60 lg:block hidden"></div>
-
-                  {/* Badge Presidente Premium com glow maior */}
-                  <div className="absolute top-6 left-6 z-10">
-                    <div className="relative">
-                      <div className="absolute -inset-2 bg-[#ffd000] rounded-full blur-lg opacity-70"></div>
-                      <div className="relative bg-linear-to-r from-[#ffd000] to-[#ffdd33] text-[#002855] px-7 py-3.5 rounded-full font-black text-base sm:text-lg shadow-2xl flex items-center gap-2.5 border-2 border-[#ffdd33]/50">
-                        <span className="text-2xl">👑</span>
-                        PRESIDENTE
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Decoração canto inferior esquerdo */}
-                  <div className="absolute bottom-6 left-6">
-                    <div className="w-20 h-1.5 bg-[#ffd000]/60 rounded-full mb-2"></div>
-                    <div className="w-14 h-1.5 bg-[#ffd000]/40 rounded-full mb-2"></div>
-                    <div className="w-8 h-1.5 bg-[#ffd000]/20 rounded-full"></div>
-                  </div>
-
-                  {/* Decoração canto superior direito */}
-                  <div className="absolute top-6 right-6 hidden lg:block">
-                    <div className="w-1.5 h-12 bg-[#ffd000]/40 rounded-full"></div>
-                  </div>
-                </div>
-
-                {/* Informações */}
-                <div className="p-8 sm:p-10 lg:p-14 xl:p-16 flex flex-col justify-center text-white relative">
-                  {/* Coroa decorativa de fundo */}
-                  <div className="absolute top-6 right-6 text-[120px] opacity-5 leading-none select-none pointer-events-none">
-                    👑
-                  </div>
-
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-14 h-1 bg-[#ffd000] rounded-full"></div>
-                    <span className="text-[#ffd000] text-sm font-black uppercase tracking-widest">
-                      Liderança CDL Ipirá
-                    </span>
-                    <div className="w-14 h-1 bg-[#ffd000] rounded-full"></div>
-                  </div>
-
-                  <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-4 leading-tight">
-                    {presidente.name}
-                  </h2>
-
-                  <p className="text-[#ffd000] text-xl sm:text-2xl font-bold mb-8">
-                    {presidente.position}
-                  </p>
-
-                  {presidente.bio && (
-                    <p className="text-white/90 text-base sm:text-lg leading-relaxed mb-8 text-justify">
-                      {presidente.bio}
-                    </p>
-                  )}
-
-                  {presidente.contribution && (
-                    <div className="relative">
-                      <div className="absolute -inset-1 bg-[#ffd000]/15 rounded-2xl blur-md"></div>
-                      <div className="relative bg-[#001a33]/60 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border-2 border-[#ffd000]/30">
-                        <div className="flex items-center gap-4 mb-4">
-                          <div className="w-12 h-12 rounded-full bg-[#ffd000] flex items-center justify-center shadow-lg">
-                            <span className="text-2xl">⭐</span>
-                          </div>
-                          <h3 className="text-[#ffd000] font-black text-base uppercase tracking-wider">
-                            Contribuição
-                          </h3>
-                        </div>
-                        <p className="text-white text-sm sm:text-base leading-relaxed text-justify">
-                          {presidente.contribution}
-                        </p>
-                      </div>
+          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
+            {/* Foto com moldura nas cores da marca */}
+            <div className="relative mx-auto w-full max-w-sm pb-5 lg:max-w-none">
+              <div className="rounded-[1.75rem] bg-linear-to-br from-[#ffd000] via-[#ffed4e] to-[#00a859] p-1.5 shadow-[0_24px_50px_-20px_rgba(0,0,0,0.6)]">
+                <div className="relative aspect-4/5 overflow-hidden rounded-3xl bg-[#001a3d]">
+                  {presidente.photo_url ? (
+                    <Image
+                      src={presidente.photo_url}
+                      alt={`Foto de ${presidente.name}`}
+                      fill
+                      priority
+                      sizes="(max-width: 1024px) 384px, 440px"
+                      quality={100}
+                      unoptimized={!isOptimizableImage(presidente.photo_url)}
+                      className="object-cover object-center"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-linear-to-br from-[#001a3d] to-[#003f7f]">
+                      <FaUser aria-hidden="true" className="h-32 w-32 text-white/20" />
                     </div>
                   )}
                 </div>
               </div>
+              <span className="absolute bottom-0 left-1/2 inline-flex w-max -translate-x-1/2 items-center gap-2 rounded-full bg-[#ffd000] px-5 py-2.5 text-xs font-black tracking-[0.16em] whitespace-nowrap text-[#003f7f] uppercase shadow-[0_14px_30px_-12px_rgba(255,208,0,0.9)] ring-4 ring-[#003f7f] sm:text-sm">
+                <FaCrown aria-hidden="true" className="h-4 w-4" />
+                Presidente
+              </span>
+            </div>
 
-              {/* Barra inferior premium */}
-              <div className="h-3 bg-linear-to-r from-[#ffd000] via-[#00a859] to-[#ffd000]"></div>
+            {/* Informações */}
+            <div className="px-1 pb-2 text-white sm:px-2 lg:py-4 lg:pr-4">
+              <p className="flex items-center gap-3 text-xs font-bold tracking-[0.16em] text-[#ffd000] uppercase sm:text-sm">
+                <span aria-hidden="true" className="h-0.5 w-10 rounded-full bg-[#ffd000]" />
+                Liderança CDL Ipirá
+              </p>
+              <h2 className="mt-4 text-3xl leading-[1.05] font-black tracking-tight text-balance sm:text-5xl lg:text-6xl">{presidente.name}</h2>
+              <p className="mt-3 text-lg font-bold text-[#ffd000] sm:text-xl">{presidente.position}</p>
+
+              {presidente.bio && (
+                <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-pretty text-white/85 sm:text-lg">{presidente.bio}</p>
+              )}
+
+              {presidente.contribution && (
+                <div className="mt-8 rounded-2xl bg-white/[0.07] p-5 ring-1 ring-white/15 backdrop-blur-sm sm:p-7">
+                  <p className="flex items-center gap-3 text-sm font-black tracking-[0.12em] text-[#ffd000] uppercase">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ffd000] text-[#003f7f]">
+                      <FaStar aria-hidden="true" className="h-4 w-4" />
+                    </span>
+                    Contribuição
+                  </p>
+                  <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-pretty text-white/90">{presidente.contribution}</p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        </article>
       </div>
     </section>
   );
 };
 
 export default PresidenteSection;
-
-

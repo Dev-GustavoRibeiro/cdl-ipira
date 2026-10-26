@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isValidEmail, sanitizeString } from '@/lib/security';
+import { getClientIP, isValidEmail, sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { checkFormGuard } from '@/lib/form-guard';
 
 interface ContactPayload {
+  [field: string]: unknown;
   nome?: string;
   email?: string;
   telefone?: string;
@@ -16,76 +18,36 @@ const ALLOWED_SUBJECTS = new Set([
   'certificado',
   'eventos',
   'duvidas',
+  // Pedidos do titular pela LGPD (link "Exercer meus direitos" da política e do rodapé)
+  'privacidade',
   'outros',
 ]);
-
-function getRequestIp(request: NextRequest): string | null {
-  const forwarded = request.headers.get('x-forwarded-for');
-
-  if (forwarded) {
-    return forwarded.split(',')[0]?.trim() || null;
-  }
-
-  return request.headers.get('x-real-ip');
-}
 
 function sanitizePhone(value: string): string {
   return value.trim().replace(/[^\d+\-()\s]/g, '');
 }
 
-async function saveContactFallback(
-  request: NextRequest,
-  payload: {
-    nome: string;
-    email: string;
-    telefone: string;
-    assunto: string;
-    mensagem: string;
-  }
-) {
-  const { data, error } = await supabaseAdmin
-    .from('audit_log')
-    .insert({
-      action: 'CREATE',
-      table_name: 'contact_messages',
-      record_title: payload.nome,
-      user_name: payload.nome,
-      details: {
-        email: payload.email,
-        telefone: payload.telefone,
-        assunto: payload.assunto,
-        mensagem: payload.mensagem,
-        source: 'public_contact_form_fallback',
-      },
-      ip_address: getRequestIp(request),
-    })
-    .select('id')
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data.id;
-}
-
 export async function POST(request: NextRequest) {
-  let nome = '';
-  let email = '';
-  let telefone = '';
-  let assunto = '';
-  let mensagem = '';
-
   try {
     const body = (await request.json()) as ContactPayload;
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ success: false, error: 'Requisição inválida.' }, { status: 400 });
+    }
 
-    nome = sanitizeString(body.nome || '');
-    email = sanitizeString(body.email || '').toLowerCase();
-    telefone = sanitizePhone(body.telefone || '');
-    assunto = sanitizeString(body.assunto || '');
-    mensagem = sanitizeString(body.mensagem || '');
+    // Anti-robô: campo-armadilha preenchido ou envio rápido demais
+    const botError = checkFormGuard(body);
+    if (botError) {
+      return NextResponse.json({ success: false, error: botError }, { status: 400 });
+    }
 
-    if (!nome || !email || !telefone || !assunto || !mensagem) {
+    const nome = sanitizeString(body.nome || '');
+    const email = sanitizeString(body.email || '').toLowerCase();
+    // Opcional: o e-mail já basta para responder (a coluna é NOT NULL, então vazio vira '')
+    const telefone = sanitizePhone(body.telefone || '');
+    const assunto = sanitizeString(body.assunto || '');
+    const mensagem = sanitizeString(body.mensagem || '');
+
+    if (!nome || !email || !assunto || !mensagem) {
       return NextResponse.json(
         { success: false, error: 'Preencha todos os campos obrigatórios.' },
         { status: 400 }
@@ -113,6 +75,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Sem plano B no audit_log: lá a mensagem ficaria visível a toda a equipe e sem como ser excluída
     const { data, error } = await supabaseAdmin
       .from('contact_messages')
       .insert({
@@ -121,39 +84,14 @@ export async function POST(request: NextRequest) {
         telefone,
         assunto,
         mensagem,
-        ip_address: getRequestIp(request),
+        ip_address: getClientIP(request),
         user_agent: request.headers.get('user-agent'),
       })
       .select('id')
       .single();
 
     if (error) {
-      console.error('Erro ao salvar mensagem de contato:', error);
-
-      const isMissingTable =
-        error.code === '42P01' ||
-        error.code === 'PGRST205' ||
-        error.message.toLowerCase().includes('contact_messages');
-
-      if (isMissingTable) {
-        const fallbackId = await saveContactFallback(request, {
-          nome,
-          email,
-          telefone,
-          assunto,
-          mensagem,
-        });
-
-        return NextResponse.json(
-          {
-            success: true,
-            id: fallbackId,
-            message: 'Mensagem enviada com sucesso! Entraremos em contato em breve.',
-          },
-          { status: 201 }
-        );
-      }
-
+      console.error('Erro ao salvar mensagem de contato:', error.code, error.message);
       return NextResponse.json(
         { success: false, error: 'Não foi possível enviar sua mensagem no momento.' },
         { status: 500 }
@@ -169,36 +107,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    const isMissingTable =
-      message.includes('contact_messages') ||
-      message.toLowerCase().includes('schema cache');
-
-    if (isMissingTable) {
-      try {
-        const fallbackId = await saveContactFallback(request, {
-          nome,
-          email,
-          telefone,
-          assunto,
-          mensagem,
-        });
-
-        return NextResponse.json(
-          {
-            success: true,
-            id: fallbackId,
-            message: 'Mensagem enviada com sucesso! Entraremos em contato em breve.',
-          },
-          { status: 201 }
-        );
-      } catch (fallbackError) {
-        console.error('Erro no fallback de contato via auditoria:', fallbackError);
-      }
-    }
-
-    console.error('Erro na API de contato:', error);
-
+    console.error('Erro na API de contato:', error instanceof Error ? error.message : error);
     return NextResponse.json(
       { success: false, error: 'Não foi possível processar sua mensagem.' },
       { status: 500 }

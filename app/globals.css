@@ -24,8 +24,160 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Foco do teclado nunca embaixo das barras fixas (WCAG 2.4.11): ao rolar até o item focado, o navegador desconta o
+   header (--header-height, publicado pelo Header), a barra de filtros sticky colada nele (--sticky-bar, publicada pelo
+   useStickyBar) e a barra inferior do celular. Só no foco, e não como scroll-padding no <html>: as âncoras das páginas
+   já descontam o header no próprio scroll-mt e ficariam com a folga em dobro. */
+:focus {
+  scroll-margin-top: calc(var(--header-height, 0px) + var(--sticky-bar, 0px) + 0.5rem);
+  scroll-margin-bottom: calc(var(--bottom-nav) + 0.5rem);
+}
+
 body {
   overflow-x: hidden;
+  /* Fundo explícito: sem ele, seções transparentes herdam o fundo escuro do navegador */
+  background-color: #ffffff;
+  color: #111827;
+  /* viewport-fit=cover (layout.tsx): com o celular deitado, o conteúdo não passa por baixo do notch nas laterais */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Títulos sem palavra solitária na última linha; parágrafos sem órfãs (não muda tamanhos nem cores) */
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+/* Grade de cartões: 1 a 3 colunas conforme a largura e centralizada quando há poucos itens
+   (2 notícias não deixam uma coluna vazia à direita). Use com gap-5 sm:gap-6 md:gap-8. */
+@utility cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.75rem), 24rem));
+  justify-content: center;
+
+  /* Tablet (768–1023px): com o teto de 24rem só cabia 1 coluna; 21rem garante 2 lado a lado */
+  @media (width >= 48rem) and (width < 64rem) {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.75rem), 21rem));
+  }
+}
+
+/* Celular deitado (pouca altura): heros e painéis altos encolhem para o conteúdo caber na tela */
+@custom-variant short-landscape (@media (orientation: landscape) and (max-height: 520px));
+
+/* Layout desktop do header (menu, busca e barra de contatos no lugar da barra inferior): no lugar de lg: em tudo que
+   troca entre os dois. Media query usa o tamanho de fonte inicial, não o do painel de acessibilidade: com o texto
+   ampliado o menu passava da tela. Por isso cada nível só liga o desktop onde o header cabe (medido pelo item mais à
+   direita: 115% pede 1090px, 130% 1330px e 150% 1730px, por causa da busca larga do 2xl). Abaixo disso, layout do
+   celular. :where() serve também ao próprio <html> (--bottom-nav) sem somar especificidade. */
+@custom-variant desk {
+  @media (width >= 64rem) {
+    &:where(html:not(.a11y-text), html:not(.a11y-text) *) {
+      @slot;
+    }
+  }
+
+  @media (width >= 69rem) {
+    &:where([data-a11y-text='115'], [data-a11y-text='115'] *) {
+      @slot;
+    }
+  }
+
+  @media (width >= 84rem) {
+    &:where([data-a11y-text='130'], [data-a11y-text='130'] *) {
+      @slot;
+    }
+  }
+
+  @media (width >= 110rem) {
+    &:where([data-a11y-text='150'], [data-a11y-text='150'] *) {
+      @slot;
+    }
+  }
+}
+
+/* O contrário de desk: layout do celular, com barra inferior (inclusive em tela larga com texto ampliado). Mesmos
+   limites; mudou um, mude o outro. */
+@custom-variant mob {
+  @media (width < 64rem) {
+    @slot;
+  }
+
+  @media (width < 69rem) {
+    &:where([data-a11y-text='115'], [data-a11y-text='115'] *) {
+      @slot;
+    }
+  }
+
+  @media (width < 84rem) {
+    &:where([data-a11y-text='130'], [data-a11y-text='130'] *) {
+      @slot;
+    }
+  }
+
+  @media (width < 110rem) {
+    &:where([data-a11y-text='150'], [data-a11y-text='150'] *) {
+      @slot;
+    }
+  }
+}
+
+/* "Pausar animações" do painel (classe a11y-motion no <html>) vale como a preferência do sistema também nas variantes
+   do Tailwind: motion-reduce:* liga e motion-safe:* desliga (letreiro de associados vira lista rolável, Ken Burns para) */
+@custom-variant motion-reduce {
+  @media (prefers-reduced-motion: reduce) {
+    @slot;
+  }
+
+  &:where(.a11y-motion, .a11y-motion *) {
+    @slot;
+  }
+}
+
+@custom-variant motion-safe {
+  @media (prefers-reduced-motion: no-preference) {
+    &:not(:where(.a11y-motion, .a11y-motion *)) {
+      @slot;
+    }
+  }
+}
+
+/* Amplia a área de toque para no mínimo 44×44px sem mudar o layout (links de texto, botões pequenos).
+   O pseudo-elemento recebe o clique do próprio elemento. Não use em itens com position absolute/fixed. */
+@utility touch-target {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    translate: -50% -50%;
+  }
+}
+
+/* Breadcrumbs: links baixos (texto pequeno) ganham área de toque de 44px sem aumentar a barra */
+nav[aria-label='Breadcrumb'] a {
+  position: relative;
+}
+
+nav[aria-label='Breadcrumb'] a::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: 44px;
+  translate: -50% -50%;
 }
 
 /* Otimização de Performance Global */
@@ -36,9 +188,7 @@ video {
   shape-rendering: geometricPrecision;
 }
 
-/* Hardware Acceleration para Transições Comuns */
-a,
-button,
+/* Hardware Acceleration só para elementos que animam (não em todo link/botão) */
 .transition-all,
 .transition-transform {
   will-change: transform, opacity;
@@ -79,33 +229,7 @@ button,
   align-items: center;
 }
 
-/* Animações suaves */
-.swiper-slide {
-  opacity: 0.6;
-  transition: opacity 0.3s;
-}
-
-.swiper-slide-active {
-  opacity: 1;
-}
-
 /* Line clamp utilities */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 /* Animações inspiradas no Magic UI */
 @keyframes border-beam {
   0% {
@@ -154,11 +278,12 @@ button,
 }
 
 .animate-blur-fade-in {
-  animation: blur-fade-in 0.6s ease-out;
+  animation: blur-fade-in 0.6s ease-out backwards;
 }
 
+/* backwards: com animation-delay o item fica oculto até entrar (sem piscar antes) e o transform do hover segue livre depois */
 .animate-scale-in {
-  animation: scale-in 0.4s ease-out;
+  animation: scale-in 0.4s ease-out backwards;
 }
 
 @keyframes slide-down {
@@ -202,8 +327,11 @@ button,
   z-index: 1;
 }
 
-.magic-card:hover::before {
-  opacity: 1;
+/* Só em telas com mouse: no toque o hover "gruda" depois do toque */
+@media (hover: hover) {
+  .magic-card:hover::before {
+    opacity: 1;
+  }
 }
 
 .magic-card>* {
@@ -247,6 +375,15 @@ button,
   background: #0066cc;
 }
 
+/* Esconde a barra de rolagem (listas horizontais roláveis por toque) */
+.scrollbar-hide {
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Estilos para conteúdo de notícias (prose) */
 .prose {
   color: #374151;
@@ -273,7 +410,15 @@ button,
 .prose p {
   margin-bottom: 1.25rem;
   line-height: 1.8;
-  text-align: justify;
+}
+
+/* Justificado só a partir de telas médias: no celular gera espaços grandes entre palavras */
+@media (min-width: 640px) {
+  .prose p {
+    text-align: justify;
+    /* Hifenização (lang="pt-BR") evita os "rios" de espaço do texto justificado */
+    hyphens: auto;
+  }
 }
 
 .prose ul,
@@ -314,8 +459,10 @@ button,
   transition: color 0.2s;
 }
 
-.prose a:hover {
-  color: #003f7f;
+@media (hover: hover) {
+  .prose a:hover {
+    color: #003f7f;
+  }
 }
 
 @media (max-width: 640px) {
@@ -329,256 +476,173 @@ button,
 }
 
 /* ========================================
-   ESTILOS DE ACESSIBILIDADE COMPLETOS
+   ACESSIBILIDADE (AccessibilityWidget)
+   Classes a11y-* no <html>, postas antes da primeira pintura pelo script do ConditionalLayout e depois pelo painel.
+   O tamanho do texto é o font-size do <html> (o Tailwind usa rem: o site inteiro acompanha).
    ======================================== */
 
-/* Variáveis para acessibilidade */
-:root {
-  --line-height-multiplier: 1;
-  --letter-spacing: 0px;
-  --word-spacing: 0px;
-  --saturation: 100%;
-  --page-zoom: 1;
+/* Texto ampliado ou espaçado: palavra longa quebra em vez de alargar cartões e a página (celular de 360px a 150%).
+   Títulos, rótulos e cartões hifenizam pelas sílabas (lang pt-BR do <html>). O texto corrido não: lá as palavras cabem
+   na linha, e hífen em quase toda linha atrapalha a leitura (dislexia, baixa visão), como no texto dos modais.
+   Partir em qualquer letra, sem hífen, fica só para o que nem assim cabe. */
+html:is(.a11y-text, .a11y-spacing) body {
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
-/* Aplicar espaçamento de linha */
-body p,
-body li,
-body span,
-body div {
-  line-height: calc(1.5 * var(--line-height-multiplier));
+html:is(.a11y-text, .a11y-spacing) body :is(p:not(.flex, .inline-flex), blockquote, td) {
+  hyphens: manual;
 }
 
-/* Espaçamento de letras personalizado */
-html.custom-letter-spacing body * {
-  letter-spacing: var(--letter-spacing) !important;
-}
-
-/* Espaçamento de palavras personalizado */
-html.custom-word-spacing body * {
-  word-spacing: var(--word-spacing) !important;
-}
-
-/* Saturação personalizada */
-html.custom-saturation body {
-  filter: saturate(var(--saturation));
-}
-
-/* Zoom personalizado - Ajustado para não quebrar responsividade */
-html.custom-zoom {
-  font-size: calc(16px * var(--page-zoom)) !important;
-}
-
-/* ========================================
-   MODO ESCURO
-   ======================================== */
-html.dark-mode body {
-  background-color: #1a1a2e !important;
-  color: #e0e0e0 !important;
-}
-
-html.dark-mode .bg-white,
-html.dark-mode .bg-gray-50,
-html.dark-mode .bg-gray-100 {
-  background-color: #16213e !important;
-}
-
-html.dark-mode .bg-gray-200,
-html.dark-mode .bg-gray-300 {
-  background-color: #0f3460 !important;
-}
-
-html.dark-mode .text-gray-600,
-html.dark-mode .text-gray-700,
-html.dark-mode .text-gray-800,
-html.dark-mode .text-gray-900 {
-  color: #e0e0e0 !important;
-}
-
-html.dark-mode .text-gray-500 {
-  color: #a0a0a0 !important;
-}
-
-html.dark-mode .border-gray-200,
-html.dark-mode .border-gray-300 {
-  border-color: #0f3460 !important;
-}
-
-html.dark-mode header,
-html.dark-mode footer {
-  background-color: #0f3460 !important;
-}
-
-html.dark-mode img {
-  opacity: 0.9;
-}
-
-/* ========================================
-   ALTO CONTRASTE
-   ======================================== */
-html.high-contrast {
-  filter: contrast(1.4);
-}
-
-html.high-contrast body {
-  background-color: #000 !important;
-  color: #fff !important;
-}
-
-html.high-contrast .bg-white,
-html.high-contrast .bg-gray-50,
-html.high-contrast .bg-gray-100 {
-  background-color: #000 !important;
-}
-
-html.high-contrast .text-gray-600,
-html.high-contrast .text-gray-700,
-html.high-contrast .text-gray-500,
-html.high-contrast .text-gray-800,
-html.high-contrast .text-gray-900 {
-  color: #fff !important;
-}
-
-html.high-contrast a {
-  color: #ffff00 !important;
-  text-decoration: underline !important;
-}
-
-html.high-contrast button,
-html.high-contrast input,
-html.high-contrast select {
-  border: 2px solid #fff !important;
-  background-color: #000 !important;
-  color: #fff !important;
-}
-
-/* ========================================
-   MONOCROMÁTICO (Escala de Cinza)
-   ======================================== */
-html.monochrome body {
-  filter: grayscale(100%);
-}
-
-/* ========================================
-   INVERTER CORES
-   ======================================== */
-html.invert-colors body {
-  filter: invert(100%);
-}
-
-html.invert-colors body img,
-html.invert-colors body video {
-  filter: invert(100%);
-}
-
-/* ========================================
-   DESTACAR LINKS
-   ======================================== */
-html.highlight-links a {
-  background-color: #ffff00 !important;
-  color: #000 !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-  text-decoration: underline !important;
-  font-weight: 600 !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-}
-
-html.highlight-links a:hover {
-  background-color: #ffd000 !important;
-}
-
-html.highlight-links a:focus {
-  outline: 3px solid #003f7f !important;
-  outline-offset: 2px !important;
-}
-
-/* ========================================
-   CURSOR GRANDE
-   ======================================== */
-html.large-cursor,
-html.large-cursor * {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'%3E%3Cpath fill='%23003f7f' stroke='%23ffffff' stroke-width='1' d='M5.5 3.21V20.8l4.08-4.08 3.12 6.59 2.5-1.18-3.12-6.59h6.02z'/%3E%3C/svg%3E") 0 0, auto !important;
-}
-
-html.large-cursor a,
-html.large-cursor button,
-html.large-cursor [role="button"],
-html.large-cursor input[type="submit"],
-html.large-cursor input[type="button"] {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'%3E%3Cpath fill='%2300a859' stroke='%23ffffff' stroke-width='1' d='M12 2c-1.1 0-2 .9-2 2v7H4c-1.1 0-2 .9-2 2s.9 2 2 2h6v7c0 1.1.9 2 2 2s2-.9 2-2v-7h6c1.1 0 2-.9 2-2s-.9-2-2-2h-6V4c0-1.1-.9-2-2-2z'/%3E%3C/svg%3E") 24 24, pointer !important;
-}
-
-/* ========================================
-   FONTE PARA DISLEXIA - OpenDyslexic
-   ======================================== */
-@font-face {
-  font-family: 'OpenDyslexic';
-  src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Regular.woff') format('woff');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'OpenDyslexic';
-  src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Bold.woff') format('woff');
-  font-weight: bold;
-  font-style: normal;
-  font-display: swap;
-}
-
-html.dyslexic-font body,
-html.dyslexic-font * {
-  font-family: 'OpenDyslexic', sans-serif !important;
+/* Espaçamento de texto (WCAG 1.4.12): entrelinha 1,5, letras 0,12em, palavras 0,16em e parágrafos de leitura 2em */
+html.a11y-spacing body *:not(svg, svg *) {
+  line-height: 1.5 !important;
   letter-spacing: 0.12em !important;
   word-spacing: 0.16em !important;
 }
 
-/* ========================================
-   PAUSAR ANIMAÇÕES
-   ======================================== */
-html.pause-animations *,
-html.pause-animations *::before,
-html.pause-animations *::after {
-  animation-play-state: paused !important;
-  transition: none !important;
+html.a11y-spacing .prose p {
+  margin-bottom: 2em !important;
 }
 
-/* ========================================
-   OCULTAR IMAGENS
-   ======================================== */
-html.hide-images img,
-html.hide-images picture,
-html.hide-images svg:not(.accessibility-icon),
-html.hide-images video,
-html.hide-images [style*="background-image"] {
-  visibility: hidden !important;
+/* Fonte legível: Atkinson Hyperlegible (variável --font-legivel do next/font, ver ConditionalLayout) */
+html.a11y-font body,
+html.a11y-font body * {
+  font-family: var(--font-legivel), system-ui, sans-serif !important;
 }
 
-html.hide-images img::after,
-html.hide-images picture::after {
-  content: attr(alt);
-  display: block;
-  padding: 8px;
-  background: #f0f0f0;
-  border: 1px dashed #999;
-  color: #333;
+/* Destacar links: sublinhado grosso e contorno amarelo com aro azul (aparece no fundo claro e no escuro, sem mexer
+   no layout). O foco do teclado continua com o próprio estilo (seletor mais forte). */
+html.a11y-links a:not(.skip-link:not(:focus)) {
+  text-decoration-line: underline !important;
+  text-decoration-thickness: 2px !important;
+  text-underline-offset: 0.2em !important;
+  outline: 3px solid #ffd000 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px #001a3d !important;
 }
 
-/* ========================================
-   DESTAQUE DE FOCO MELHORADO
-   ======================================== */
-html.focus-highlight *:focus {
-  outline: 4px solid #ff6600 !important;
-  outline-offset: 4px !important;
-  box-shadow: 0 0 0 8px rgba(255, 102, 0, 0.3) !important;
+/* Cursor grande (seta preta com contorno branco; mão azul em tudo que é clicável; barra de texto nos campos) */
+html.a11y-cursor,
+html.a11y-cursor * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='37' height='56' viewBox='-24 -24 368 560'%3E%3Cpath d='M302.189 329.126H196.105l55.831 135.993c3.889 9.428-.555 19.999-9.444 23.999l-49.165 21.427c-9.165 4-19.443-.571-23.332-9.714l-53.053-129.136-86.664 89.138C18.729 472.71 0 463.554 0 447.977V18.299C0 1.899 19.921-6.096 30.277 5.443l284.412 292.542c11.472 11.179 3.007 31.141-12.5 31.141z' fill='%23000' stroke='%23fff' stroke-width='36' stroke-linejoin='round' paint-order='stroke'/%3E%3C/svg%3E") 3 3, auto !important;
 }
 
-html.focus-highlight *:focus-visible {
-  outline: 4px solid #ff6600 !important;
-  outline-offset: 4px !important;
-  box-shadow: 0 0 0 8px rgba(255, 102, 0, 0.3) !important;
+html.a11y-cursor :is(a, button, summary, label, select, [role="button"], [role="switch"], [role="tab"], [role="link"], input:is([type="checkbox"], [type="radio"], [type="submit"], [type="button"])),
+html.a11y-cursor :is(a, button, [role="button"], [role="switch"]) * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='56' viewBox='-24 -24 496 560'%3E%3Cpath d='M448 240v96c0 3.084-.356 6.159-1.063 9.162l-32 136C410.686 499.23 394.562 512 376 512H168a40.004 40.004 0 0 1-32.35-16.473l-127.997-176c-12.993-17.866-9.043-42.883 8.822-55.876 17.867-12.994 42.884-9.043 55.877 8.823L104 315.992V40c0-22.091 17.908-40 40-40s40 17.909 40 40v200h8v-40c0-22.091 17.908-40 40-40s40 17.909 40 40v40h8v-24c0-22.091 17.908-40 40-40s40 17.909 40 40v24h8c0-22.091 17.908-40 40-40s40 17.909 40 40z' fill='%23003f7f' stroke='%23fff' stroke-width='36' stroke-linejoin='round' paint-order='stroke'/%3E%3C/svg%3E") 17 3, pointer !important;
+}
+
+html.a11y-cursor :is(textarea, [contenteditable="true"], input:not([type="checkbox"], [type="radio"], [type="submit"], [type="button"], [type="range"], [type="file"])) {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='44' viewBox='0 0 24 44'%3E%3Cpath d='M5 4h14M5 40h14M12 4v36' fill='none' stroke='%23fff' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M5 4h14M5 40h14M12 4v36' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") 12 22, text !important;
+}
+
+/* Escala de cinza: filtro no <html> (no elemento raiz o filtro não muda a referência do position: fixed) */
+html.a11y-grayscale {
+  filter: grayscale(1);
+}
+
+/* Alto contraste (padrão gov.br): fundo preto, texto branco, links e botões amarelos. Fotos, vídeos e mapas ficam como
+   estão; os véus de degradê por cima deles (div vazia) somem e o texto que fica sobre a foto ganha fundo preto.
+   Spans vazios (bolinhas, barras de progresso) mantêm a cor. Guia e máscara de leitura não entram. */
+html.a11y-contrast {
+  color-scheme: dark;
+  background: #000;
+}
+
+/* :where() deixa a regra geral fraca: as de links/botões, logos e foco abaixo vencem sem disputa de especificidade */
+html.a11y-contrast body,
+html.a11y-contrast body :where(*:not(svg, svg *, img, video, iframe, canvas, picture, span:empty, [data-a11y-aid], [data-a11y-aid] *)) {
+  background-color: #000 !important;
+  background-image: none !important;
+  color: #fff !important;
+  text-shadow: none !important;
+}
+
+/* Foto de fundo (next/image com fill ou camada absoluta com foto) seguida de conteúdo (texto do hero, selos dos
+   cartões, capa da notícia): o conteúdo e os blocos que o embrulham ficam transparentes e só os elementos de texto
+   ganham caixa preta, então a foto continua aparecendo em volta */
+html.a11y-contrast body :where(:is(img[data-nimg="fill"], video, .absolute:has(img, video)) ~ div:not(.fixed, .sticky, .liquid-glass)),
+html.a11y-contrast body :where(:is(img[data-nimg="fill"], video, .absolute:has(img, video)) ~ div:not(.fixed, .sticky, .liquid-glass) :is(div, section, nav, ol, ul, header, article, figure)),
+html.a11y-contrast body div:empty:not([data-a11y-aid] *) {
+  background-color: transparent !important;
+}
+
+/* Botão/link que cobre o cartão inteiro (absolute inset-0, vazio ou só com texto sr-only): fundo preto nele tamparia
+   foto e texto do cartão */
+html.a11y-contrast body :is(a, button)[class*="inset-0"]:not(:has(> :not(.sr-only))) {
+  background-color: transparent !important;
+}
+
+/* Bolinhas e barras azuis da marca (spans vazios) viram amarelas: azul-escuro some no preto */
+html.a11y-contrast span:empty[class*="bg-[#003f7f]"] {
+  background-color: #ff0 !important;
+}
+
+html.a11y-contrast [role="dialog"] {
+  outline: 2px solid #fff;
+}
+
+html.a11y-contrast body svg {
+  color: inherit !important;
+}
+
+html.a11y-contrast :is(a, button, summary, [role="button"], [role="switch"], [role="tab"]),
+html.a11y-contrast :is(a, button, summary, [role="button"], [role="switch"], [role="tab"]) *:not(svg *) {
+  color: #ff0 !important;
+}
+
+html.a11y-contrast a {
+  text-decoration-line: underline !important;
+}
+
+/* Contorno por dentro (não muda o tamanho nem é cortado por overflow): mostra onde cada botão e campo começa */
+html.a11y-contrast :is(button, [role="button"], [role="switch"], input, select, textarea) {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+html.a11y-contrast [role="switch"][aria-checked="true"] {
+  outline-width: 4px;
+}
+
+/* Trilho dos interruptores do painel: contorno na cor do texto (amarelo) */
+html.a11y-contrast [role="switch"] span {
+  border-color: currentColor !important;
+}
+
+/* Logos e imagens com transparência (PNG/SVG) ganham fundo branco para não sumirem no preto */
+html.a11y-contrast img:is([src*="logo" i], [src*=".png" i], [src*=".svg" i]) {
+  background-color: #fff !important;
+  border-radius: 0.375rem;
+}
+
+/* Reflexo e aro do vidro (pseudo-elementos com degradê branco) */
+html.a11y-contrast *::before,
+html.a11y-contrast *::after {
+  background-image: none !important;
+}
+
+html.a11y-contrast .liquid-glass {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html.a11y-contrast ::placeholder {
+  color: #c8c8c8 !important;
+  opacity: 1;
+}
+
+html.a11y-contrast ::selection {
+  background-color: #ff0;
+  color: #000;
+}
+
+/* Foco: contorno branco grosso com aro amarelo, visível sobre o preto e sobre os botões amarelos */
+html.a11y-contrast :focus-visible:not([tabindex="-1"]) {
+  outline: 3px solid #fff !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 6px #ff0 !important;
 }
 
 /* ========================================
@@ -602,28 +666,156 @@ html.focus-highlight *:focus-visible {
 
 /* ========================================
    FOCUS VISÍVEL PADRÃO
+   Contorno azul CDL (visível no branco) com anel amarelo (visível no azul).
+   Elementos com tabindex="-1" (diálogos, <main>) recebem foco por código e não mostram o contorno.
    ======================================== */
-:focus-visible {
-  outline: 3px solid var(--cdl-yellow) !important;
+:focus-visible:not([tabindex="-1"]) {
+  outline: 3px solid var(--cdl-blue) !important;
   outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px var(--cdl-yellow) !important;
+}
+
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* Botões que cobrem um card com overflow-hidden: o contorno vai para dentro para não ser cortado */
+.focus-inset:focus-visible {
+  outline-offset: -4px !important;
+  box-shadow: inset 0 0 0 7px var(--cdl-yellow) !important;
 }
 
 /* ========================================
    SKIP LINK PARA NAVEGAÇÃO POR TECLADO
    ======================================== */
+/* Escondido acima da tela pela própria altura (translate): com o texto ampliado ele cresce e não pode aparecer */
 .skip-link {
   position: absolute;
-  top: -40px;
+  top: 0;
   left: 0;
+  translate: 0 -100%;
   background: var(--cdl-blue);
   color: white;
-  padding: 8px 16px;
+  padding: 12px 16px;
   z-index: 100;
-  transition: top 0.3s;
+  transition: translate 0.3s;
 }
 
 .skip-link:focus {
-  top: 0;
+  translate: 0 0;
+}
+
+/* ========================================
+   CANTOS ARREDONDADOS DO HEADER
+   O primeiro bloco da página sobe por baixo dos cantos do header (mesmo raio de Header.tsx). A borda transparente
+   é pintada pelo próprio fundo do bloco (gradientes inclusive, via background-origin) e devolve a altura, então o
+   conteúdo não se move. Blocos com foto em camada absoluta (o carrossel da home) marcam data-under-header e
+   sobem por conta própria, para a foto também passar por baixo dos cantos.
+   ======================================== */
+:root {
+  --header-radius: 1.75rem;
+  /* Quanto os atalhos (ServicesCards) sobem sobre a base do hero: o hero reserva esse espaço embaixo */
+  --services-overlap: 0px;
+  /* Respiro vertical padrão das seções da home (borda reta, sem degradê) */
+  --scene-blend: 2.5rem;
+  /* Área útil da tela para uma seção caber inteira: janela - barra compacta do header (Header.tsx: logo + py-1.5 +
+     borda) - barra inferior do celular (MobileBottomNav, lg:hidden: cápsula h-16 flutuando 0.5rem acima da área segura). svh: não muda quando a
+     barra de endereço do celular aparece/some. Em rem (+1px da borda): acompanha o tamanho do texto da acessibilidade. */
+  --bar-compact: calc(3.5rem + 1px);
+  /* Header no topo da página (logo + py do estado de topo + 1px): a caixa do <header> guarda essa altura e o hero da
+     home sobe por baixo dela. Em rem pelo mesmo motivo. */
+  --bar-full: calc(4.5rem + 1px);
+  --bottom-nav: calc(4.5rem + env(safe-area-inset-bottom));
+  --screen-fit: calc(100svh - var(--bar-compact) - var(--bottom-nav));
+}
+
+@media (min-width: 640px) {
+  :root {
+    --bar-compact: calc(3.75rem + 1px);
+    --bar-full: calc(6.5rem + 1px);
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --header-radius: 2.5rem;
+    --services-overlap: 4rem;
+    --scene-blend: 4.5rem;
+    --bar-compact: calc(4.5rem + 1px);
+    --bar-full: calc(8rem + 1px);
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --bar-compact: calc(5rem + 1px);
+    --bar-full: calc(9rem + 1px);
+  }
+}
+
+/* Barra inferior some junto com o layout do celular (variante desk, no topo do arquivo) */
+:root {
+  @variant desk {
+    --bottom-nav: 0px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --bar-compact: calc(5.5rem + 1px);
+    --bar-full: calc(10rem + 1px);
+  }
+}
+
+/* Telas baixas (notebook 1280×720, celular pequeno): respiro menor para a seção caber */
+@media (max-height: 760px) {
+  :root {
+    --scene-blend: 2rem;
+  }
+}
+
+
+#conteudo > :first-child:not([data-under-header]) {
+  margin-top: calc(-1 * var(--header-radius));
+  border-top: var(--header-radius) solid transparent;
+  background-origin: border-box;
+}
+
+/* ========================================
+   MOVIMENTO REDUZIDO (preferência do sistema)
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* "Pausar animações" do painel: o mesmo que o movimento reduzido do sistema (o JS lê a classe via matchMedia, ver
+   accessibility/motion.ts; as variantes motion-* do Tailwind estão no topo do arquivo) */
+html.a11y-motion {
+  scroll-behavior: auto !important;
+}
+
+html.a11y-motion *,
+html.a11y-motion *::before,
+html.a11y-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
 }
 
 /* ========================================
@@ -718,3 +910,97 @@ html.focus-highlight *:focus-visible {
 /* LoadingScreen — animações movidas para inline styles em LoadingScreen.tsx */
 
 /* Página 404 — animações movidas para inline styles em NotFoundScreen.tsx */
+
+/* ========================================
+   LIQUID GLASS (header, barra inferior e menu do celular)
+   Vidro translúcido no estilo do iOS 26: deixa ver o que passa por trás (pouco desfoque, cor saturada e clareada para o
+   texto escuro continuar legível), com aro de luz em gradiente, reflexo especular e, no Chrome/Edge, uma leve refração
+   "líquida" (filtro SVG #lg-refract do layout, ligado pela classe html.lg-refract). --lg-alpha controla a opacidade
+   (mais alta onde há muito texto). Sem backdrop-filter ou com "reduzir transparência", vira branco quase opaco.
+   ======================================== */
+@layer components {
+  .liquid-glass {
+    --lg-alpha: 0.3;
+    --lg-blur: 12px;
+    --lg-filter: blur(var(--lg-blur)) saturate(220%) brightness(1.14);
+    position: relative;
+    isolation: isolate;
+    /* Camada própria na GPU: o Safari repinta backdrop-filter em elementos fixos durante a rolagem e cintila sem isso */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / calc(var(--lg-alpha) + 0.14)),
+      rgb(255 255 255 / var(--lg-alpha)) 45%,
+      rgb(255 255 255 / calc(var(--lg-alpha) + 0.06))
+    );
+    -webkit-backdrop-filter: var(--lg-filter);
+    backdrop-filter: var(--lg-filter);
+    box-shadow:
+      inset 0 1px 1px 0 rgb(255 255 255 / 0.95),
+      inset 0 -1px 1px 0 rgb(255 255 255 / 0.35),
+      inset 0 0 20px 0 rgb(255 255 255 / 0.22),
+      0 18px 40px -16px rgb(0 26 61 / 0.42),
+      0 2px 6px -2px rgb(0 26 61 / 0.15);
+  }
+
+  /* Reflexo especular: brilho forte no canto de cima e um eco embaixo, por trás do conteúdo */
+  .liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 100% at 10% -20%, rgb(255 255 255 / 0.75), transparent 45%),
+      radial-gradient(90% 70% at 100% 130%, rgb(255 255 255 / 0.45), transparent 60%);
+    opacity: 0.8;
+  }
+
+  /* Aro de luz: borda em gradiente (clara em cima à esquerda, some no meio, volta embaixo à direita), como a quina de
+     uma lente. Só a borda aparece (máscara recorta o miolo); não bloqueia cliques. */
+  .liquid-glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    pointer-events: none;
+    background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.95),
+      rgb(255 255 255 / 0.2) 30%,
+      rgb(255 255 255 / 0.04) 60%,
+      rgb(255 255 255 / 0.6)
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .liquid-glass-strong {
+    --lg-alpha: 0.56;
+    --lg-blur: 16px;
+  }
+
+  /* Refração líquida: só onde o filtro SVG no backdrop é suportado (Chromium; ver Header.tsx) */
+  html.lg-refract .liquid-glass {
+    backdrop-filter: url(#lg-refract) var(--lg-filter);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .liquid-glass {
+      background: rgb(255 255 255 / 0.95);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .liquid-glass,
+    html.lg-refract .liquid-glass {
+      background: rgb(255 255 255 / 0.97);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+}

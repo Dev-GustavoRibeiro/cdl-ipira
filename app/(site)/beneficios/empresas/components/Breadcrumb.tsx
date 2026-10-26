@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 const Breadcrumb = () => {
   return (
-    <div className="bg-[#003f7f] text-white py-2.5 sm:py-3">
+    <div className="bg-[#003f7f] text-white py-3.5 sm:py-3">
       <div className="container mx-auto px-4">
         <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm" aria-label="Breadcrumb">
           <Link 
@@ -18,12 +18,7 @@ const Breadcrumb = () => {
             <span>Início</span>
           </Link>
           <span className="text-white/40">/</span>
-          <Link 
-            href="#" 
-            className="hover:text-[#ffd000] transition-colors"
-          >
-            Benefícios
-          </Link>
+          <span>Benefícios</span>
           <span className="text-white/40">/</span>
           <span className="text-white font-semibold">Empresas Associadas</span>
         </nav>

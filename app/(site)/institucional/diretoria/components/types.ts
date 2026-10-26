@@ -10,6 +10,3 @@ export interface TeamMember {
   display_order: number;
   is_active: boolean;
 }
-
-
-

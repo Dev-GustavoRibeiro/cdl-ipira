@@ -2,38 +2,37 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === 'development';
 
+// Host do projeto Supabase (evita liberar *.supabase.co de qualquer pessoa)
+const supabaseHost = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').host;
+  } catch {
+    return '';
+  }
+})() || '*.supabase.co';
+
+// VLibras (tradutor de Libras do governo federal): só é baixado quando a pessoa liga a opção no painel de
+// acessibilidade. vlibras.gov.br redireciona o script e o player para o jsDelivr do projeto oficial (o caminho limita
+// o jsDelivr a esse projeto: a telemetria que o plugin tenta importar de lá fica bloqueada); a tradução usa *.vlibras.gov.br.
+const vlibras = 'https://vlibras.gov.br https://cdn.jsdelivr.net/gh/spbgovbr-vlibras/';
+
 // Content Security Policy
-// Em desenvolvimento, é mais permissivo para permitir acesso via IP
-const ContentSecurityPolicy = isDev
-  ? `
+// Sem Google Fonts: o next/font serve as fontes do próprio site (o mapa e o YouTube carregam as deles dentro do iframe)
+// Em desenvolvimento, é mais permissivo (HMR via websocket e eval do React Refresh)
+const ContentSecurityPolicy = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br https://challenges.cloudflare.com;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' data: blob: https: http:;
-    font-src 'self' https://fonts.gstatic.com data:;
-    frame-src 'self' https://www.youtube.com https://www.google.com https://impostometro.com.br https://challenges.cloudflare.com;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://challenges.cloudflare.com ws: wss:;
-    media-src 'self' https://*.supabase.co blob:;
+    script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ''} https://challenges.cloudflare.com ${vlibras};
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob: https:;
+    font-src 'self' https://cdn.jsdelivr.net https://vlibras.gov.br data:;
+    frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://challenges.cloudflare.com ${vlibras};
+    connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://challenges.cloudflare.com ${vlibras} https://*.vlibras.gov.br ${isDev ? 'ws: wss:' : ''};
+    media-src 'self' https://${supabaseHost} blob:;
     worker-src 'self' blob:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-  `.replace(/\s{2,}/g, ' ').trim()
-  : `
-    default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://www.google.com https://www.gstatic.com https://impostometro.com.br https://challenges.cloudflare.com;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' data: blob: https: http:;
-    font-src 'self' https://fonts.gstatic.com data:;
-    frame-src 'self' https://www.youtube.com https://www.google.com https://impostometro.com.br https://challenges.cloudflare.com;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://challenges.cloudflare.com;
-    media-src 'self' https://*.supabase.co blob:;
-    worker-src 'self' blob:;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-    frame-ancestors 'none';
-    upgrade-insecure-requests;
+    ${isDev ? '' : "frame-ancestors 'none'; upgrade-insecure-requests;"}
   `.replace(/\s{2,}/g, ' ').trim();
 
 const nextConfig: NextConfig = {
@@ -64,7 +63,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '*.supabase.co',
+        hostname: supabaseHost,
       },
       {
         protocol: 'https',
@@ -73,10 +72,6 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'img.youtube.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'via.placeholder.com',
       },
     ],
   },
@@ -120,10 +115,8 @@ const nextConfig: NextConfig = {
         key: 'Strict-Transport-Security',
         value: 'max-age=63072000; includeSubDomains; preload'
       },
-      {
-        key: 'Cross-Origin-Embedder-Policy',
-        value: 'credentialless'
-      },
+      // Sem Cross-Origin-Embedder-Policy: com o COOP abaixo ele isolava a página (crossOriginIsolated) e o navegador
+      // bloqueava iframes de terceiros (VLibras, YouTube, mapa). Nada no site precisa de isolamento (SharedArrayBuffer).
       {
         key: 'Cross-Origin-Opener-Policy',
         value: 'same-origin'

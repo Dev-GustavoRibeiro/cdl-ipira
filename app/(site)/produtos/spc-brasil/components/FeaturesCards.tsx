@@ -2,47 +2,50 @@
 
 import React from 'react';
 import { FaArrowRight } from 'react-icons/fa';
+import { ACCENTS, anchorOffset, cardLift, cardSurface } from '../../_components/ProductUI';
 import { features } from './FeaturesData';
 
 const FeaturesCards = () => {
   return (
-    <section className="py-16 bg-white">
-      <div className="container mx-auto px-4">
-        <div className="grid md:grid-cols-3 gap-8 mb-16">
+    <section aria-label="Soluções do SPC Brasil" className="bg-white pt-10 pb-16 md:pt-14 md:pb-24">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Três colunas só a partir do desktop; no tablet, uma coluna com largura confortável de leitura */}
+        <ul className="mx-auto grid max-w-2xl gap-5 sm:gap-6 lg:max-w-none lg:grid-cols-3 lg:gap-8">
           {features.map((feature) => {
-            const IconComponent = feature.icon;
+            const Icon = feature.icon;
+            const accent = ACCENTS[feature.accent];
             return (
-              <div
-                key={feature.id}
-                id={feature.id === 1 ? 'spc-avisa' : feature.id === 2 ? 'spc-conciliador' : 'cadastro-positivo'}
-                className="bg-white rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-2 border-gray-100"
-              >
-                <div className={`bg-linear-to-br ${feature.color} p-8 text-white`}>
-                  <div className={`${feature.iconBg} w-16 h-16 rounded-full flex items-center justify-center mb-4`}>
-                    <IconComponent className="w-8 h-8 text-white" />
+              <li key={feature.id} id={feature.anchor} className={anchorOffset}>
+                <article className={`group relative flex h-full flex-col overflow-hidden p-6 sm:p-8 ${cardSurface} ${cardLift}`}>
+                  <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 ${accent.bar}`} />
+                  <div className="flex items-center justify-between gap-4">
+                    <span className={`flex h-14 w-14 items-center justify-center rounded-2xl ${accent.tile} shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)]`}>
+                      <Icon aria-hidden="true" className="h-6 w-6" />
+                    </span>
+                    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">{feature.type}</span>
                   </div>
-                  <h3 className="text-2xl font-black mb-3">{feature.title}</h3>
-                  <p className="text-white/90 leading-relaxed">{feature.description}</p>
-                </div>
-                <div className="p-6">
-                  <a
-                    href={`#detalhes-${feature.id}`}
-                    className="inline-flex items-center gap-2 text-[#003f7f] font-bold hover:gap-4 transition-all"
-                  >
-                    <span>Saiba mais</span>
-                    <FaArrowRight className="w-4 h-4" />
-                  </a>
-                </div>
-              </div>
+                  <h3 className="mt-6 text-xl font-black tracking-tight text-[#003f7f] sm:text-2xl">{feature.title}</h3>
+                  <p className="mt-3 leading-relaxed text-gray-600">{feature.description}</p>
+
+                  {/* Link "esticado": o cartão inteiro leva aos detalhes */}
+                  <div className="mt-auto pt-8">
+                    <a
+                      href={`#detalhes-${feature.id}`}
+                      className="flex items-center gap-2 border-t border-gray-100 pt-5 font-bold text-[#003f7f] transition-[gap] duration-300 group-hover:gap-3 after:absolute after:inset-0 after:content-[''] motion-reduce:transition-none"
+                    >
+                      Saiba mais
+                      <span className="sr-only"> sobre {feature.title}</span>
+                      <FaArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                </article>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </div>
     </section>
   );
 };
 
 export default FeaturesCards;
-
-
-

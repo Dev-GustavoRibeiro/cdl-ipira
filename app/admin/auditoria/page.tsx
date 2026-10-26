@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { 
-  FaHistory, FaSearch, FaFilter, FaNewspaper, FaCalendarAlt, 
-  FaVideo, FaImages, FaBriefcase, FaStore, FaUser, FaSignInAlt,
-  FaSignOutAlt, FaPlus, FaEdit, FaTrash, FaSpinner, FaChevronLeft,
-  FaChevronRight, FaDatabase
+import React, { useEffect, useRef, useState } from 'react';
+import type { IconType } from 'react-icons';
+import {
+  FaExclamationTriangle, FaHistory, FaPen, FaPlus, FaRedo, FaSearch, FaSearchPlus, FaSignInAlt, FaSignOutAlt, FaTrash,
 } from 'react-icons/fa';
+import Modal from '@/components/Modal';
+import {
+  AdminCard, AdminPageHeader, Button, DataTable, EmptyState, IconButton, SearchInput, Select, StatusBadge, type DataTableColumn,
+  type StatusVariant,
+} from '../_components';
 
 interface AuditLog {
   id: string;
@@ -21,343 +24,310 @@ interface AuditLog {
   created_at: string;
 }
 
-const ACTION_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  'CREATE': { label: 'Criação', color: 'bg-green-100 text-green-800', icon: <FaPlus /> },
-  'UPDATE': { label: 'Atualização', color: 'bg-blue-100 text-blue-800', icon: <FaEdit /> },
-  'DELETE': { label: 'Exclusão', color: 'bg-red-100 text-red-800', icon: <FaTrash /> },
-  'LOGIN': { label: 'Login', color: 'bg-purple-100 text-purple-800', icon: <FaSignInAlt /> },
-  'LOGOUT': { label: 'Logout', color: 'bg-gray-100 text-gray-800', icon: <FaSignOutAlt /> },
+interface AuditResponse {
+  data: AuditLog[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+const ACTIONS: Record<string, { label: string; variant: StatusVariant; icon: IconType }> = {
+  CREATE: { label: 'Criação', variant: 'success', icon: FaPlus },
+  UPDATE: { label: 'Edição', variant: 'info', icon: FaPen },
+  DELETE: { label: 'Exclusão', variant: 'danger', icon: FaTrash },
+  LOGIN: { label: 'Login', variant: 'neutral', icon: FaSignInAlt },
+  LOGOUT: { label: 'Logout', variant: 'neutral', icon: FaSignOutAlt },
 };
 
-const TABLE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
-  'news': { label: 'Notícias', icon: <FaNewspaper /> },
-  'events': { label: 'Eventos', icon: <FaCalendarAlt /> },
-  'videos': { label: 'Vídeos', icon: <FaVideo /> },
-  'hero_slides': { label: 'Banners', icon: <FaImages /> },
-  'partners': { label: 'Associados', icon: <FaStore /> },
-  'jobs': { label: 'Vagas', icon: <FaBriefcase /> },
-  'admin_users': { label: 'Usuários', icon: <FaUser /> },
-  'auth': { label: 'Autenticação', icon: <FaSignInAlt /> },
+// Tabelas gravadas pelas APIs (auditServer / logAuditServer)
+const TABLES: Record<string, string> = {
+  news: 'Notícias',
+  events: 'Eventos',
+  event_registrations: 'Inscrições em eventos',
+  campaigns: 'Campanhas',
+  videos: 'TV Lojista',
+  albums: 'Galeria (álbuns)',
+  album_photos: 'Galeria (fotos)',
+  magazines: 'Revista CDL',
+  hero_slides: 'Hero Carousel',
+  partners: 'Associados',
+  jobs: 'Vagas',
+  resumes: 'Currículos',
+  legal_requests: 'Orientação Jurídica',
+  team_members: 'Diretoria',
+  transparency_documents: 'Portal Transparência',
+  contact_messages: 'Fale conosco',
+  auth: 'Acesso ao painel',
 };
+
+const PAGE_SIZE = 20;
+const TZ = 'America/Bahia';
+const relative = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' });
+
+function timeAgo(iso: string) {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (Number.isNaN(minutes)) return '';
+  if (minutes < 1) return 'agora';
+  if (minutes < 60) return relative.format(-minutes, 'minute');
+  if (minutes < 60 * 24) return relative.format(-Math.round(minutes / 60), 'hour');
+  return relative.format(-Math.round(minutes / (60 * 24)), 'day');
+}
+
+const formatDateTime = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TZ });
+
+/** Login com details.success === false vira "Login recusado" */
+function actionInfo(log: AuditLog) {
+  if (log.action === 'LOGIN' && log.details?.success === false) return { label: 'Login recusado', variant: 'warning' as const, icon: FaSignInAlt };
+  return ACTIONS[log.action] ?? { label: log.action, variant: 'neutral' as const, icon: FaHistory };
+}
+
+const AUTH_TITLES: Record<string, string> = { Login: 'Entrada no painel', 'Login recusado': 'Tentativa de entrada', Logout: 'Saída do painel' };
+const recordTitle = (log: AuditLog) =>
+  log.record_title ||
+  (log.table_name === 'auth' ? AUTH_TITLES[actionInfo(log).label] ?? actionInfo(log).label : log.record_id ? `Registro #${log.record_id}` : '—');
+const tableLabel = (name: string) => TABLES[name] ?? name;
+const shortId = (id: string) => id.slice(0, 8);
+
+interface Query {
+  page: number;
+  action: string;
+  table: string;
+  search: string;
+}
+
+const INITIAL_QUERY: Query = { page: 1, action: '', table: '', search: '' };
 
 export default function AuditoriaPage() {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterAction, setFilterAction] = useState('');
-  const [filterTable, setFilterTable] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const itemsPerPage = 20;
+  const [query, setQuery] = useState<Query>(INITIAL_QUERY);
+  const [searchInput, setSearchInput] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{ key: string; data?: AuditResponse; error?: string } | null>(null);
+  const [selected, setSelected] = useState<AuditLog | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const loadLogs = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const params = new URLSearchParams({
-        page: String(currentPage),
-        limit: String(itemsPerPage),
-      });
-
-      if (filterAction) params.set('action', filterAction);
-      if (filterTable) params.set('table_name', filterTable);
-      if (searchTerm) params.set('search', searchTerm);
-
-      const response = await fetch(`/api/admin/audit?${params.toString()}`);
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao carregar auditoria');
-      }
-
-      setLogs(result.data || []);
-      setTotalCount(result.pagination?.total || 0);
-      setTotalPages(result.pagination?.totalPages || 1);
-    } catch (err) {
-      console.error('Erro ao carregar logs de auditoria:', err);
-      setError('Erro ao carregar os logs de auditoria.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentPage, filterAction, filterTable, searchTerm]);
+  const params = new URLSearchParams({ page: String(query.page), limit: String(PAGE_SIZE) });
+  if (query.action) params.set('action', query.action);
+  if (query.table) params.set('table_name', query.table);
+  if (query.search) params.set('search', query.search);
+  const key = `${params.toString()}#${attempt}`;
 
   useEffect(() => {
-    loadLogs();
-  }, [loadLogs]);
+    let active = true;
+    const [qs] = key.split('#');
+    fetch(`/api/admin/audit?${qs}`)
+      .then(async (res) => {
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Erro ao carregar a auditoria.');
+        if (active) setResult({ key, data: json as AuditResponse });
+      })
+      .catch((error) => {
+        if (active) setResult({ key, error: error instanceof Error ? error.message : 'Erro ao carregar a auditoria.' });
+      });
+    return () => {
+      active = false;
+    };
+  }, [key]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
+
+  const isLoading = result?.key !== key;
+  // Enquanto a próxima página carrega, `result` ainda é a anterior: a contagem e a paginação não "pulam"
+  const logs = isLoading ? [] : (result?.data?.data ?? []);
+  const pagination = result?.data?.pagination;
+  const error = !isLoading ? result?.error : undefined;
+
+  const onSearch = (value: string) => {
+    setSearchInput(value);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setQuery((q) => ({ ...q, search: value.trim(), page: 1 })), 350);
   };
 
-  const getActionInfo = (action: string) => {
-    return ACTION_LABELS[action] || { label: action, color: 'bg-gray-100 text-gray-800', icon: <FaDatabase /> };
-  };
-
-  const getTableInfo = (tableName: string) => {
-    return TABLE_LABELS[tableName] || { label: tableName, icon: <FaDatabase /> };
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCurrentPage(1);
-    loadLogs();
-  };
-
+  const hasFilters = !!(query.action || query.table || query.search);
   const clearFilters = () => {
-    setSearchTerm('');
-    setFilterAction('');
-    setFilterTable('');
-    setCurrentPage(1);
+    clearTimeout(searchTimer.current);
+    setSearchInput('');
+    setQuery(INITIAL_QUERY);
   };
+
+  const columns: DataTableColumn<AuditLog>[] = [
+    {
+      key: 'quando',
+      header: 'Quando',
+      className: 'whitespace-nowrap',
+      cell: (log) => (
+        <span className="inline-flex flex-col leading-tight md:items-start">
+          <span className="text-gray-800 tabular-nums">{formatDateTime(log.created_at)}</span>
+          <span suppressHydrationWarning className="text-xs text-gray-500">{timeAgo(log.created_at)}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'registro',
+      header: 'Registro',
+      primary: true,
+      cell: (log) => {
+        const info = actionInfo(log);
+        return (
+          <div className="min-w-0">
+            <span className="mb-1.5 inline-flex">
+              <StatusBadge variant={info.variant}>{info.label}</StatusBadge>
+            </span>
+            <p className="line-clamp-2 font-medium text-gray-900" title={log.record_title ?? undefined}>
+              {recordTitle(log)}
+            </p>
+            <p className="text-xs font-normal text-gray-500">{tableLabel(log.table_name)}</p>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'usuario',
+      header: 'Usuário e IP',
+      cell: (log) => (
+        <span className="inline-flex max-w-52 flex-col leading-tight md:items-start">
+          <span className="truncate text-gray-800">{log.user_name || '—'}</span>
+          {log.user_id && (
+            <span className="font-mono text-xs text-gray-500" title={log.user_id}>
+              {shortId(log.user_id)}
+            </span>
+          )}
+          <span className="mt-0.5 font-mono text-xs break-all text-gray-500">{log.ip_address || 'IP não registrado'}</span>
+        </span>
+      ),
+    },
+  ];
+
+  const empty = error ? (
+    <EmptyState
+      icon={FaExclamationTriangle}
+      title="Não foi possível carregar a auditoria"
+      description={error}
+      action={<Button icon={FaRedo} onClick={() => setAttempt((n) => n + 1)}>Tentar novamente</Button>}
+    />
+  ) : hasFilters ? (
+    <EmptyState
+      icon={FaSearch}
+      title="Nenhum registro encontrado"
+      description="Nenhuma ação corresponde aos filtros escolhidos."
+      action={<Button variant="secondary" onClick={clearFilters}>Limpar filtros</Button>}
+    />
+  ) : (
+    <EmptyState icon={FaHistory} title="Nenhuma ação registrada ainda" description="Criações, edições, exclusões e acessos ao painel aparecem aqui." />
+  );
+
+  const selectedInfo = selected ? actionInfo(selected) : null;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] flex items-center gap-3">
-            <FaHistory className="text-[#00a859]" />
-            Auditoria
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Registro de todas as ações executadas no sistema
-          </p>
+    <div className="space-y-6 sm:space-y-8">
+      <AdminPageHeader
+        title="Auditoria"
+        description="Tudo o que foi feito no painel: quem fez, quando, em qual área e de qual endereço IP."
+        eyebrow={pagination ? `${pagination.total.toLocaleString('pt-BR')} ${pagination.total === 1 ? 'registro' : 'registros'}${hasFilters ? ' com os filtros' : ''}` : undefined}
+      />
+
+      <AdminCard flush>
+        <div className="grid grid-cols-1 gap-3 border-b border-gray-100 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-[minmax(0,1fr)_13rem_15rem_auto]">
+          <SearchInput label="Buscar por registro ou usuário" placeholder="Buscar por registro ou usuário…" value={searchInput} onChange={onSearch} className="sm:col-span-2 xl:col-span-1" />
+          <Select aria-label="Filtrar por ação" value={query.action} onChange={(e) => setQuery((q) => ({ ...q, action: e.target.value, page: 1 }))}>
+            <option value="">Todas as ações</option>
+            {Object.entries(ACTIONS).map(([value, a]) => (
+              <option key={value} value={value}>
+                {a.label}
+              </option>
+            ))}
+          </Select>
+          <Select aria-label="Filtrar por área" value={query.table} onChange={(e) => setQuery((q) => ({ ...q, table: e.target.value, page: 1 }))}>
+            <option value="">Todas as áreas</option>
+            {Object.entries(TABLES)
+              .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
+              .map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+          </Select>
+          {hasFilters && (
+            <Button variant="ghost" onClick={clearFilters} className="sm:col-span-2 xl:col-span-1">
+              Limpar filtros
+            </Button>
+          )}
         </div>
-        <div className="text-sm text-gray-500">
-          Total de registros: <span className="font-bold text-[#003f7f]">{totalCount}</span>
-        </div>
-      </div>
 
-      {/* Filtros */}
-      <div className="bg-white rounded-xl shadow-md p-5">
-        <form onSubmit={handleSearch} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Busca */}
-            <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar por título ou usuário..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#003f7f] focus:border-transparent transition-all"
-              />
-            </div>
+        <DataTable
+          caption="Registros de auditoria"
+          rows={logs}
+          getRowId={(log) => log.id}
+          columns={columns}
+          loading={isLoading}
+          skeletonRows={8}
+          rowActions={(log) => <IconButton icon={FaSearchPlus} label={`Ver detalhes: ${actionInfo(log).label} em ${tableLabel(log.table_name)}`} onClick={() => setSelected(log)} />}
+          empty={empty}
+          pagination={
+            pagination
+              ? {
+                  page: query.page,
+                  totalPages: Math.max(pagination.totalPages, 1),
+                  total: pagination.total,
+                  pageSize: PAGE_SIZE,
+                  onPageChange: (page) => setQuery((q) => ({ ...q, page })),
+                }
+              : undefined
+          }
+        />
+      </AdminCard>
 
-            {/* Filtro de Ação */}
-            <div className="relative">
-              <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select
-                value={filterAction}
-                onChange={(e) => {
-                  setFilterAction(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#003f7f] focus:border-transparent transition-all appearance-none bg-white"
-              >
-                <option value="">Todas as ações</option>
-                <option value="CREATE">Criação</option>
-                <option value="UPDATE">Atualização</option>
-                <option value="DELETE">Exclusão</option>
-                <option value="LOGIN">Login</option>
-                <option value="LOGOUT">Logout</option>
-              </select>
-            </div>
-
-            {/* Filtro de Tabela */}
-            <div className="relative">
-              <FaDatabase className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select
-                value={filterTable}
-                onChange={(e) => {
-                  setFilterTable(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#003f7f] focus:border-transparent transition-all appearance-none bg-white"
-              >
-                <option value="">Todas as tabelas</option>
-                <option value="news">Notícias</option>
-                <option value="events">Eventos</option>
-                <option value="videos">Vídeos</option>
-                <option value="hero_slides">Banners</option>
-                <option value="partners">Associados</option>
-                <option value="jobs">Vagas</option>
-                <option value="auth">Autenticação</option>
-              </select>
-            </div>
-
-            {/* Botões */}
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="flex-1 bg-[#003f7f] text-white px-4 py-2.5 rounded-lg hover:bg-[#002d5c] transition-colors font-semibold"
-              >
-                Buscar
-              </button>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                Limpar
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-
-      {/* Tabela de Logs */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <FaSpinner className="animate-spin text-[#003f7f] text-3xl" />
-          </div>
-        ) : error ? (
-          <div className="text-center py-16">
-            <FaDatabase className="mx-auto text-gray-300 text-5xl mb-4" />
-            <p className="text-gray-500 mb-4">{error}</p>
-          </div>
-        ) : logs.length === 0 ? (
-          <div className="text-center py-16">
-            <FaHistory className="mx-auto text-gray-300 text-5xl mb-4" />
-            <p className="text-gray-500">Nenhum registro de auditoria encontrado</p>
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Data/Hora
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Ação
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Tabela
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Registro
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Usuário
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      IP
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {logs.map((log) => {
-                    const actionInfo = getActionInfo(log.action);
-                    const tableInfo = getTableInfo(log.table_name);
-                    
-                    return (
-                      <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {formatDate(log.created_at)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${actionInfo.color}`}>
-                            {actionInfo.icon}
-                            {actionInfo.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1.5 text-sm text-gray-700">
-                            <span className="text-[#003f7f]">{tableInfo.icon}</span>
-                            {tableInfo.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                          {log.record_title || log.record_id || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {log.user_name || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                          {log.ip_address || '-'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Cards */}
-            <div className="lg:hidden divide-y divide-gray-200">
-              {logs.map((log) => {
-                const actionInfo = getActionInfo(log.action);
-                const tableInfo = getTableInfo(log.table_name);
-                
-                return (
-                  <div key={log.id} className="p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${actionInfo.color}`}>
-                        {actionInfo.icon}
-                        {actionInfo.label}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {formatDate(log.created_at)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-[#003f7f]">{tableInfo.icon}</span>
-                      <span className="font-semibold">{tableInfo.label}</span>
-                      {log.record_title && (
-                        <span className="text-gray-600 truncate">- {log.record_title}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Usuário: {log.user_name || '-'}</span>
-                      <span className="font-mono">{log.ip_address || '-'}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Paginação */}
-            {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                <div className="text-sm text-gray-500">
-                  Página {currentPage} de {totalPages}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <FaChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <FaChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+      <Modal isOpen={!!selected} onClose={() => setSelected(null)} title="Detalhes do registro" subtitle={selected ? formatDateTime(selected.created_at) : undefined}>
+        {selected && selectedInfo && (
+          <div className="space-y-5">
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Ação</dt>
+                <dd className="mt-1">
+                  <StatusBadge variant={selectedInfo.variant}>{selectedInfo.label}</StatusBadge>
+                </dd>
               </div>
-            )}
-          </>
+              <div>
+                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Área</dt>
+                <dd className="mt-1 text-gray-900">
+                  {tableLabel(selected.table_name)} <span className="font-mono text-xs text-gray-500">({selected.table_name})</span>
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Registro</dt>
+                <dd className="mt-1 break-words text-gray-900">
+                  {recordTitle(selected)}
+                  {selected.record_id && <span className="ml-1.5 font-mono text-xs text-gray-500">#{selected.record_id}</span>}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Usuário</dt>
+                <dd className="mt-1 text-gray-900">{selected.user_name || '—'}</dd>
+                {selected.user_id && <dd className="font-mono text-xs break-all text-gray-500">{selected.user_id}</dd>}
+              </div>
+              <div>
+                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Endereço IP</dt>
+                <dd className="mt-1 font-mono text-xs break-all text-gray-900">{selected.ip_address || '—'}</dd>
+              </div>
+            </dl>
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold tracking-wide text-gray-500 uppercase">Dados registrados</p>
+              {selected.details && Object.keys(selected.details).length > 0 ? (
+                <pre className="max-h-72 overflow-auto rounded-2xl bg-[#001a3d] p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-[#e6eef8]">
+                  {JSON.stringify(selected.details, null, 2)}
+                </pre>
+              ) : (
+                <p className="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-500 ring-1 ring-gray-200">Nenhum dado adicional.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={() => setSelected(null)}>
+                Fechar
+              </Button>
+            </div>
+          </div>
         )}
-      </div>
+      </Modal>
     </div>
   );
 }

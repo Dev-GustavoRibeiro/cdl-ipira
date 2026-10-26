@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { auditServer } from '@/lib/audit-server';
+import { getAdminUser } from '@/lib/supabase-server';
+
+function parseId(value: string | null): number | null {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+}
 
 // GET - Listar inscrições de um evento
 export async function GET(request: NextRequest) {
+    if (!(await getAdminUser())) {
+        return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
     try {
         const { searchParams } = new URL(request.url);
-        const eventId = searchParams.get('eventId');
+        const eventId = parseId(searchParams.get('eventId'));
 
         if (!eventId) {
             return NextResponse.json({ error: 'ID do evento é obrigatório' }, { status: 400 });
@@ -19,8 +29,8 @@ export async function GET(request: NextRequest) {
             .order('created_at', { ascending: false });
 
         if (error) {
-            console.error('Erro ao buscar inscrições:', error);
-            return NextResponse.json({ error: 'Erro ao buscar inscrições', details: error }, { status: 500 });
+            console.error('Erro ao buscar inscrições:', error.message);
+            return NextResponse.json({ error: 'Erro ao buscar inscrições' }, { status: 500 });
         }
 
         return NextResponse.json(registrations || []);
@@ -32,21 +42,30 @@ export async function GET(request: NextRequest) {
 
 // DELETE - Excluir inscrição
 export async function DELETE(request: NextRequest) {
+    if (!(await getAdminUser())) {
+        return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
     try {
         const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
-        const eventId = searchParams.get('eventId');
+        const id = parseId(searchParams.get('id'));
+        const eventId = parseId(searchParams.get('eventId'));
 
         if (!id || !eventId) {
             return NextResponse.json({ error: 'ID da inscrição e do evento são obrigatórios' }, { status: 400 });
         }
 
-        // Buscar dados antes de excluir para auditoria e logs
+        // Confere que a inscrição é deste evento (o contador do evento é decrementado abaixo)
         const { data: registration } = await supabaseAdmin
             .from('event_registrations')
-            .select('name')
+            .select('id')
             .eq('id', id)
+            .eq('event_id', eventId)
             .single();
+
+        if (!registration) {
+            return NextResponse.json({ error: 'Inscrição não encontrada' }, { status: 404 });
+        }
 
         const { error } = await supabaseAdmin
             .from('event_registrations')
@@ -54,8 +73,8 @@ export async function DELETE(request: NextRequest) {
             .eq('id', id);
 
         if (error) {
-            console.error('Erro ao excluir inscrição:', error);
-            return NextResponse.json({ error: 'Erro ao excluir inscrição', details: error }, { status: 500 });
+            console.error('Erro ao excluir inscrição:', error.message);
+            return NextResponse.json({ error: 'Erro ao excluir inscrição' }, { status: 500 });
         }
 
         // Decrementar contador de participantes no evento
@@ -77,16 +96,14 @@ export async function DELETE(request: NextRequest) {
             console.error('Erro ao atualizar contador:', countError);
         }
 
-        // Registrar auditoria (opcional)
-        if (registration) {
-            /* await auditServer.delete(
-              'event_registrations',
-              id,
-              registration.name,
-              { eventId },
-              request
-            ); */
-        }
+        // Título neutro: a exclusão costuma ser pedido do titular, e o log não pode guardar o nome que ele mandou apagar
+        await auditServer.delete(
+            'event_registrations',
+            String(id),
+            `Inscrição #${id}`,
+            { eventId },
+            request
+        );
 
         return NextResponse.json({ success: true });
     } catch (error) {

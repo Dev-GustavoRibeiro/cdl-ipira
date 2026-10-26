@@ -10,21 +10,23 @@ interface SearchSectionProps {
 
 const SearchSection = ({ searchTerm, onSearchChange }: SearchSectionProps) => {
   return (
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    // Centralizado como a grade das edições (e como os demais títulos de seção)
+    <div className="flex flex-col items-center text-center gap-5 mb-8 sm:mb-10">
       <div>
-        <h2 className="text-2xl sm:text-3xl font-black text-[#003f7f]">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-[-0.015em] text-[#003f7f]">
           {searchTerm ? 'Resultados da Busca' : 'Todas as Edições'}
         </h2>
-        <div className="w-16 h-1.5 bg-linear-to-r from-[#003f7f] to-[#00a859] rounded-full mt-2"></div>
+        <div className="h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] mx-auto mt-4" aria-hidden="true"></div>
       </div>
-      <div className="relative max-w-sm w-full">
-        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+      <div className="relative max-w-md w-full">
+        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" aria-hidden="true" />
         <input
-          type="text"
+          type="search"
+          aria-label="Buscar edições da Revista CDL"
           placeholder="Buscar edições..."
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent transition-all"
+          className="w-full pl-11 pr-4 py-3 rounded-full border border-gray-200 bg-gray-50 transition-colors focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
         />
       </div>
     </div>

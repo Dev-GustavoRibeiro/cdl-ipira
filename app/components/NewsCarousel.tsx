@@ -1,26 +1,139 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Autoplay, Pagination, Navigation, EffectCreative } from 'swiper/modules';
+import { FaArrowRight, FaNewspaper, FaRegClock } from 'react-icons/fa';
 import NewsModal from './NewsModal';
-import 'swiper/css';
-import 'swiper/css/pagination';
-import 'swiper/css/navigation';
-import 'swiper/css/effect-creative';
+import SectionCarousel, { SectionHeading, mediaFitClass, useCardsMotion, MOUSE_FOCUS } from './carousel/SectionCarousel';
+import { parseDateOnly } from '@/lib/date';
+import { isOptimizableImage } from '@/lib/images';
+import { useReveal } from './motion/useReveal';
 
 interface NewsItem {
   id: number;
   title: string;
   excerpt: string;
   content: string;
-  date: string;
+  date: string; // YYYY-MM-DD ('' = sem data); o cartão e o modal formatam
   category: string;
   color: string;
   author?: string;
   image?: string;
+  minutes: number;
+  campaign: { slug: string; title: string } | null;
+}
+
+// Cores da marca para notícias sem imagem (também usadas no topo do modal)
+const COLORS = [
+  'from-[#003f7f] to-[#0066cc]',
+  'from-[#00a859] to-[#00d670]',
+  'from-[#0052a3] to-[#0066cc]',
+  'from-[#ffd000] to-[#ffed4e]',
+];
+
+const plainText = (html?: string | null) => (html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+// Resumo do card: excerpt cadastrado ou início do conteúdo em texto puro (o conteúdo pode ter HTML)
+function getExcerpt(excerpt?: string | null, content?: string | null): string {
+  if (excerpt?.trim()) return excerpt.trim();
+  const text = plainText(content);
+  return text.length > 120 ? `${text.slice(0, 120).trimEnd()}...` : text;
+}
+
+// Cantos côncavos da aba da data (encaixe da aba na foto): quarto de círculo transparente, resto branco
+const NOTCH = "before:absolute before:bottom-full before:left-0 before:size-4 before:bg-[radial-gradient(circle_at_100%_0,transparent_1rem,#fff_calc(1rem+0.5px))] before:content-[''] after:absolute after:bottom-0 after:left-full after:size-4 after:bg-[radial-gradient(circle_at_100%_0,transparent_1rem,#fff_calc(1rem+0.5px))] after:content-['']";
+
+function NewsCard({ item, featured, sizes, onOpen }: { item: NewsItem; featured?: boolean; sizes: string; onOpen: (item: NewsItem) => void }) {
+  const date = parseDateOnly(item.date);
+
+  return (
+    // transition só de translate/sombra: transform e opacity ficam livres para a entrada (GSAP)
+    <article
+      data-card
+      className={`group relative flex h-full flex-col rounded-[1.75rem] bg-white p-2 ring-1 ring-[#003f7f]/8 shadow-[0_14px_34px_-22px_rgba(0,63,127,0.5)] transition-[translate,box-shadow] duration-500 ease-out hover:-translate-y-1 hover:shadow-[0_30px_60px_-28px_rgba(0,63,127,0.55)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#003f7f] motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${featured ? 'md:flex-row' : ''}`}
+    >
+      <div
+        data-card-media
+        // Canto inferior esquerdo reto sob a aba da data: arredondado, o fundo da mídia vazava uma linha fina na curva
+        className={`relative w-full shrink-0 overflow-hidden rounded-[1.3rem] ${date ? 'rounded-bl-none' : ''} bg-linear-to-br ${item.color} ${mediaFitClass} ${featured ? 'md:aspect-auto md:max-h-none md:min-h-[clamp(15rem,44svh,24rem)] md:w-[56%]' : ''}`}
+      >
+        {item.image ? (
+          // Camada própria para o parallax (a imagem mantém o zoom do hover com transição CSS)
+          <div data-card-parallax className="absolute inset-0">
+            <Image
+              src={item.image}
+              alt=""
+              fill
+              sizes={sizes}
+              unoptimized={!isOptimizableImage(item.image)}
+              className="object-cover transition-transform duration-900 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            />
+          </div>
+        ) : (
+          <FaNewspaper aria-hidden="true" className="absolute inset-0 m-auto text-5xl text-white/35 md:text-6xl" />
+        )}
+        {/* Véu só no topo: legibilidade do selo sem escurecer a foto */}
+        <div className="absolute inset-x-0 top-0 h-1/2 bg-linear-to-b from-black/30 to-transparent" />
+
+        {/* Sem backdrop-blur: com 92% de branco não aparece, e sobre a foto em parallax faz o Safari repintar/piscar ao rolar */}
+        <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/92 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-[#003f7f] uppercase shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)] md:top-3 md:left-3">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#00a859]" />
+          {item.category}
+        </span>
+
+        {/* Data em destaque numa aba branca encaixada na foto (continua o fundo do cartão) */}
+        {date && (
+          <time dateTime={item.date.slice(0, 10)} className={`absolute bottom-0 left-0 flex items-baseline gap-1.5 rounded-tr-2xl bg-white pt-2 pr-3.5 pl-3 ${NOTCH}`}>
+            <span className="text-[1.375rem] leading-none font-black tracking-tight text-[#003f7f] tabular-nums md:text-2xl">{String(date.getDate()).padStart(2, '0')}</span>
+            {/* Verde mais escuro que o da marca: 11px sobre branco precisa de 4.5:1 (#00a859 dava 3.1:1) */}
+            <span className="text-[11px] font-bold tracking-[0.12em] text-[#007a40] uppercase">
+              {date.toLocaleString('pt-BR', { month: 'short' }).replace('.', '')} {date.getFullYear()}
+            </span>
+          </time>
+        )}
+      </div>
+
+      <div className={`flex grow flex-col px-3 pt-3 pb-1.5 md:pt-3.5 ${featured ? 'md:justify-center md:px-8 md:py-6 lg:px-10' : ''}`}>
+        <h3 className={`leading-snug font-bold tracking-tight text-pretty text-gray-900 transition-colors duration-300 group-hover:text-[#003f7f] ${featured ? 'text-lg md:text-2xl lg:text-3xl' : 'text-[1.0625rem] md:text-lg'}`}>
+          {/* Botão "esticado": o ::after cobre o card inteiro, então qualquer clique abre o modal */}
+          <button
+            type="button"
+            // O Safari não foca botões no clique: foca aqui para o modal devolver o foco ao cartão ao fechar. Sem anel
+            // (é clique de mouse/toque) e só se o foco não estiver nele (Chrome já focou no mousedown; teclado também).
+            onClick={(e) => {
+              if (document.activeElement !== e.currentTarget) e.currentTarget.focus(MOUSE_FOCUS);
+              onOpen(item);
+            }}
+            aria-haspopup="dialog"
+            // block: como inline-block, o botão deixava um vão de descendente embaixo do título
+            className="block w-full cursor-pointer text-left after:absolute after:inset-0 after:z-10 after:rounded-[1.75rem] after:content-[''] focus-visible:shadow-none! focus-visible:outline-none!"
+          >
+            <span className="line-clamp-2">{item.title}</span>
+          </button>
+        </h3>
+
+        {/* Resumo só quando sobra altura (o destaque único tem espaço de sobra no desktop) */}
+        {item.excerpt && (
+          <p className={`mt-1.5 line-clamp-2 text-sm leading-relaxed text-gray-600 ${featured ? 'md:mt-4 md:line-clamp-3 md:text-[15px] max-md:[@media(max-height:700px)]:hidden' : '[@media(max-height:700px)]:hidden'}`}>
+            {item.excerpt}
+          </p>
+        )}
+
+        <div className={`mt-auto flex items-center justify-between gap-3 pt-3 ${featured ? 'md:pt-6' : ''}`}>
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500">
+            <FaRegClock aria-hidden="true" className="text-[#00a859]" />
+            {item.minutes} min de leitura
+          </span>
+          <span aria-hidden="true" className="inline-flex items-center gap-2 text-sm font-bold text-[#003f7f]">
+            Ler notícia
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[#003f7f]/8 transition-[background-color,color,translate] duration-300 group-hover:translate-x-0.5 group-hover:bg-[#003f7f] group-hover:text-white motion-reduce:transition-none">
+              <FaArrowRight className="text-[11px]" />
+            </span>
+          </span>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 const NewsCarousel = () => {
@@ -28,6 +141,11 @@ const NewsCarousel = () => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectedNews, setSelectedNews] = React.useState<NewsItem | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const sectionRef = React.useRef<HTMLElement>(null);
+
+  // Cabeçalho e cartões entram ao rolar; reprocessa quando as notícias chegam
+  useReveal(sectionRef, [isLoading, news.length]);
+  useCardsMotion(sectionRef, [isLoading, news.length]);
 
   React.useEffect(() => {
     const fetchNews = async () => {
@@ -36,34 +154,20 @@ const NewsCarousel = () => {
         if (response.ok) {
           const data = await response.json();
 
-          // Map database fields to NewsItem interface
-          const mappedNews: NewsItem[] = data.map((item: any, index: number) => {
-            // Generate a consistent color based on index
-            const colors = [
-              'from-[#003f7f] to-[#0066cc]', // Blue
-              'from-[#00a859] to-[#00d674]', // Green
-              'from-[#e6b800] to-[#ffd000]', // Yellow (darker start for contrast)
-              'from-[#cc0000] to-[#ff3333]', // Red
-              'from-[#4b0082] to-[#8a2be2]', // Purple
-              'from-[#008080] to-[#00ced1]', // Teal
-            ];
-
-            return {
-              id: item.id,
-              title: item.title,
-              excerpt: item.summary || item.content?.substring(0, 120) + '...' || 'Sem resumo disponível',
-              content: item.content || '',
-              date: new Date(item.date).toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              }),
-              category: item.category || 'Notícias',
-              color: colors[index % colors.length],
-              author: item.author || 'CDL Ipirá',
-              image: item.image
-            };
-          });
+          const mappedNews: NewsItem[] = data.slice(0, 6).map((item: { id: number; title: string; excerpt?: string | null; content?: string | null; date?: string | null; category?: string | null; author?: string | null; image?: string | null; campaigns?: NewsItem['campaign'] }, index: number) => ({
+            id: item.id,
+            title: item.title,
+            excerpt: getExcerpt(item.excerpt, item.content),
+            content: item.content || '',
+            date: item.date || '',
+            category: item.category || 'Notícias',
+            color: COLORS[index % COLORS.length],
+            author: item.author || 'CDL Ipirá',
+            image: item.image || undefined,
+            // ~200 palavras por minuto
+            minutes: Math.max(1, Math.round(plainText(item.content).split(' ').length / 200)),
+            campaign: item.campaigns ?? null,
+          }));
 
           setNews(mappedNews);
         } else {
@@ -79,298 +183,66 @@ const NewsCarousel = () => {
     fetchNews();
   }, []);
 
-  const openModal = (item: NewsItem) => {
-    setSelectedNews(item);
-    setIsModalOpen(true);
-  };
+  // Sem notícias, a seção some (nada de bloco vazio na home)
+  if (!isLoading && news.length === 0) return null;
 
-  if (isLoading) {
-    return (
-      <section className="py-20 bg-linear-to-br from-gray-50 via-white to-gray-50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003f7f]"></div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Renderiza a estrutura mesmo sem notícias
-  if (news.length === 0) {
-    return (
-      <section className="py-20 bg-linear-to-br from-gray-50 via-white to-gray-50 relative overflow-visible">
-        {/* Elementos decorativos de fundo */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl pointer-events-none"></div>
-
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="flex items-center justify-between mb-12">
-            <div>
-              <div className="inline-block bg-[#ffd000] text-[#003f7f] px-4 py-2 rounded-full text-sm font-bold mb-4">
-                📰 Últimas Notícias
-              </div>
-              <h2 className="text-5xl md:text-6xl font-black text-[#003f7f] mb-3 bg-clip-text">
-                Fique por Dentro
-              </h2>
-              <div className="w-32 h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full"></div>
-            </div>
-            <Link
-              href="/imprensa/noticias"
-              className="hidden md:flex items-center gap-2 bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-8 py-4 rounded-full font-bold hover:shadow-2xl transition-all duration-300 hover:scale-105 group"
-            >
-              Ver Todas
-              <svg className="w-5 h-5 transform group-hover:translate-x-2 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </Link>
-          </div>
-
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-lg">Nenhuma notícia disponível no momento.</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  // Até 2 notícias os cartões ficam mais largos no desktop (a vista nunca passa do total)
+  const sizes = news.length <= 2 ? '(min-width: 768px) 50vw, 88vw' : '(min-width: 1536px) 25vw, (min-width: 1024px) 33vw, (min-width: 768px) 46vw, (min-width: 640px) 62vw, 88vw';
 
   return (
-    <section className="py-20 bg-linear-to-br from-gray-50 via-white to-gray-50 relative overflow-visible">
-      {/* Elementos decorativos de fundo */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-[#003f7f]/5 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00a859]/5 rounded-full blur-3xl pointer-events-none"></div>
+    <section
+      ref={sectionRef}
+      aria-labelledby="noticias-titulo"
+      aria-busy={isLoading || undefined}
+      // Bloco névoa da home (borda reta entre as seções): ocupa a área útil da tela (janela - barra compacta - barra
+      // inferior) com o conteúdo centrado. Janela muito baixa (celular deitado): altura natural.
+      className="relative flex flex-col justify-center overflow-hidden bg-[#f4f8fc] py-(--scene-blend) [@media(min-height:560px)]:min-h-(--screen-fit)"
+    >
+      {/* Brilhos discretos de fundo: gradiente radial em vez de filter: blur (área grande sob o header de vidro) */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(28rem_28rem_at_88%_30%,rgba(0,63,127,0.05),transparent_70%),radial-gradient(28rem_28rem_at_4%_72%,rgba(0,168,89,0.05),transparent_70%)]" />
 
-      <div className="container mx-auto px-4 relative z-10">
-        <div className="flex items-center justify-between mb-12">
-          <div>
-            <div className="inline-block bg-[#ffd000] text-[#003f7f] px-4 py-2 rounded-full text-sm font-bold mb-4">
-              📰 Últimas Notícias
-            </div>
-            <h2 className="text-5xl md:text-6xl font-black text-[#003f7f] mb-3 bg-clip-text">
-              Fique por Dentro
-            </h2>
-            <div className="w-32 h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full"></div>
-          </div>
-          <Link
-            href="/imprensa/noticias"
-            className="hidden md:flex items-center gap-2 bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-8 py-4 rounded-full font-bold hover:shadow-2xl transition-all duration-300 hover:scale-105 group"
-          >
-            Ver Todas
-            <svg className="w-5 h-5 transform group-hover:translate-x-2 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </Link>
-        </div>
-
-        <div className="relative max-w-7xl mx-auto overflow-visible">
-          <div className="px-4 sm:px-8 md:px-12 lg:px-20 relative overflow-visible">
-            <Swiper
-              modules={[Autoplay, Pagination, Navigation, EffectCreative]}
-              spaceBetween={24}
-              slidesPerView={1}
-              centeredSlides={true}
-              loop={news.length >= 7}
-              autoplay={{
-                delay: 6000,
-                disableOnInteraction: false,
+      <div className="relative container mx-auto w-full px-4">
+        <SectionCarousel
+          label="Últimas notícias"
+          itemName="notícia"
+          header={
+            <SectionHeading
+              id="noticias-titulo"
+              eyebrow={
+                <>
+                  <FaNewspaper aria-hidden="true" />
+                  Últimas Notícias
+                </>
+              }
+              eyebrowClass="bg-[#ffd000] text-[#003f7f]"
+              title="Fique por Dentro"
+              text="Novidades, campanhas e ações da CDL Ipirá para fortalecer o comércio da cidade."
+            />
+          }
+          action={{ href: '/imprensa/noticias', label: 'Ver todas' }}
+          prevLabel="Notícias anteriores"
+          nextLabel="Próximas notícias"
+          loading={isLoading}
+          autoplay={7000}
+          // Com o modal aberto o carrossel não anda (senão o card de origem sai de vista e o foco não volta para ele)
+          paused={isModalOpen}
+        >
+          {news.map((item) => (
+            <NewsCard
+              key={item.id}
+              item={item}
+              featured={news.length === 1}
+              sizes={sizes}
+              onOpen={(n) => {
+                setSelectedNews(n);
+                setIsModalOpen(true);
               }}
-              pagination={{
-                clickable: true,
-                dynamicBullets: true,
-              }}
-              navigation={{
-                nextEl: '.news-button-next',
-                prevEl: '.news-button-prev',
-              }}
-              breakpoints={{
-                480: {
-                  slidesPerView: 1.2,
-                  spaceBetween: 20,
-                  centeredSlides: true,
-                },
-                768: {
-                  slidesPerView: 2.2,
-                  spaceBetween: 24,
-                  centeredSlides: true,
-                },
-                1024: {
-                  slidesPerView: 3,
-                  spaceBetween: 32,
-                  centeredSlides: true,
-                },
-              }}
-              className="news-carousel-modern pb-20!"
-            >
-              {news.map((item) => (
-                <SwiperSlide key={item.id} className="h-auto">
-                  <article
-                    onClick={() => openModal(item)}
-                    className="group relative bg-white rounded-3xl overflow-hidden shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.2)] transition-all duration-500 hover:-translate-y-2 flex flex-col h-full cursor-pointer border border-gray-100/50"
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        openModal(item);
-                      }
-                    }}
-                  >
-                    {/* Seção superior colorida */}
-                    <div className={`relative h-56 bg-gradient-to-br ${item.color} overflow-hidden shrink-0`}>
-                      {/* Decorative pattern */}
-                      <div className="absolute inset-0 bg-[url('/pattern-grid.svg')] opacity-10 mix-blend-overlay"></div>
-
-                      {item.image && (
-                        <>
-                          <Image
-                            src={item.image}
-                            alt={item.title}
-                            fill
-                            sizes="(min-width: 1024px) 33vw, (min-width: 768px) 45vw, 100vw"
-                            className="object-cover transition-transform duration-700 group-hover:scale-110"
-                          />
-                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
-                        </>
-                      )}
-
-                      {/* Badge categoria */}
-                      <div className="absolute top-5 left-5 z-10">
-                        <span className="bg-white/90 backdrop-blur-md text-[#003f7f] px-4 py-1.5 rounded-full text-xs font-black shadow-lg flex items-center gap-2 tracking-wide uppercase">
-                          <span className="w-1.5 h-1.5 bg-[#00a859] rounded-full"></span>
-                          {item.category}
-                        </span>
-                      </div>
-
-                      {/* Data flutuante */}
-                      <div className="absolute top-5 right-5 z-10">
-                        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-3 shadow-xl transform group-hover:scale-105 transition-transform duration-300">
-                          <div className="text-[#003f7f] text-xl font-black text-center leading-none">
-                            {item.date.split('/')[0]}
-                          </div>
-                          <div className="text-[#00a859] text-[10px] font-bold mt-1 uppercase tracking-wider">
-                            {new Date(item.date.split('/').reverse().join('-')).toLocaleString('pt-BR', { month: 'short' }).replace('.', '')}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Conteúdo */}
-                    <div className="p-8 relative flex flex-col grow bg-white min-h-[260px]">
-                      <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 group-hover:text-[#003f7f] transition-colors line-clamp-2 leading-tight">
-                        {item.title}
-                      </h3>
-
-                      <p className="text-gray-600 mb-6 leading-relaxed line-clamp-3 grow text-sm md:text-base opacity-90">
-                        {item.excerpt}
-                      </p>
-
-                      <div className="mt-auto flex items-center justify-between border-t border-gray-100 pt-5">
-                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                          {item.author}
-                        </div>
-                        <span
-                          className="group/btn inline-flex items-center gap-2 text-[#00a859] font-bold hover:gap-3 transition-all duration-300 text-sm"
-                        >
-                          <span className="relative">
-                            Leia mais
-                            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#00a859] group-hover/btn:w-full transition-all duration-300"></span>
-                          </span>
-                          <svg className="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </span>
-                      </div>
-                    </div>
-                  </article>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-          </div>
-
-          {/* Navegação customizada com cor azul */}
-          <div className="news-button-prev absolute left-2 sm:left-4 md:-left-12 lg:-left-16 top-1/2 -translate-y-1/2 z-20 cursor-pointer group hover:-translate-x-1 transition-transform duration-300 hidden md:block">
-            <div className="w-14 h-14 bg-white text-[#003f7f] rounded-full flex items-center justify-center hover:bg-[#003f7f] hover:text-white transition-all duration-300 shadow-xl border border-gray-100">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-              </svg>
-            </div>
-          </div>
-
-          <div className="news-button-next absolute right-2 sm:right-4 md:-right-12 lg:-right-16 top-1/2 -translate-y-1/2 z-20 cursor-pointer group hover:translate-x-1 transition-transform duration-300 hidden md:block">
-            <div className="w-14 h-14 bg-white text-[#003f7f] rounded-full flex items-center justify-center hover:bg-[#003f7f] hover:text-white transition-all duration-300 shadow-xl border border-gray-100">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-center mt-12 md:hidden">
-          <Link
-            href="/imprensa/noticias"
-            className="inline-flex items-center gap-2 bg-linear-to-r from-[#003f7f] to-[#0066cc] text-white px-8 py-4 rounded-full font-bold shadow-xl hover:shadow-2xl transition-all"
-          >
-            Ver Todas as Notícias
-          </Link>
-        </div>
+            />
+          ))}
+        </SectionCarousel>
       </div>
 
-      <NewsModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        news={selectedNews}
-      />
-
-      <style jsx global>{`
-        .news-carousel-modern {
-          position: relative;
-          overflow: visible !important;
-          padding-bottom: 60px !important;
-          padding-top: 24px !important;
-        }
-        .news-carousel-modern .swiper-wrapper {
-          overflow: visible !important;
-        }
-        .news-carousel-modern .swiper-slide {
-          transition: transform 0.4s ease, opacity 0.4s ease;
-          opacity: 0.7;
-        }
-        .news-carousel-modern .swiper-slide-active {
-          opacity: 1;
-          transform: scale(1.03);
-          z-index: 10;
-        }
-        .news-carousel-modern .swiper-pagination {
-          position: absolute;
-          bottom: 0 !important;
-          left: 50% !important;
-          transform: translateX(-50%) !important;
-          width: auto !important;
-          display: flex;
-          gap: 6px;
-          justify-content: center;
-          align-items: center;
-          z-index: 10;
-        }
-        .news-carousel-modern .swiper-pagination-bullet {
-          width: 8px;
-          height: 8px;
-          background: #ccc;
-          opacity: 0.5;
-          transition: all 0.3s ease;
-          margin: 0 !important;
-        }
-        .news-carousel-modern .swiper-pagination-bullet-active {
-          width: 32px;
-          border-radius: 4px;
-          opacity: 1;
-          background: #003f7f;
-        }
-        /* Esconder setas padrão do Swiper (usamos setas customizadas) */
-        .news-carousel-modern .swiper-button-next,
-        .news-carousel-modern .swiper-button-prev {
-          display: none !important;
-        }
-      `}</style>
+      <NewsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} news={selectedNews} />
     </section>
   );
 };

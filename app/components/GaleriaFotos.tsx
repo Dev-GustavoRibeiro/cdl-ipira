@@ -3,36 +3,138 @@
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Autoplay, Navigation, Pagination } from 'swiper/modules';
-import { FaImages, FaCamera, FaArrowRight, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
-import 'swiper/css';
-import 'swiper/css/navigation';
-import 'swiper/css/pagination';
+import { FaImages, FaCamera, FaArrowRight, FaCalendarAlt, FaMapMarkerAlt } from 'react-icons/fa';
+import SectionCarousel, { SectionHeading, useCardsMotion } from './carousel/SectionCarousel';
+import { useReveal } from './motion/useReveal';
+import { isOptimizableImage } from '@/lib/images';
+import { formatDateLong } from '@/lib/date';
 
 interface Gallery {
   id: number;
   title: string;
-  image: string;
+  image: string | null;
   photos: number;
   category?: string;
   date?: string;
+  location?: string;
+  description?: string;
+}
+
+const albumHref = (gallery: Gallery) => `/imprensa/galeria-fotos?album=${gallery.id}`;
+const photosLabel = (n: number) => `${n} ${n === 1 ? 'foto' : 'fotos'}`;
+
+/** Capa (decorativa: o título está no texto do cartão); sem imagem, gradiente da marca com o ícone de fotos. */
+function Cover({ gallery, sizes }: { gallery: Gallery; sizes: string }) {
+  if (!gallery.image) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-[#003f7f] to-[#0052a3]">
+        <FaImages aria-hidden="true" className="h-20 w-20 text-white/15" />
+      </div>
+    );
+  }
+  return (
+    <Image
+      src={gallery.image}
+      alt=""
+      fill
+      sizes={sizes}
+      unoptimized={!isOptimizableImage(gallery.image)}
+      className="object-cover transition-transform duration-900 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.05] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+    />
+  );
+}
+
+/**
+ * Cartão de álbum: capa grande de ponta a ponta (altura pela tela, --album-h da seção) com selo, nº de fotos, data e
+ * título sobre um véu embaixo. `featured` (álbum único): do md em diante, capa e detalhes lado a lado.
+ */
+function AlbumCard({ gallery, featured, sizes }: { gallery: Gallery; featured?: boolean; sizes: string }) {
+  const date = formatDateLong(gallery.date);
+
+  return (
+    // transition só de translate/sombra: transform e opacity ficam livres para a entrada (GSAP)
+    <article
+      data-card
+      className={`group relative isolate flex h-(--album-h) flex-col justify-end overflow-hidden rounded-[1.75rem] bg-[#003f7f] shadow-[0_14px_34px_-22px_rgba(0,63,127,0.6)] ring-1 ring-[#003f7f]/8 transition-[translate,box-shadow] duration-500 ease-out hover:-translate-y-1 hover:shadow-[0_30px_60px_-28px_rgba(0,63,127,0.6)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#003f7f] motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${featured ? 'md:flex-row md:justify-start md:bg-white' : ''}`}
+    >
+      {/* -z-10 dentro do isolate: a capa fica atrás do texto sem posicionar o bloco de texto (o link esticado do título
+          precisa do artigo como referência para cobrir o cartão inteiro) */}
+      <div data-card-media className={`absolute inset-0 -z-10 overflow-hidden bg-[#003f7f] ${featured ? 'md:relative md:w-[58%] md:shrink-0 md:rounded-[1.3rem] md:m-2' : ''}`}>
+        {/* Camada própria para o parallax (a imagem mantém o zoom do hover com transição CSS) */}
+        <div data-card-parallax className="absolute inset-0">
+          <Cover gallery={gallery} sizes={sizes} />
+        </div>
+        {/* Véus: embaixo para o texto, em cima para os selos; sem escurecer a foto toda */}
+        <div className={`absolute inset-x-0 bottom-0 h-3/4 bg-linear-to-t from-[#001a3d] via-[#001a3d]/55 to-transparent ${featured ? 'md:hidden' : ''}`} />
+        <div className="absolute inset-x-0 top-0 h-1/3 bg-linear-to-b from-black/35 to-transparent" />
+
+        {gallery.category && (
+          // Sem backdrop-blur: sobre a foto em parallax faz o Safari repintar/piscar ao rolar
+          <span className="absolute top-3 left-3 inline-flex max-w-[60%] items-center gap-1.5 rounded-full bg-white/92 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-[#003f7f] uppercase shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)]">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#00a859]" />
+            <span className="truncate">{gallery.category}</span>
+          </span>
+        )}
+        <span className="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1 text-xs font-bold text-white tabular-nums">
+          <FaCamera aria-hidden="true" className="h-3 w-3" />
+          {photosLabel(gallery.photos)}
+        </span>
+      </div>
+
+      <div className={`p-4 text-white sm:p-5 ${featured ? 'md:flex md:flex-1 md:flex-col md:justify-center md:p-[clamp(1.5rem,4svh,3rem)] md:text-[#003f7f]' : ''}`}>
+        {date && (
+          <p className={`flex items-center gap-2 text-xs font-semibold text-white/80 ${featured ? 'md:text-sm md:text-gray-500' : ''}`}>
+            <FaCalendarAlt aria-hidden="true" className={`h-3 w-3 text-[#ffd000] ${featured ? 'md:text-[#00a859]' : ''}`} />
+            {date}
+          </p>
+        )}
+        <h3 className={`mt-1.5 leading-tight font-black tracking-tight text-balance ${featured ? 'text-xl sm:text-2xl md:mt-3 md:text-[clamp(1.75rem,4svh,2.5rem)]' : 'text-lg sm:text-xl'}`}>
+          {/* Link "esticado": o ::after cobre o cartão inteiro */}
+          <Link
+            href={albumHref(gallery)}
+            className="block after:absolute after:inset-0 after:z-10 after:rounded-[1.75rem] after:content-[''] focus-visible:shadow-none! focus-visible:outline-none!"
+          >
+            <span className={featured ? 'line-clamp-2 md:line-clamp-3' : 'line-clamp-2'}>{gallery.title}</span>
+          </Link>
+        </h3>
+        {featured && gallery.location && (
+          <p className="mt-3 hidden items-center gap-2 text-sm font-medium text-gray-600 md:flex">
+            <FaMapMarkerAlt aria-hidden="true" className="h-3.5 w-3.5 text-[#00a859]" />
+            {gallery.location}
+          </p>
+        )}
+        {featured && gallery.description && (
+          <p className="mt-4 hidden leading-relaxed text-pretty text-gray-600 md:line-clamp-3 md:[@media(max-height:760px)]:hidden">{gallery.description}</p>
+        )}
+        <span
+          aria-hidden="true"
+          className={`mt-3 inline-flex items-center gap-2 text-sm font-bold text-[#ffd000] ${featured ? 'md:mt-[clamp(1.25rem,4svh,2rem)] md:w-fit md:rounded-full md:bg-[#003f7f] md:px-6 md:py-3 md:text-white md:shadow-[0_15px_30px_-12px_rgba(0,63,127,0.6)] md:transition-colors md:duration-300 md:group-hover:bg-[#0052a3]' : ''}`}
+        >
+          Ver álbum
+          <FaArrowRight className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0" />
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function AlbumSkeleton() {
+  return <div className="h-(--album-h) animate-pulse rounded-[1.75rem] bg-[#003f7f]/8 motion-reduce:animate-none" />;
 }
 
 const GaleriaFotos = () => {
   const [galleries, setGalleries] = React.useState<Gallery[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const root = React.useRef<HTMLElement>(null);
+
+  useReveal(root, [isLoading, galleries.length]);
+  useCardsMotion(root, [isLoading, galleries.length]);
 
   React.useEffect(() => {
     const fetchGalleries = async () => {
       try {
         const response = await fetch('/api/albums?limit=8');
-        if (response.ok) {
-          const data = await response.json();
-          setGalleries(data);
-        } else {
-          setGalleries([]);
-        }
+        setGalleries(response.ok ? await response.json() : []);
       } catch (error) {
         console.error('Erro ao carregar galerias:', error);
         setGalleries([]);
@@ -43,194 +145,56 @@ const GaleriaFotos = () => {
     fetchGalleries();
   }, []);
 
-  // Loop só funciona bem quando há slides suficientes para o slidesPerView máximo (3).
-  // Swiper precisa de pelo menos slidesPerView * 2 + 1 slides únicos → mínimo 7.
-  const shouldLoop = galleries.length >= 7;
+  // Sem álbuns, a seção some em vez de mostrar um bloco vazio
+  if (!isLoading && galleries.length === 0) return null;
+
+  // Até 2 álbuns os cartões ficam mais largos no desktop (a vista nunca passa do total)
+  const sizes = galleries.length <= 2 ? '(min-width: 768px) 60vw, 90vw' : '(min-width: 1536px) 25vw, (min-width: 1024px) 33vw, (min-width: 768px) 46vw, (min-width: 640px) 62vw, 88vw';
 
   return (
-    <section className="py-20 sm:py-28 relative overflow-hidden bg-gray-50">
-      {/* Dynamic Background Elements */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Abstract Gradient Orbs */}
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#003f7f]/5 rounded-full blur-[100px] mix-blend-multiply animate-pulse" style={{ animationDuration: '8s' }}></div>
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-[#ffd000]/10 rounded-full blur-[100px] mix-blend-multiply animate-pulse" style={{ animationDuration: '10s' }}></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[url('/pattern-grid.svg')] opacity-[0.03]"></div>
-      </div>
+    // Bloco branco da home (borda reta entre as seções): uma tela útil (--screen-fit) com o conteúdo centrado; celular
+    // deitado cresce naturalmente. --album-h: altura dos cartões = o que sobra da tela depois dos respiros, do
+    // cabeçalho e dos controles (no md+ os controles ficam ao lado do título), com teto para não virarem pôsteres.
+    // Celular alto (> 820px): o texto de apoio do cabeçalho aparece (SectionHeading) e desconta mais. Do xl em diante o
+    // texto de apoio volta e, com este título longo, pode descer para baixo dele (+1 linha): o xl desconta essa linha.
+    <section
+      ref={root}
+      aria-labelledby="galeria-titulo"
+      aria-busy={isLoading || undefined}
+      className="relative flex flex-col justify-center overflow-hidden bg-white py-(--scene-blend) [--album-h:clamp(14rem,calc(var(--screen-fit)-2*var(--scene-blend)-12rem),28rem)] max-md:[@media(min-height:821px)]:[--album-h:clamp(14rem,calc(var(--screen-fit)-2*var(--scene-blend)-15.5rem),28rem)] md:[--album-h:clamp(16rem,calc(var(--screen-fit)-2*var(--scene-blend)-9.5rem),34rem)] xl:[--album-h:clamp(16rem,calc(var(--screen-fit)-2*var(--scene-blend)-11.25rem),34rem)] [@media(min-height:560px)]:min-h-(--screen-fit)"
+    >
+      {/* Brilhos discretos: gradientes radiais em vez de filter: blur (área grande sob o header de vidro) */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(30rem_26rem_at_8%_6%,rgba(0,63,127,0.05),transparent_70%),radial-gradient(30rem_26rem_at_94%_96%,rgba(255,208,0,0.1),transparent_70%)]" />
 
-      <div className="container mx-auto px-4 relative z-10">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 sm:mb-16 gap-8">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 text-[#003f7f] font-bold tracking-wider text-sm uppercase mb-4">
-              <span className="w-8 h-0.5 bg-[#ffd000]"></span>
-              <span>Nossa Galeria</span>
-            </div>
-            <h2 suppressHydrationWarning className="text-4xl sm:text-5xl md:text-6xl font-black text-[#003f7f] tracking-tight leading-[1.1] mb-6">
-              Momentos que <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#003f7f] to-[#0066cc]">Fazem História</span>
-            </h2>
-            <p suppressHydrationWarning className="text-lg text-gray-600 leading-relaxed max-w-xl">
-              Navegue pelos registros fotográficos dos principais eventos, ações e celebrações realizados pela CDL Ipirá.
-            </p>
-          </div>
-
-          <div className={`hidden md:flex gap-4 ${galleries.length <= 1 ? 'opacity-0 pointer-events-none' : ''}`}>
-            <button suppressHydrationWarning className="swiper-button-prev-custom w-14 h-14 rounded-full border border-[#003f7f]/10 bg-white text-[#003f7f] flex items-center justify-center hover:bg-[#003f7f] hover:text-white hover:scale-105 transition-all duration-300 shadow-sm">
-              <FaChevronLeft className="w-5 h-5" />
-            </button>
-            <button suppressHydrationWarning className="swiper-button-next-custom w-14 h-14 rounded-full bg-[#003f7f] text-white flex items-center justify-center hover:bg-[#0052a3] hover:scale-105 transition-all duration-300 shadow-lg shadow-[#003f7f]/20">
-              <FaChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center py-32">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#003f7f]"></div>
-          </div>
-        ) : galleries.length === 0 ? (
-          <div className="text-center py-32 bg-white rounded-[2rem] shadow-sm border border-gray-100">
-            <FaImages className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-800">Sem galerias no momento</h3>
-            <p className="text-gray-500">Volte em breve para ver novos registros.</p>
-          </div>
-        ) : (
-          <div className="relative overflow-visible">
-            <Swiper
-              modules={[Autoplay, Navigation, Pagination]}
-              spaceBetween={24}
-              centeredSlides={true}
-              loop={shouldLoop}
-              speed={800}
-              navigation={{
-                prevEl: '.swiper-button-prev-custom',
-                nextEl: '.swiper-button-next-custom',
-              }}
-              autoplay={shouldLoop ? {
-                delay: 5000,
-                disableOnInteraction: false,
-                pauseOnMouseEnter: true
-              } : false}
-              breakpoints={{
-                0: { slidesPerView: 1.15, spaceBetween: 16, centeredSlides: true },
-                640: { slidesPerView: 2, spaceBetween: 20, centeredSlides: true },
-                1024: { slidesPerView: 3, spaceBetween: 24, centeredSlides: true },
-                1280: { slidesPerView: 3, spaceBetween: 32, centeredSlides: true },
-              }}
-              className="gallery-swiper !pb-20 !overflow-visible"
-            >
-              {galleries.map((gallery, index) => (
-                <SwiperSlide
-                  key={`${gallery.id}-${index}`}
-                  className="!h-auto"
-                >
-                  <Link href="/imprensa/galeria-fotos" className="group block h-full">
-                    <article className="relative h-[420px] sm:h-[500px] rounded-[2rem] overflow-hidden bg-gray-900 isolate shadow-xl">
-                      {/* Main Image */}
-                      {gallery.image && gallery.image !== '/placeholder-gallery.jpg' ? (
-                        <Image
-                          src={gallery.image}
-                          alt={gallery.title}
-                          fill
-                          priority={index === 0}
-                          loading={index === 0 ? 'eager' : 'lazy'}
-                          className="object-cover transition-transform duration-1000 group-hover:scale-110"
-                          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 33vw"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-[#003f7f] to-[#001f3f] flex items-center justify-center">
-                          <FaImages className="w-20 h-20 text-white/10" />
-                        </div>
-                      )}
-
-                      {/* Overlays */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#00152b] via-black/20 to-transparent opacity-90"></div>
-                      <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors duration-500"></div>
-
-                      {/* Content Card (Glassmorphism) */}
-                      <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
-                        <div className="relative overflow-hidden rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-5 transition-all duration-300 group-hover:bg-white/20 group-hover:translate-y-[-4px]">
-
-                          {/* Badges Row */}
-                          <div className="flex items-center justify-between mb-3">
-                            {gallery.category && (
-                              <span className="inline-block px-3 py-1 bg-[#ffd000] text-[#003f7f] text-xs font-bold uppercase tracking-wider rounded-full">
-                                {gallery.category}
-                              </span>
-                            )}
-                            <div className="flex items-center gap-1.5 text-white/90 text-xs font-medium bg-black/30 px-3 py-1 rounded-full">
-                              <FaCamera className="w-3 h-3" />
-                              <span>{gallery.photos} fotos</span>
-                            </div>
-                          </div>
-
-                          {/* Title */}
-                          <h3 className="text-lg sm:text-xl font-bold text-white leading-tight mb-3 line-clamp-2 group-hover:text-[#ffd000] transition-colors">
-                            {gallery.title}
-                          </h3>
-
-                          {/* Action */}
-                          <div className="flex items-center gap-3 text-white/80 text-sm group/btn">
-                            <span className="font-medium">Visualizar Galeria</span>
-                            <span className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center group-hover/btn:bg-[#ffd000] group-hover/btn:text-[#003f7f] transition-all duration-300">
-                              <FaArrowRight className="w-3 h-3 -rotate-45 group-hover/btn:rotate-0 transition-transform duration-300" />
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  </Link>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-
-            <style jsx global>{`
-              .gallery-swiper {
-                overflow: visible !important;
+      <div className="relative container mx-auto w-full px-4">
+        <SectionCarousel
+          label="Galerias de fotos"
+          itemName="álbum"
+          header={
+            <SectionHeading
+              id="galeria-titulo"
+              eyebrow={
+                <>
+                  <FaCamera aria-hidden="true" />
+                  Nossa Galeria
+                </>
               }
-              .gallery-swiper .swiper-wrapper {
-                overflow: visible !important;
-              }
-              .gallery-swiper .swiper-slide {
-                transition: transform 0.4s ease, opacity 0.4s ease;
-                opacity: 0.75;
-              }
-              .gallery-swiper .swiper-slide-active {
-                opacity: 1;
-                transform: scale(1.02);
-                z-index: 10;
-              }
-              .gallery-swiper .swiper-slide-prev,
-              .gallery-swiper .swiper-slide-next {
-                opacity: 0.85;
-              }
-              .gallery-swiper .swiper-pagination {
-                bottom: 0 !important;
-              }
-              .gallery-swiper .swiper-pagination-bullet {
-                background: #003f7f;
-                opacity: 0.3;
-              }
-              .gallery-swiper .swiper-pagination-bullet-active {
-                opacity: 1;
-                width: 24px;
-                border-radius: 4px;
-                background: #003f7f;
-              }
-            `}</style>
-          </div>
-        )}
-
-        {/* Mobile View All Button */}
-        <div className="mt-8 text-center md:hidden">
-          <Link
-            href="/imprensa/galeria-fotos"
-            className="inline-flex items-center gap-2 text-[#003f7f] font-bold border-b-2 border-[#003f7f] pb-0.5 hover:text-[#0052a3] hover:border-[#0052a3] transition-colors"
-          >
-            <span>Ver todas as galerias</span>
-            <FaArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
+              eyebrowClass="bg-[#ffd000] text-[#003f7f]"
+              title="Momentos que Fazem História"
+              text="Eventos, ações e celebrações da CDL Ipirá."
+            />
+          }
+          action={{ href: '/imprensa/galeria-fotos', label: 'Ver todas' }}
+          prevLabel="Álbuns anteriores"
+          nextLabel="Próximos álbuns"
+          loading={isLoading}
+          skeleton={<AlbumSkeleton />}
+          autoplay={7000}
+        >
+          {galleries.map((gallery) => (
+            <AlbumCard key={gallery.id} gallery={gallery} featured={galleries.length === 1} sizes={sizes} />
+          ))}
+        </SectionCarousel>
       </div>
     </section>
   );

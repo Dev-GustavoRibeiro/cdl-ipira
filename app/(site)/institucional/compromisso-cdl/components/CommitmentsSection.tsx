@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { FaHandshake, FaHeart, FaShieldAlt, FaUsers } from 'react-icons/fa';
+import { FaFlag, FaHandshake, FaShieldAlt, FaUsers } from 'react-icons/fa';
+import { SectionHeader, shadowCard } from '../../_components/ui';
 
 const commitments = [
   {
@@ -9,67 +10,57 @@ const commitments = [
     title: 'Representatividade',
     description: 'Defendemos os interesses do comércio local junto aos poderes públicos e entidades representativas.',
     icon: FaUsers,
-    color: 'from-[#003f7f] to-[#0066cc]'
+    tile: 'bg-linear-to-br from-[#003f7f] to-[#0066cc] text-white',
   },
   {
     id: 2,
     title: 'Fortalecimento',
     description: 'Oferecemos serviços e ferramentas que fortalecem os negócios dos nossos associados.',
     icon: FaShieldAlt,
-    color: 'from-[#00a859] to-[#00d670]'
+    tile: 'bg-linear-to-br from-[#00a859] to-[#00d670] text-white',
   },
   {
     id: 3,
     title: 'Desenvolvimento',
     description: 'Promovemos o desenvolvimento econômico e social de Ipirá e região.',
     icon: FaHandshake,
-    color: 'from-[#ffd000] to-[#ffed4e]'
+    tile: 'bg-linear-to-br from-[#ffd000] to-[#ffed4e] text-[#003f7f]',
   },
-  {
-    id: 4,
-    title: 'Compromisso Social',
-    description: 'Desenvolvemos projetos sociais que beneficiam a comunidade local.',
-    icon: FaHeart,
-    color: 'from-[#003f7f] to-[#0066cc]'
-  },
+  // "Compromisso Social" volta quando a CDL indicar os projetos sociais pelo nome
 ];
 
 const CommitmentsSection = () => {
   return (
-    <section className="py-8 sm:py-12 md:py-16 bg-white">
+    <section className="bg-white py-16 sm:py-20 lg:py-24">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8 sm:mb-12 animate-blur-fade-in">
-          <h2 className="text-2xl xs:text-3xl sm:text-4xl font-black text-[#003f7f] mb-3 sm:mb-4">
-            Nossos Compromissos
-          </h2>
-          <div className="w-20 sm:w-24 h-1.5 sm:h-2 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] rounded-full mx-auto"></div>
-        </div>
+        <SectionHeader icon={FaFlag} eyebrow="O que defendemos" title="Nossos Compromissos" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 md:gap-8">
-          {commitments.map((commitment, index) => (
-            <div
-              key={commitment.id}
-              className="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group animate-scale-in"
-              style={{ animationDelay: `${index * 0.1}s` }}
-            >
-              <div className={`w-16 h-16 sm:w-20 sm:h-20 bg-linear-to-br ${commitment.color} rounded-full flex items-center justify-center mb-4 sm:mb-6 text-white group-hover:scale-110 transition-transform`}>
-                <commitment.icon className="w-6 h-6 sm:w-8 sm:h-8" />
-              </div>
-              <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-[#003f7f] mb-2 sm:mb-3">
-                {commitment.title}
-              </h3>
-              <p className="text-sm sm:text-base text-gray-600 leading-relaxed text-justify">
-                {commitment.description}
-              </p>
-            </div>
-          ))}
-        </div>
+        <ul className="mx-auto grid max-w-6xl grid-cols-1 gap-5 sm:gap-6 md:grid-cols-3">
+          {commitments.map((commitment, index) => {
+            const Icon = commitment.icon;
+            return (
+              <li
+                key={commitment.id}
+                className={`relative flex flex-col overflow-hidden rounded-3xl bg-white p-6 ring-1 ring-[#003f7f]/[0.07] animate-scale-in sm:p-7 ${shadowCard}`}
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                <span
+                  aria-hidden="true"
+                  data-n={String(index + 1).padStart(2, '0')}
+                  className="pointer-events-none absolute -top-2 right-4 text-6xl font-black tracking-tighter text-[#003f7f]/[0.05] select-none before:content-[attr(data-n)]"
+                />
+                <span className={`relative flex h-14 w-14 items-center justify-center rounded-2xl shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)] ${commitment.tile}`}>
+                  <Icon aria-hidden="true" className="h-6 w-6" />
+                </span>
+                <h3 className="relative mt-6 text-xl font-black tracking-tight text-[#003f7f]">{commitment.title}</h3>
+                <p className="relative mt-2.5 text-base leading-relaxed text-pretty text-gray-600">{commitment.description}</p>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );
 };
 
 export default CommitmentsSection;
-
-
-

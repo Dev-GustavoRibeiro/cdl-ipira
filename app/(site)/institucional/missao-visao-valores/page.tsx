@@ -2,10 +2,8 @@
 
 import React from 'react';
 import {
-  GlobalStyles,
   Breadcrumb,
   HeroSection,
-  QuoteSection,
   MissaoVisaoSection,
   ValoresSection,
   CompromissoSection,
@@ -15,10 +13,9 @@ import {
 export default function MissaoVisaoValoresPage() {
   return (
     <>
-      <GlobalStyles />
       <Breadcrumb />
       <HeroSection />
-      <QuoteSection />
+      {/* Citação da diretoria sai até a diretoria aprovar o texto (QuoteSection fica guardado) */}
       <MissaoVisaoSection />
       <ValoresSection />
       <CompromissoSection />

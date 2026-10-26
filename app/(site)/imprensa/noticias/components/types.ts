@@ -8,6 +8,8 @@ export interface NewsItem {
   category: string;
   color: string;
   author: string;
+  /** Campanha ligada (null quando não há ou ela está desativada) */
+  campaign?: { slug: string; title: string } | null;
 }
 
 

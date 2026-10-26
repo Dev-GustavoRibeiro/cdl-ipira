@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { CAMPAIGN_STATUS_LABEL, getCampaignStatus } from '@/lib/campaigns';
 
 // Conteúdo estático para páginas institucionais e de produtos
 const staticPages = [
@@ -63,22 +64,15 @@ const staticPages = [
     type: 'page',
     title: 'Balcão de Empregos',
     description: 'Encontre vagas de emprego em Ipirá ou cadastre vagas da sua empresa.',
-    url: '/balcao-empregos',
+    url: '/produtos/balcao-empregos',
     keywords: ['emprego', 'vagas', 'trabalho', 'currículo', 'oportunidade', 'contratação']
   },
   {
     type: 'page',
     title: 'Orientação Jurídica',
-    description: 'Assessoria jurídica gratuita para associados CDL em questões trabalhistas e empresariais.',
+    description: 'Orientação jurídica gratuita para associados em dia.',
     url: '/beneficios/orientacao-juridica',
     keywords: ['jurídica', 'advogado', 'orientação', 'trabalhista', 'empresarial', 'assessoria']
-  },
-  {
-    type: 'page',
-    title: 'Projeto Conduz',
-    description: 'Projeto social de educação musical para crianças e jovens de Ipirá.',
-    url: '/beneficios/projeto-conduz',
-    keywords: ['conduz', 'música', 'social', 'educação', 'crianças', 'jovens', 'orquestra']
   },
   {
     type: 'page',
@@ -93,6 +87,13 @@ const staticPages = [
     description: 'Acompanhe as últimas notícias do comércio de Ipirá e região.',
     url: '/imprensa/noticias',
     keywords: ['notícias', 'novidades', 'imprensa', 'informações', 'atualidades']
+  },
+  {
+    type: 'page',
+    title: 'Campanhas',
+    description: 'Campanhas promocionais da CDL Ipirá para movimentar o comércio local: Natal, Liquida, sorteios e mais.',
+    url: '/imprensa/campanhas',
+    keywords: ['campanhas', 'campanha', 'natal', 'liquida', 'liquidação', 'promoção', 'promoções', 'sorteio', 'prêmios', 'dia das mães', 'dia dos pais', 'black friday']
   },
   {
     type: 'page',
@@ -118,7 +119,7 @@ const staticPages = [
   {
     type: 'page',
     title: 'Revista CDL',
-    description: 'Leia as edições da Revista CDL Ipirá com conteúdo exclusivo para lojistas.',
+    description: 'Edições da Revista CDL Ipirá.',
     url: '/imprensa/revista-cdl',
     keywords: ['revista', 'publicação', 'edição', 'leitura', 'matérias']
   },
@@ -132,7 +133,7 @@ const staticPages = [
   {
     type: 'page',
     title: 'Filie-se à CDL',
-    description: 'Associe-se à CDL Ipirá e aproveite todos os benefícios exclusivos para lojistas.',
+    description: 'Associe-se à CDL Ipirá e conheça os serviços para empresas associadas.',
     url: 'https://app.higestor.com.br/inscricao/empresa/cdl-ipira',
     keywords: ['filiação', 'associação', 'cadastro', 'membro', 'associado', 'inscrição']
   }
@@ -202,14 +203,17 @@ export async function GET(request: NextRequest) {
   }
   
   const searchTerm = query.trim();
+  // Termo seguro para filtros .or() do PostgREST: sem separadores, aspas nem curingas
+  const filterTerm = searchTerm.replace(/[,()"'%*\\]/g, ' ').trim();
   
   try {
-    // Buscar em paralelo em todas as fontes
-    const [newsResult, eventsResult, jobsResult, videosResult] = await Promise.all([
+    // Buscar em paralelo em todas as fontes, só com as colunas que a busca usa (sem o texto inteiro das notícias:
+    // a busca nelas olha título e resumo)
+    const [newsResult, eventsResult, jobsResult, videosResult, campaignsResult] = await Promise.all([
       // Buscar notícias
       supabase
         .from('news')
-        .select('id, title, content, excerpt, image_url, date, category, author')
+        .select('id, title, excerpt, image, date, category')
         .eq('is_published', true)
         .order('date', { ascending: false })
         .limit(50),
@@ -217,7 +221,7 @@ export async function GET(request: NextRequest) {
       // Buscar eventos
       supabase
         .from('events')
-        .select('id, title, description, date, time, location, image_url, category')
+        .select('id, title, description, date, time, location, image, category')
         .eq('is_active', true)
         .order('date', { ascending: false })
         .limit(50),
@@ -225,7 +229,7 @@ export async function GET(request: NextRequest) {
       // Buscar vagas
       supabase
         .from('jobs')
-        .select('id, title, description, company, location, salary, category, requirements, benefits')
+        .select('id, title, description, company, location, category, date')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(50),
@@ -236,7 +240,18 @@ export async function GET(request: NextRequest) {
         .select('id, title, description, youtube_id, thumbnail, category, date')
         .eq('is_active', true)
         .order('date', { ascending: false })
-        .limit(50)
+        .limit(50),
+
+      // Buscar campanhas (se a tabela ainda não existir, o erro só zera esta fonte)
+      filterTerm
+        ? supabase
+            .from('campaigns')
+            .select('id, title, slug, summary, cover_image, start_date, end_date')
+            .eq('is_active', true)
+            .or(`title.ilike.%${filterTerm}%,summary.ilike.%${filterTerm}%`)
+            .order('start_date', { ascending: false })
+            .limit(20)
+        : Promise.resolve({ data: null })
     ]);
     
     const results: {
@@ -256,8 +271,7 @@ export async function GET(request: NextRequest) {
       for (const news of newsResult.data) {
         const relevance = calculateRelevance({
           title: news.title,
-          description: news.excerpt,
-          content: news.content
+          description: news.excerpt
         }, searchTerm);
         
         if (relevance > 0) {
@@ -265,9 +279,9 @@ export async function GET(request: NextRequest) {
             type: 'noticia',
             id: news.id,
             title: news.title,
-            description: news.excerpt || news.content?.substring(0, 200) || '',
+            description: news.excerpt || '',
             url: `/imprensa/noticias/${news.id}`,
-            image: news.image_url,
+            image: news.image,
             date: news.date,
             category: news.category,
             relevance
@@ -291,7 +305,7 @@ export async function GET(request: NextRequest) {
             title: event.title,
             description: event.description || '',
             url: `/imprensa/eventos`,
-            image: event.image_url,
+            image: event.image,
             date: event.date,
             category: event.category,
             relevance
@@ -306,7 +320,7 @@ export async function GET(request: NextRequest) {
         const relevance = calculateRelevance({
           title: job.title,
           description: job.description,
-          content: `${job.requirements || ''} ${job.benefits || ''}`
+          content: `${job.company || ''} ${job.location || ''} ${job.category || ''}`
         }, searchTerm);
         
         if (relevance > 0) {
@@ -315,7 +329,7 @@ export async function GET(request: NextRequest) {
             id: job.id,
             title: job.title,
             description: job.description || `${job.company || ''} - ${job.location || 'Ipirá'}`,
-            url: `/balcao-empregos`,
+            url: '/produtos/balcao-empregos',
             category: job.category,
             relevance
           });
@@ -344,6 +358,23 @@ export async function GET(request: NextRequest) {
             relevance
           });
         }
+      }
+    }
+    
+    // Processar campanhas (o filtro já veio do banco; a relevância só ordena)
+    if (campaignsResult.data) {
+      for (const campaign of campaignsResult.data) {
+        results.push({
+          type: 'campanha',
+          id: campaign.id,
+          title: campaign.title,
+          description: campaign.summary || '',
+          url: `/imprensa/campanhas/${campaign.slug}`,
+          image: campaign.cover_image || undefined,
+          date: campaign.start_date,
+          category: CAMPAIGN_STATUS_LABEL[getCampaignStatus(campaign)].text,
+          relevance: Math.max(calculateRelevance({ title: campaign.title, description: campaign.summary }, searchTerm), 1)
+        });
       }
     }
     

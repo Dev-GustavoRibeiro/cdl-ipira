@@ -1,742 +1,681 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
+import React, { useCallback, useEffect, useId, useState } from 'react';
 import Image from 'next/image';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaBook, FaSearch, FaSpinner, FaSave, FaEyeSlash, FaUpload, FaLink, FaCloudUploadAlt, FaTimes, FaDownload, FaImage } from 'react-icons/fa';
+import {
+  FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaBook, FaFilePdf, FaExternalLinkAlt, FaRedo, FaCloudUploadAlt, FaSyncAlt,
+} from 'react-icons/fa';
+import { toast } from 'sonner';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { toast } from 'sonner';
-import { fetchWithCSRF } from '@/lib/csrf-client';
+import { fetchWithCSRF, getCSRFToken } from '@/lib/csrf-client';
+import { formatDateBR, todayISO } from '@/lib/date';
+import { isOptimizableImage } from '@/lib/images';
+import {
+  AdminCard, AdminPageHeader, Button, Checkbox, DataTable, EmptyState, FilterPills, FormField, IconButton, ImageUploadField,
+  Input, SearchInput, StatusBadge, Textarea, cx, focusRing, type DataTableColumn,
+} from '@/app/admin/_components';
 
 interface Magazine {
   id: number;
   title: string;
-  description?: string;
-  edition?: string;
+  description: string | null;
+  edition: string | null;
   date: string;
-  cover_url?: string;
+  cover_url: string | null;
   file_url: string;
-  is_active: boolean;
+  is_active: boolean | null;
+}
+
+type Filter = 'all' | 'visible' | 'hidden';
+
+const PAGE_SIZE = 10;
+// ponytail: o proxy.ts passa por /api/* e o Next só repassa os primeiros 10 MB do corpo (proxyClientMaxBodySize);
+// acima disso o envio quebra. Para PDFs maiores, subir esse limite no next.config ou usar upload assinado no Storage.
+const UPLOAD_LIMIT_MB = 10;
+
+const emptyForm = () => ({
+  title: '',
+  edition: '',
+  date: todayISO(),
+  description: '',
+  file_url: '',
+  cover_url: '',
+  is_active: true,
+});
+type FormState = ReturnType<typeof emptyForm>;
+type FormErrors = Partial<Record<keyof FormState, string>>;
+
+async function request<T = unknown>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetchWithCSRF(url, init);
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error || `Erro ${response.status} ao falar com o servidor.`);
+  return data as T;
+}
+
+/** Envio para /api/upload com progresso (o fetch não informa o andamento do upload). */
+function uploadWithProgress(file: File, folder: string, onProgress: (percent: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('bucket', 'magazines');
+    body.append('folder', folder);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    const csrf = getCSRFToken();
+    if (csrf) xhr.setRequestHeader('x-csrf-token', csrf);
+    xhr.responseType = 'json';
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      const data = xhr.response as { url?: string; error?: string } | null;
+      if (xhr.status >= 200 && xhr.status < 300 && data?.url) resolve(data.url);
+      else reject(new Error(data?.error || `Erro ${xhr.status} ao enviar o arquivo.`));
+    };
+    xhr.onerror = () => reject(new Error('Falha de conexão ao enviar o arquivo.'));
+    xhr.send(body);
+  });
+}
+
+const errorMessage = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
+const isValidLink = (value: string) => !value || /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i.test(value.trim());
+const isVisible = (m: Pick<Magazine, 'is_active'>) => m.is_active !== false;
+const formatSize = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`);
+const fileNameOf = (url: string) => {
+  try {
+    return decodeURIComponent(new URL(url, 'https://x').pathname.split('/').pop() || '') || url;
+  } catch {
+    return url;
+  }
+};
+
+function validate(form: FormState): FormErrors {
+  const errors: FormErrors = {};
+  if (!form.title.trim()) errors.title = 'Informe o título da edição.';
+  if (!form.date) errors.date = 'Informe a data.';
+  if (!form.file_url.trim()) errors.file_url = 'Envie o PDF ou cole o link da revista.';
+  else if (!isValidLink(form.file_url)) errors.file_url = 'Use um endereço que comece com https://';
+  if (!isValidLink(form.cover_url)) errors.cover_url = 'Use um endereço que comece com https://';
+  return errors;
+}
+
+/** Campo do PDF: área de envio, progresso e arquivo atual (abrir, trocar, remover). */
+function PdfField({
+  value,
+  uploadedName,
+  progress,
+  error,
+  onSelect,
+  onRemove,
+}: {
+  value: string;
+  uploadedName: string | null;
+  progress: number | null;
+  error?: string;
+  onSelect: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const inputId = useId();
+  const [dragging, setDragging] = useState(false);
+  const uploading = progress !== null;
+  const input = (
+    <input
+      id={inputId}
+      type="file"
+      accept="application/pdf,.pdf"
+      className="sr-only"
+      disabled={uploading}
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) onSelect(file);
+        e.target.value = '';
+      }}
+    />
+  );
+
+  return (
+    <div className="min-w-0">
+      <p className="mb-1.5 text-sm font-semibold text-gray-700">
+        Arquivo PDF
+        <span aria-hidden="true" className="ml-0.5 text-red-600">
+          *
+        </span>
+      </p>
+
+      {uploading ? (
+        <div role="status" className="space-y-2 rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-200">
+          <div className="flex justify-between gap-3 text-sm font-medium text-gray-700">
+            <span className="truncate">Enviando {uploadedName ?? 'PDF'}…</span>
+            <span className="tabular-nums">{progress}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+            <div className="h-full rounded-full bg-[#00a859] transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      ) : value && isValidLink(value) ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-gray-200">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+            <FaFilePdf aria-hidden="true" className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1 basis-40">
+            <p className="truncate text-sm font-semibold text-gray-900" title={value}>
+              {uploadedName ?? fileNameOf(value)}
+            </p>
+            <a
+              href={value}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cx('inline-flex items-center gap-1.5 rounded text-xs font-semibold text-[#0052a3] hover:underline', focusRing)}
+            >
+              Abrir arquivo
+              <FaExternalLinkAlt aria-hidden="true" className="h-2.5 w-2.5" />
+              <span className="sr-only">(abre em nova aba)</span>
+            </a>
+          </div>
+          <div className="flex gap-1">
+            <label
+              htmlFor={inputId}
+              className={cx(
+                'inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-white px-3.5 text-sm font-semibold text-[#003f7f] ring-1 ring-inset ring-gray-300 hover:ring-[#003f7f]/40 pointer-fine:min-h-9',
+                'has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-[#0066cc]'
+              )}
+            >
+              <FaSyncAlt aria-hidden="true" className="h-3 w-3" />
+              Trocar
+              {input}
+            </label>
+            <IconButton icon={FaTrash} variant="danger" label="Remover arquivo" onClick={onRemove} />
+          </div>
+        </div>
+      ) : (
+        <label
+          htmlFor={inputId}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) onSelect(file);
+          }}
+          className={cx(
+            'flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-5 text-center transition-colors',
+            'has-[input:focus-visible]:border-[#0066cc] has-[input:focus-visible]:ring-4 has-[input:focus-visible]:ring-[#0066cc]/15',
+            dragging ? 'border-[#0066cc] bg-[#0066cc]/5' : error ? 'border-red-400 bg-red-50/40' : 'border-gray-300 bg-gray-50/60 hover:border-[#003f7f]/40'
+          )}
+        >
+          <span className="flex size-11 items-center justify-center rounded-xl bg-white text-[#003f7f] ring-1 ring-gray-200">
+            <FaCloudUploadAlt aria-hidden="true" className="h-5 w-5" />
+          </span>
+          <span className="text-sm font-semibold text-gray-800">
+            <span className="text-[#0052a3]">Clique para enviar o PDF</span> ou arraste o arquivo
+          </span>
+          <span className="text-xs text-gray-500">Até {UPLOAD_LIMIT_MB} MB. Maior que isso? Hospede o PDF e cole o link abaixo.</span>
+          {input}
+        </label>
+      )}
+    </div>
+  );
 }
 
 export default function AdminRevistaCDLPage() {
-  const [searchTerm, setSearchTerm] = useState('');
   const [magazines, setMagazines] = useState<Magazine[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentMagazine, setCurrentMagazine] = useState<Partial<Magazine>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [page, setPage] = useState(1);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<FormState>(emptyForm);
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<number | null>(null);
+  const [pdfName, setPdfName] = useState<string | null>(null);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
 
-  // Estados para upload de arquivos
-  const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedCover, setSelectedCover] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const coverInputRef = useRef<HTMLInputElement>(null);
-
-  // Dialog states para alertas personalizados
-  const [deleteDialog, setDeleteDialog] = useState<{isOpen: boolean, id: number | null, title: string}>({
-    isOpen: false,
-    id: null,
-    title: ''
-  });
+  const [magazineToDelete, setMagazineToDelete] = useState<Magazine | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [successDialog, setSuccessDialog] = useState<{isOpen: boolean, message: string, type: 'success' | 'edit' | 'delete'}>({
-    isOpen: false,
-    message: '',
-    type: 'success'
-  });
+  const [togglingId, setTogglingId] = useState<number | null>(null);
 
-  const fetchMagazines = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/admin/magazines');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao carregar revistas');
-      setMagazines(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar revistas:', error);
-      toast.error('Erro ao carregar revistas');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Promessa encadeada: nenhum setState síncrono dentro do efeito (react-hooks/set-state-in-effect)
+  const loadMagazines = useCallback(
+    () =>
+      request<Magazine[]>('/api/admin/magazines')
+        .then((data) => {
+          setMagazines(data);
+          setLoadError(false);
+        })
+        .catch((error) => {
+          setLoadError(true);
+          toast.error(errorMessage(error, 'Erro ao carregar as revistas.'));
+        })
+        .finally(() => setIsLoading(false)),
+    []
+  );
 
   useEffect(() => {
-    fetchMagazines();
-  }, []);
+    loadMagazines();
+  }, [loadMagazines]);
 
-  // Handler para seleção do arquivo PDF
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 100 * 1024 * 1024) {
-        toast.error('Arquivo muito grande. Máximo permitido: 100MB');
-        return;
-      }
-      if (file.type !== 'application/pdf') {
-        toast.error('Por favor, selecione um arquivo PDF');
-        return;
-      }
-      setSelectedFile(file);
-      
-      // Sugerir título se estiver vazio
-      if (!currentMagazine.title) {
-        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-        setCurrentMagazine(prev => ({ ...prev, title: nameWithoutExt }));
-      }
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setFormData((current) => ({ ...current, [key]: value }));
+    setErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
+  };
+
+  const openModal = (magazine?: Magazine) => {
+    setEditingId(magazine?.id ?? null);
+    setFormData(
+      magazine
+        ? {
+            title: magazine.title,
+            edition: magazine.edition || '',
+            date: /^\d{4}-\d{2}-\d{2}/.test(magazine.date || '') ? magazine.date.slice(0, 10) : '',
+            description: magazine.description || '',
+            file_url: magazine.file_url || '',
+            cover_url: magazine.cover_url || '',
+            is_active: isVisible(magazine),
+          }
+        : emptyForm()
+    );
+    setErrors({});
+    setPdfName(null);
+    setPdfProgress(null);
+    setIsModalOpen(true);
+  };
+
+  const uploading = pdfProgress !== null || isUploadingCover;
+  const closeModal = () => {
+    if (!isSaving && !uploading) setIsModalOpen(false);
+  };
+
+  const handlePdfSelect = async (file: File) => {
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+      setErrors((current) => ({ ...current, file_url: 'Escolha um arquivo PDF.' }));
+      return;
+    }
+    if (file.size > UPLOAD_LIMIT_MB * 1024 * 1024) {
+      setErrors((current) => ({
+        ...current,
+        file_url: `O PDF tem ${formatSize(file.size)} e o limite de envio é ${UPLOAD_LIMIT_MB} MB. Comprima o arquivo ou hospede-o (ex.: Google Drive) e cole o link abaixo.`,
+      }));
+      return;
+    }
+    setPdfName(file.name);
+    setPdfProgress(0);
+    try {
+      const url = await uploadWithProgress(file, 'pdfs', setPdfProgress);
+      setField('file_url', url);
+      // Sugere o título pelo nome do arquivo, se ainda estiver vazio
+      setFormData((current) => (current.title.trim() ? current : { ...current, title: file.name.replace(/\.pdf$/i, '').slice(0, 255) }));
+      toast.success(`PDF enviado (${formatSize(file.size)}).`);
+    } catch (error) {
+      setPdfName(null);
+      toast.error(errorMessage(error, 'Erro ao enviar o PDF.'));
+    } finally {
+      setPdfProgress(null);
     }
   };
 
-  // Handler para seleção da capa
-  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('Imagem muito grande. Máximo permitido: 10MB');
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        toast.error('Por favor, selecione uma imagem');
-        return;
-      }
-      setSelectedCover(file);
+  const handleCoverSelect = async (file: File) => {
+    if (!file.type.startsWith('image/') || file.size > UPLOAD_LIMIT_MB * 1024 * 1024) {
+      setErrors((current) => ({ ...current, cover_url: `Use uma imagem PNG, JPG ou WebP de até ${UPLOAD_LIMIT_MB} MB.` }));
+      return;
     }
-  };
-
-  // Upload do arquivo para o Supabase Storage
-  const uploadFile = async (file: File, folder: string): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('bucket', 'magazines');
-    formData.append('folder', folder);
-
-    const response = await fetchWithCSRF('/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    const data = await response.json();
-
-    if (!response.ok || !data.url) {
-      throw new Error(data.error || 'Erro ao enviar arquivo');
+    setIsUploadingCover(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      body.append('bucket', 'magazines');
+      body.append('folder', 'covers');
+      const data = await request<{ url?: string }>('/api/upload', { method: 'POST', body });
+      if (!data.url) throw new Error('O envio não retornou o endereço da imagem.');
+      setField('cover_url', data.url);
+      toast.success('Capa enviada.');
+    } catch (error) {
+      toast.error(errorMessage(error, 'Erro ao enviar a capa.'));
+    } finally {
+      setIsUploadingCover(false);
     }
-
-    return data.url;
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const found = validate(formData);
+    setErrors(found);
+    const firstInvalid = Object.keys(found)[0];
+    if (firstInvalid) {
+      document.getElementById(`revista-${firstInvalid}`)?.focus();
+      return;
+    }
+
     setIsSaving(true);
-    setIsUploading(true);
-
     try {
-      let fileUrl = currentMagazine.file_url;
-      let coverUrl = currentMagazine.cover_url;
-
-      // Upload do PDF
-      if (uploadMode === 'file' && selectedFile) {
-        fileUrl = await uploadFile(selectedFile, 'pdfs');
-      }
-
-      // Upload da capa
-      if (selectedCover) {
-        coverUrl = await uploadFile(selectedCover, 'covers');
-      }
-
-      if (!fileUrl) {
-        toast.error('Por favor, selecione um arquivo PDF ou informe uma URL');
-        setIsSaving(false);
-        setIsUploading(false);
-        return;
-      }
-
-      const magazineData = {
-        title: currentMagazine.title,
-        description: currentMagazine.description || null,
-        edition: currentMagazine.edition || null,
-        date: currentMagazine.date,
-        cover_url: coverUrl || null,
-        file_url: fileUrl,
-        is_active: currentMagazine.is_active !== false,
-      };
-
-      let response: Response;
-      if (isEditing && currentMagazine.id) {
-        response = await fetchWithCSRF('/api/admin/magazines', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: currentMagazine.id, ...magazineData }),
-        });
-      } else {
-        response = await fetchWithCSRF('/api/admin/magazines', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(magazineData),
-        });
-      }
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao salvar revista');
-      
-      const wasEditing = isEditing;
-      await fetchMagazines();
-      closeModal();
-      
-      setSuccessDialog({
-        isOpen: true,
-        message: wasEditing 
-          ? 'A revista foi atualizada com sucesso!' 
-          : 'A nova edição foi cadastrada com sucesso!',
-        type: wasEditing ? 'edit' : 'success'
+      await request('/api/admin/magazines', {
+        method: editingId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(editingId && { id: editingId }),
+          title: formData.title.trim(),
+          edition: formData.edition.trim() || null,
+          date: formData.date,
+          description: formData.description.trim() || null,
+          file_url: formData.file_url.trim(),
+          cover_url: formData.cover_url.trim() || null,
+          is_active: formData.is_active,
+        }),
       });
+      toast.success(editingId ? 'Edição atualizada.' : 'Edição cadastrada.');
+      setIsModalOpen(false);
+      loadMagazines();
     } catch (error) {
-      console.error('Erro ao salvar revista:', error);
-      toast.error('Erro ao salvar revista. Verifique se o bucket de storage foi criado.');
+      toast.error(errorMessage(error, 'Erro ao salvar a revista.'));
     } finally {
       setIsSaving(false);
-      setIsUploading(false);
     }
   };
 
-  const openDeleteDialog = (magazine: Magazine) => {
-    setDeleteDialog({
-      isOpen: true,
-      id: magazine.id,
-      title: magazine.title
-    });
+  const toggleVisible = async (magazine: Magazine) => {
+    const show = !isVisible(magazine);
+    setTogglingId(magazine.id);
+    try {
+      await request('/api/admin/magazines', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...magazine, is_active: show }),
+      });
+      setMagazines((current) => current.map((m) => (m.id === magazine.id ? { ...m, is_active: show } : m)));
+      toast.success(show ? 'Edição visível no site.' : 'Edição ocultada do site.');
+    } catch (error) {
+      toast.error(errorMessage(error, 'Erro ao alterar a visibilidade.'));
+    } finally {
+      setTogglingId(null);
+    }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!deleteDialog.id) return;
-    
+  const confirmDelete = async () => {
+    if (!magazineToDelete) return;
     setIsDeleting(true);
     try {
-      const response = await fetchWithCSRF(`/api/admin/magazines?id=${deleteDialog.id}`, {
-        method: 'DELETE',
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao excluir revista');
-
-      setMagazines(current => current.filter(m => m.id !== deleteDialog.id));
-      setDeleteDialog({ isOpen: false, id: null, title: '' });
-      
-      setSuccessDialog({
-        isOpen: true,
-        message: 'A revista foi excluída permanentemente do sistema.',
-        type: 'delete'
-      });
+      await request(`/api/admin/magazines?id=${magazineToDelete.id}`, { method: 'DELETE' });
+      toast.success('Edição excluída.');
+      setMagazineToDelete(null);
+      loadMagazines();
     } catch (error) {
-      console.error('Erro ao excluir revista:', error);
-      setDeleteDialog({ isOpen: false, id: null, title: '' });
-      toast.error('Erro ao excluir revista');
+      toast.error(errorMessage(error, 'Erro ao excluir a revista.'));
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleToggleActive = async (magazine: Magazine) => {
-    try {
-      const response = await fetchWithCSRF('/api/admin/magazines', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: magazine.id,
-          title: magazine.title,
-          description: magazine.description,
-          edition: magazine.edition,
-          date: magazine.date,
-          cover_url: magazine.cover_url,
-          file_url: magazine.file_url,
-          is_active: !magazine.is_active,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status');
-      
-      toast.success(magazine.is_active ? 'Revista ocultada' : 'Revista ativada');
-      fetchMagazines();
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status');
-    }
-  };
+  const term = searchTerm.trim().toLowerCase();
+  const searched = magazines.filter((m) => !term || m.title?.toLowerCase().includes(term) || m.edition?.toLowerCase().includes(term));
+  const filtered = searched.filter((m) => (filter === 'all' ? true : filter === 'visible' ? isVisible(m) : !isVisible(m)));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const openModal = (magazine?: Magazine) => {
-    if (magazine) {
-      setCurrentMagazine(magazine);
-      setIsEditing(true);
-      setUploadMode('url');
-    } else {
-      setCurrentMagazine({ 
-        date: new Date().toISOString().split('T')[0],
-        is_active: true
-      });
-      setIsEditing(false);
-      setUploadMode('file');
-    }
-    setSelectedFile(null);
-    setSelectedCover(null);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setCurrentMagazine({});
-    setIsEditing(false);
-    setSelectedFile(null);
-    setSelectedCover(null);
-    setUploadMode('file');
-  };
-
-  const filteredMagazines = magazines.filter(mag =>
-    mag.title?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
+  const columns: DataTableColumn<Magazine>[] = [
+    {
+      key: 'title',
+      header: 'Edição',
+      primary: true,
+      cell: (m) => (
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="relative flex h-16 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#003f7f]/[0.06] text-[#003f7f]/40 ring-1 ring-gray-200">
+            {m.cover_url ? (
+              <Image src={m.cover_url} alt="" fill sizes="48px" className="object-cover" unoptimized={!isOptimizableImage(m.cover_url)} />
+            ) : (
+              <FaBook aria-hidden="true" className="h-4 w-4" />
+            )}
+          </span>
+          <div className="min-w-0">
+            <p className="line-clamp-3 font-semibold text-gray-900 md:line-clamp-2 md:max-w-md">{m.title}</p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs font-medium text-gray-500">
+              {m.edition && <span>{m.edition}</span>}
+              <span className="inline-flex items-center gap-1">
+                <FaFilePdf aria-hidden="true" className="h-3 w-3 text-red-600" />
+                {/\.pdf($|\?)/i.test(m.file_url) ? 'PDF' : 'Link externo'}
+              </span>
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    { key: 'date', header: 'Data', className: 'whitespace-nowrap tabular-nums', cell: (m) => formatDateBR(m.date) },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (m) => (isVisible(m) ? <StatusBadge variant="success">Visível</StatusBadge> : <StatusBadge variant="neutral">Oculta</StatusBadge>),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] mb-2">
-            Revista CDL
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
-            Gerencie as edições da Revista CDL
-          </p>
-        </div>
-        <button
-          onClick={() => openModal()}
-          className="inline-flex items-center gap-2 bg-[#003f7f] text-white px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 shadow-lg"
-        >
-          <FaPlus />
-          Nova Edição
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Revista CDL"
+        description="Edições da revista disponíveis para leitura e download no site."
+        actions={
+          <Button icon={FaPlus} onClick={() => openModal()}>
+            Nova edição
+          </Button>
+        }
+      />
 
-      {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-gray-500 text-xs font-bold uppercase mb-1">Total de Edições</div>
-          <div className="text-2xl font-black text-gray-900">{magazines.length}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-[#00a859] text-xs font-bold uppercase mb-1">Edições Ativas</div>
-          <div className="text-2xl font-black text-gray-900">{magazines.filter(m => m.is_active).length}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-[#b39200] text-xs font-bold uppercase mb-1">Ocultas</div>
-          <div className="text-2xl font-black text-gray-900">{magazines.filter(m => !m.is_active).length}</div>
-        </div>
-      </div>
-
-      {/* Busca */}
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-        <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-          <input
-            type="text"
-            placeholder="Buscar edições..."
+      <AdminCard flush>
+        <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+          <SearchInput
+            label="Buscar edições"
+            placeholder="Buscar por título ou edição"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+            onChange={(value) => {
+              setSearchTerm(value);
+              setPage(1);
+            }}
+            className="w-full xl:max-w-sm"
+          />
+          <FilterPills<Filter>
+            label="Filtrar por visibilidade"
+            value={filter}
+            onChange={(value) => {
+              setFilter(value);
+              setPage(1);
+            }}
+            options={[
+              { value: 'all', label: 'Todas', count: isLoading ? undefined : searched.length },
+              { value: 'visible', label: 'Visíveis', count: isLoading ? undefined : searched.filter(isVisible).length },
+              { value: 'hidden', label: 'Ocultas', count: isLoading ? undefined : searched.filter((m) => !isVisible(m)).length },
+            ]}
           />
         </div>
-      </div>
 
-      {/* Grid de revistas */}
-      {isLoading ? (
-        <div className="flex justify-center items-center py-16">
-          <div className="flex items-center gap-3 text-[#003f7f]">
-            <FaSpinner className="animate-spin w-6 h-6" />
-            <span className="text-lg font-medium">Carregando revistas...</span>
-          </div>
-        </div>
-      ) : filteredMagazines.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md p-12 text-center">
-          <FaBook className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-gray-700 mb-2">Nenhuma edição encontrada</h3>
-          <p className="text-gray-500">Clique em "Nova Edição" para adicionar uma revista.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-          {filteredMagazines.map((magazine) => (
-            <div 
-              key={magazine.id} 
-              className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 ${!magazine.is_active ? 'opacity-60' : ''}`}
-            >
-              {/* Capa */}
-              <div className="relative h-56 bg-gradient-to-br from-[#003f7f] to-[#0052a3] flex items-center justify-center overflow-hidden">
-                {magazine.cover_url ? (
-                  <Image
-                    src={magazine.cover_url}
-                    alt={magazine.title}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <FaBook className="w-20 h-20 text-white/30" />
+        <DataTable
+          caption="Lista de edições da revista"
+          columns={columns}
+          rows={pageRows}
+          getRowId={(m) => m.id}
+          loading={isLoading}
+          rowActions={(m) => (
+            <>
+              <a
+                href={m.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Abrir o arquivo de “${m.title}” (abre em nova aba)`}
+                title="Abrir arquivo"
+                className={cx(
+                  'inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-[#003f7f] pointer-fine:size-9',
+                  focusRing
                 )}
-                {/* Badge de status */}
-                <div className={`absolute top-3 right-3 px-2 py-1 rounded-full text-xs font-bold ${
-                  magazine.is_active 
-                    ? 'bg-green-500 text-white' 
-                    : 'bg-gray-500 text-white'
-                }`}>
-                  {magazine.is_active ? 'Ativo' : 'Oculto'}
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="p-4 sm:p-5">
-                <h3 className="text-base sm:text-lg font-bold text-[#003f7f] mb-1 line-clamp-2">
-                  {magazine.title}
-                </h3>
-                {magazine.edition && (
-                  <p className="text-sm text-gray-500 mb-1">Edição: {magazine.edition}</p>
-                )}
-                <p className="text-sm text-gray-600 mb-4">
-                  {new Date(magazine.date).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                </p>
-
-                {/* Ações */}
-                <div className="flex items-center gap-2">
-                  <a
-                    href={magazine.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-3 py-2 rounded-lg font-bold hover:bg-[#0066cc] transition-colors text-sm"
-                  >
-                    <FaDownload className="w-3 h-3" />
-                    PDF
-                  </a>
-                  <button
-                    onClick={() => handleToggleActive(magazine)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      magazine.is_active 
-                        ? 'text-green-600 hover:bg-green-100' 
-                        : 'text-gray-500 hover:bg-gray-100'
-                    }`}
-                    title={magazine.is_active ? 'Ocultar' : 'Ativar'}
-                  >
-                    {magazine.is_active ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={() => openModal(magazine)}
-                    className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
-                    title="Editar"
-                  >
-                    <FaEdit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => openDeleteDialog(magazine)}
-                    className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
-                    title="Excluir"
-                  >
-                    <FaTrash className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Modal de Edição/Criação */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        title={isEditing ? 'Editar Revista' : 'Nova Edição'}
-      >
-        <form onSubmit={handleSave} className="space-y-5">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Título *</label>
-            <input
-              type="text"
-              required
-              value={currentMagazine.title || ''}
-              onChange={(e) => setCurrentMagazine({ ...currentMagazine, title: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              placeholder="Ex: Revista CDL - Edição Janeiro 2025"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Edição</label>
-              <input
-                type="text"
-                value={currentMagazine.edition || ''}
-                onChange={(e) => setCurrentMagazine({ ...currentMagazine, edition: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                placeholder="Ex: 01/2025"
+              >
+                <FaExternalLinkAlt aria-hidden="true" className="h-3.5 w-3.5" />
+              </a>
+              <IconButton
+                icon={isVisible(m) ? FaEyeSlash : FaEye}
+                label={isVisible(m) ? `Ocultar “${m.title}” do site` : `Mostrar “${m.title}” no site`}
+                onClick={() => toggleVisible(m)}
+                disabled={togglingId === m.id}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
-              <input
-                type="date"
-                required
-                value={currentMagazine.date ? currentMagazine.date.split('T')[0] : ''}
-                onChange={(e) => setCurrentMagazine({ ...currentMagazine, date: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
-            <textarea
-              value={currentMagazine.description || ''}
-              onChange={(e) => setCurrentMagazine({ ...currentMagazine, description: e.target.value })}
-              rows={2}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent resize-none"
-              placeholder="Breve descrição do conteúdo (opcional)"
-            />
-          </div>
-
-          {/* Upload de Capa */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Imagem da Capa</label>
-            <input
-              ref={coverInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleCoverSelect}
-              className="hidden"
-            />
-            
-            {!selectedCover && !currentMagazine.cover_url ? (
-              <div
-                onClick={() => coverInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
-              >
-                <FaImage className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 text-sm font-medium">Clique para selecionar uma imagem de capa</p>
-                <p className="text-xs text-gray-500">JPG, PNG ou WebP (máx. 10MB)</p>
-              </div>
-            ) : (
-              <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-4">
-                <div className="w-16 h-20 bg-gray-200 rounded-lg overflow-hidden relative">
-                  {selectedCover ? (
-                    <Image
-                      src={URL.createObjectURL(selectedCover)}
-                      alt="Nova capa"
-                      fill
-                      className="object-cover"
-                    />
-                  ) : currentMagazine.cover_url ? (
-                    <Image
-                      src={currentMagazine.cover_url}
-                      alt="Capa atual"
-                      fill
-                      className="object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">
-                    {selectedCover ? selectedCover.name : 'Capa atual'}
-                  </p>
-                  {selectedCover && (
-                    <p className="text-sm text-gray-500">{formatFileSize(selectedCover.size)}</p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCover(null);
-                    if (!isEditing) setCurrentMagazine(prev => ({ ...prev, cover_url: undefined }));
-                  }}
-                  className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                >
-                  <FaTimes className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => coverInputRef.current?.click()}
-              className="mt-2 text-sm text-[#003f7f] hover:underline"
-            >
-              {selectedCover || currentMagazine.cover_url ? 'Trocar imagem' : ''}
-            </button>
-          </div>
-
-          {/* Upload de PDF */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-3">Arquivo PDF *</label>
-            
-            {/* Tabs */}
-            <div className="flex gap-2 mb-4">
-              <button
-                type="button"
-                onClick={() => setUploadMode('file')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
-                  uploadMode === 'file'
-                    ? 'bg-[#003f7f] text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <FaUpload className="w-4 h-4" />
-                Upload do Computador
-              </button>
-              <button
-                type="button"
-                onClick={() => setUploadMode('url')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
-                  uploadMode === 'url'
-                    ? 'bg-[#003f7f] text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <FaLink className="w-4 h-4" />
-                Informar URL
-              </button>
-            </div>
-
-            {uploadMode === 'file' ? (
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                
-                {!selectedFile ? (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
+              <IconButton icon={FaEdit} label={`Editar “${m.title}”`} onClick={() => openModal(m)} />
+              <IconButton icon={FaTrash} variant="danger" label={`Excluir “${m.title}”`} onClick={() => setMagazineToDelete(m)} />
+            </>
+          )}
+          pagination={{ page: currentPage, totalPages, onPageChange: setPage, total: filtered.length, pageSize: PAGE_SIZE }}
+          empty={
+            loadError ? (
+              <EmptyState
+                icon={FaRedo}
+                title="Não foi possível carregar as revistas"
+                description="Verifique a conexão e tente de novo."
+                action={
+                  <Button
+                    variant="secondary"
+                    icon={FaRedo}
+                    onClick={() => {
+                      setIsLoading(true);
+                      loadMagazines();
+                    }}
                   >
-                    <FaCloudUploadAlt className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600 font-medium mb-1">Clique para selecionar o PDF</p>
-                    <p className="text-xs text-gray-500">Máximo 100MB</p>
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                        <FaBook className="w-6 h-6 text-red-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{selectedFile.name}</p>
-                        <p className="text-sm text-gray-500">{formatFileSize(selectedFile.size)}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedFile(null);
-                          if (fileInputRef.current) fileInputRef.current.value = '';
-                        }}
-                        className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                      >
-                        <FaTimes className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-                
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-3 w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
-                >
-                  {selectedFile ? 'Trocar arquivo' : 'Selecionar arquivo'}
-                </button>
-              </div>
+                    Tentar novamente
+                  </Button>
+                }
+              />
+            ) : magazines.length === 0 ? (
+              <EmptyState
+                icon={FaBook}
+                title="Nenhuma edição ainda"
+                description="Envie o PDF da primeira edição da Revista CDL."
+                action={
+                  <Button icon={FaPlus} onClick={() => openModal()}>
+                    Nova edição
+                  </Button>
+                }
+              />
             ) : (
-              <div>
-                <input
+              <EmptyState
+                title="Nenhuma edição encontrada"
+                description="Tente outro termo de busca ou outro filtro."
+                action={
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setFilter('all');
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
+                }
+              />
+            )
+          }
+        />
+      </AdminCard>
+
+      <Modal isOpen={isModalOpen} onClose={closeModal} title={editingId ? 'Editar revista' : 'Nova edição'} subtitle="Campos com * são obrigatórios.">
+        <form onSubmit={handleSave} noValidate className="space-y-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div className="space-y-3 md:col-span-2">
+              <PdfField
+                value={formData.file_url}
+                uploadedName={pdfName}
+                progress={pdfProgress}
+                error={errors.file_url}
+                onSelect={handlePdfSelect}
+                onRemove={() => {
+                  setPdfName(null);
+                  setField('file_url', '');
+                }}
+              />
+              <FormField label="Ou cole o link do PDF" id="revista-file_url" error={errors.file_url}>
+                <Input
                   type="url"
-                  value={currentMagazine.file_url || ''}
-                  onChange={(e) => setCurrentMagazine({ ...currentMagazine, file_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+                  inputMode="url"
+                  value={formData.file_url}
+                  onChange={(e) => {
+                    setPdfName(null);
+                    setField('file_url', e.target.value);
+                  }}
+                  placeholder="https://…"
                 />
-                <p className="text-xs text-gray-500 mt-2">Cole o link direto para o arquivo PDF</p>
-              </div>
-            )}
-          </div>
+              </FormField>
+            </div>
 
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={currentMagazine.is_active !== false}
-              onChange={(e) => setCurrentMagazine({ ...currentMagazine, is_active: e.target.checked })}
-              className="w-5 h-5 text-[#00a859] border-gray-300 rounded focus:ring-[#00a859]"
+            <FormField label="Título" id="revista-title" required error={errors.title} className="md:col-span-2">
+              <Input
+                value={formData.title}
+                onChange={(e) => setField('title', e.target.value)}
+                required
+                maxLength={255}
+                placeholder="Ex.: Revista CDL — Edição de Outubro"
+              />
+            </FormField>
+
+            <FormField label="Edição" id="revista-edition" hint="Ex.: Ed. 24 ou Outubro/2026.">
+              <Input value={formData.edition} onChange={(e) => setField('edition', e.target.value)} maxLength={50} />
+            </FormField>
+
+            <FormField label="Data de publicação" id="revista-date" required error={errors.date}>
+              <Input type="date" value={formData.date} onChange={(e) => setField('date', e.target.value)} required />
+            </FormField>
+
+            <FormField label="Descrição" id="revista-description" className="md:col-span-2">
+              <Textarea
+                value={formData.description}
+                onChange={(e) => setField('description', e.target.value)}
+                rows={3}
+                maxLength={2000}
+                placeholder="Destaques desta edição"
+              />
+            </FormField>
+
+            <ImageUploadField
+              label="Capa"
+              id="revista-cover_url"
+              className="md:col-span-2"
+              aspect="square"
+              value={formData.cover_url && isValidLink(formData.cover_url) ? formData.cover_url : null}
+              onSelect={handleCoverSelect}
+              onRemove={() => setField('cover_url', '')}
+              uploading={isUploadingCover}
+              error={errors.cover_url}
+              hint={`Opcional. PNG, JPG ou WebP até ${UPLOAD_LIMIT_MB} MB, de preferência em pé (3:4).`}
             />
-            <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
-              Revista visível no site
-            </label>
+
+            <Checkbox
+              className="rounded-xl bg-gray-50 px-4 ring-1 ring-gray-200 md:col-span-2"
+              label="Visível no site"
+              description="Desmarque para ocultar a edição sem excluir."
+              checked={formData.is_active}
+              onChange={(e) => setField('is_active', e.target.checked)}
+            />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="submit"
-              disabled={isSaving || (uploadMode === 'file' && !selectedFile && !isEditing) || (uploadMode === 'url' && !currentMagazine.file_url)}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving ? (
-                <>
-                  <FaSpinner className="animate-spin" />
-                  {isUploading ? 'Enviando arquivos...' : 'Salvando...'}
-                </>
-              ) : (
-                <>
-                  <FaSave />
-                  Salvar
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={closeModal}
-              disabled={isSaving}
-              className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-all duration-300 disabled:opacity-50"
-            >
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={closeModal} disabled={isSaving || uploading}>
               Cancelar
-            </button>
+            </Button>
+            <Button type="submit" loading={isSaving} disabled={uploading}>
+              {isSaving ? 'Salvando…' : editingId ? 'Salvar alterações' : 'Cadastrar edição'}
+            </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Dialog de Confirmação de Exclusão */}
       <ConfirmDialog
-        isOpen={deleteDialog.isOpen}
-        onClose={() => setDeleteDialog({ isOpen: false, id: null, title: '' })}
-        onConfirm={handleConfirmDelete}
-        title="Excluir Revista"
-        message={`Tem certeza que deseja excluir "${deleteDialog.title}"? Esta ação não pode ser desfeita.`}
+        isOpen={magazineToDelete !== null}
+        onClose={() => !isDeleting && setMagazineToDelete(null)}
+        onConfirm={confirmDelete}
         type="delete"
-        confirmText="Sim, Excluir"
-        cancelText="Cancelar"
+        title="Excluir edição?"
+        message={`“${magazineToDelete?.title ?? ''}” será removida do site. Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
         isLoading={isDeleting}
-      />
-
-      {/* Dialog de Sucesso */}
-      <ConfirmDialog
-        isOpen={successDialog.isOpen}
-        onClose={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
-        title={
-          successDialog.type === 'delete' ? 'Revista Excluída' :
-          successDialog.type === 'edit' ? 'Revista Atualizada' :
-          'Revista Cadastrada'
-        }
-        message={successDialog.message}
-        type={successDialog.type === 'delete' ? 'success' : successDialog.type}
-        confirmText="OK"
-        showCancel={false}
-        onConfirm={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
       />
     </div>
   );

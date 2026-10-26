@@ -4,8 +4,6 @@ import React from 'react';
 import {
   Breadcrumb,
   HeroSection,
-  StatsSection,
-  QuoteSection,
   HistoryContent,
   TimelineSection,
   PillarsSection,
@@ -17,8 +15,7 @@ export default function HistoriaPage() {
     <>
       <Breadcrumb />
       <HeroSection />
-      <StatsSection />
-      <QuoteSection />
+      {/* Números e citação dos fundadores saem até a CDL confirmar os dados (StatsSection/QuoteSection ficam guardados) */}
       <HistoryContent />
       <TimelineSection />
       <PillarsSection />

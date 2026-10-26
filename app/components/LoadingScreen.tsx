@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useScrollLock } from '@/lib/hooks/useModalBehavior';
 
 const KEYFRAMES = `
 @keyframes ldExit {
@@ -66,94 +67,46 @@ const RING_COLORS = [
 ];
 
 const SESSION_KEY = 'cdl_loaded';
+// Não segura o conteúdo: no máximo ~600ms visível + fade curto, uma vez por sessão
+const MAX_VISIBLE_MS = 600;
+const FADE_MS = 300;
+/** Tempo total da tela (contado da hidratação): o aviso de cookies espera por ele para não nascer escondido atrás dela */
+export const LOADING_SCREEN_MS = MAX_VISIBLE_MS + FADE_MS;
 
 export default function LoadingScreen() {
   const [phase, setPhase] = useState<'visible' | 'fading' | 'gone'>('visible');
-  // Ref para evitar dupla execução de finish()
-  const finishedRef = useRef(false);
-  // Ref para saber se deve exibir (calculado antes da primeira render)
-  const shouldShowRef = useRef<boolean | null>(null);
 
-  if (shouldShowRef.current === null) {
-    // Executa síncronamente antes de qualquer render do DOM
-    if (typeof window !== 'undefined') {
-      const alreadyShown = sessionStorage.getItem(SESSION_KEY) === '1';
-      shouldShowRef.current = !alreadyShown;
-    } else {
-      // SSR: deixa visível para evitar mismatch de hidratação
-      shouldShowRef.current = true;
-    }
-  }
+  useScrollLock(phase === 'visible');
 
   useEffect(() => {
-    // Se já foi mostrado nesta sessão, sai imediatamente
-    if (!shouldShowRef.current) {
-      setPhase('gone');
-      return;
+    let alreadyShown = false;
+    try {
+      alreadyShown = sessionStorage.getItem(SESSION_KEY) === '1';
+    } catch {
+      // Storage bloqueado (ex.: modo privado): exibe normalmente
     }
 
-    const html  = document.documentElement;
-    const body  = document.body;
-    const start = Date.now();
+    // Já exibida nesta sessão: some assim que hidratar
+    if (alreadyShown) {
+      const timer = setTimeout(() => setPhase('gone'), 0);
+      return () => clearTimeout(timer);
+    }
 
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-
-    const finish = () => {
-      if (finishedRef.current) return;
-      finishedRef.current = true;
-
-      const elapsed = Date.now() - start;
-
-      // Tempo mínimo adaptativo:
-      // - Fast 3G / rápido: 700ms
-      // - Conexão normal:   1000ms
-      // - Conexão lenta:    1400ms
-      const connection = (navigator as any)?.connection;
-      const effectiveType = connection?.effectiveType ?? '4g';
-      const minDisplay =
-        effectiveType === 'slow-2g' || effectiveType === '2g' ? 1400 :
-        effectiveType === '3g'                                 ? 1000 :
-                                                                  700;
-
-      const wait = Math.max(0, minDisplay - elapsed);
-
-      setTimeout(() => {
-        // Marca sessão como exibida ANTES de começar o fade
+    const fadeTimer = setTimeout(() => {
+      try {
         sessionStorage.setItem(SESSION_KEY, '1');
-        setPhase('fading');
-        setTimeout(() => {
-          setPhase('gone');
-        }, 700); // duração do fade (ldExit = 0.7s)
-      }, wait);
-    };
-
-    if (document.readyState === 'complete') {
-      finish();
-    } else {
-      window.addEventListener('load', finish, { once: true });
-      // Fallback máximo de 4s para conexões muito lentas
-      const fallback = setTimeout(finish, 4000);
-      return () => {
-        window.removeEventListener('load', finish);
-        clearTimeout(fallback);
-        html.style.overflow = '';
-        body.style.overflow = '';
-      };
-    }
+      } catch {
+        // ignora: sem storage a tela aparece de novo no próximo carregamento
+      }
+      setPhase('fading');
+    }, MAX_VISIBLE_MS);
+    const goneTimer = setTimeout(() => setPhase('gone'), MAX_VISIBLE_MS + FADE_MS);
 
     return () => {
-      html.style.overflow = '';
-      body.style.overflow = '';
+      clearTimeout(fadeTimer);
+      clearTimeout(goneTimer);
     };
   }, []);
-
-  useEffect(() => {
-    if (phase === 'gone') {
-      document.documentElement.style.overflow = '';
-      document.body.style.overflow = '';
-    }
-  }, [phase]);
 
   if (phase === 'gone') return null;
 
@@ -161,17 +114,17 @@ export default function LoadingScreen() {
 
   return (
     <>
-      {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
 
       <div
         suppressHydrationWarning
+        aria-hidden="true"
         className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden"
         style={{
           background: 'linear-gradient(135deg,#001433 0%,#002255 50%,#001433 100%)',
           willChange: 'opacity, transform',
           ...(exiting
-            ? { animation: 'ldExit 0.7s cubic-bezier(0.4,0,0.6,1) forwards', pointerEvents: 'none' }
+            ? { animation: `ldExit ${FADE_MS}ms cubic-bezier(0.4,0,0.6,1) forwards`, pointerEvents: 'none' }
             : {}),
         }}
       >
@@ -300,7 +253,7 @@ export default function LoadingScreen() {
                 backgroundSize: '200% 100%',
                 boxShadow:
                   '0 0 8px rgba(255,208,0,0.7),0 0 18px rgba(0,102,204,0.5)',
-                animation: 'ldBar 1.8s cubic-bezier(0.4,0,0.15,1) forwards, ldShimmer 1.4s linear 0.3s infinite',
+                animation: `ldBar ${MAX_VISIBLE_MS}ms cubic-bezier(0.4,0,0.15,1) forwards, ldShimmer 1.4s linear 0.3s infinite`,
               }}
             />
           </div>
@@ -314,7 +267,7 @@ export default function LoadingScreen() {
               background:
                 'linear-gradient(90deg,transparent,rgba(255,208,0,0.15),transparent)',
               filter: 'blur(6px)',
-              animation: 'ldBar 1.8s cubic-bezier(0.4,0,0.15,1) forwards',
+              animation: `ldBar ${MAX_VISIBLE_MS}ms cubic-bezier(0.4,0,0.15,1) forwards`,
             }}
           />
         </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { validateAdminSession, validateFile, getClientIP, logSecurityEvent } from '@/lib/security';
+import { validateFile, getClientIP, logSecurityEvent } from '@/lib/security';
+import { getAdminUser } from '@/lib/supabase-server';
 
 const IMAGE_TYPES = [
   'image/png',
@@ -51,8 +52,7 @@ export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
   
   try {
-    const session = await validateAdminSession(request);
-    if (!session.valid) {
+    if (!(await getAdminUser())) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
@@ -131,7 +131,8 @@ export async function POST(request: NextRequest) {
     const { error } = await supabaseAdmin.storage
       .from(bucket)
       .upload(filePath, buffer, {
-        contentType: file.type,
+        // 'image/jpg' não é um tipo registrado: o storage serve como image/jpeg
+        contentType: file.type === 'image/jpg' ? 'image/jpeg' : file.type,
         upsert: false
       });
 
@@ -161,8 +162,7 @@ export async function DELETE(request: NextRequest) {
   const ip = getClientIP(request);
 
   try {
-    const session = await validateAdminSession(request);
-    if (!session.valid) {
+    if (!(await getAdminUser())) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 

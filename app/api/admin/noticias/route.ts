@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAdminUser } from '@/lib/supabase-server';
 import { validateAndSanitize } from '@/lib/security';
 import { auditServer } from '@/lib/audit-server';
 
@@ -13,8 +14,41 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Serviços': 'from-indigo-600 to-indigo-800',
 };
 
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Título',
+  excerpt: 'Resumo',
+  category: 'Categoria',
+  date: 'Data',
+  image: 'Imagem de capa',
+  author: 'Autor',
+};
+
+/** "Campo 'excerpt' excede..." -> "Resumo excede..." (mensagem que o painel mostra no aviso) */
+function friendlyErrors(errors: string[]): string {
+  return errors.map((e) => e.replace(/Campo '(\w+)'/, (_, key: string) => FIELD_LABELS[key] || key)).join(' ');
+}
+
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseId(value: unknown): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** campaign_id do corpo: id > 0, null (sem campanha) ou undefined (campo ausente, não altera). false = inválido. */
+function parseCampaignId(value: unknown): number | null | undefined | false {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const id = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  return Number.isInteger(id) && id > 0 ? id : false;
+}
+
 // GET - Listar todas as notícias (incluindo rascunhos para admin)
 export async function GET() {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { data: news, error } = await supabaseAdmin
       .from('news')
@@ -23,7 +57,7 @@ export async function GET() {
 
     if (error) {
       console.error('Erro ao buscar notícias:', error);
-      return NextResponse.json({ error: 'Erro ao buscar notícias', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao buscar notícias' }, { status: 500 });
     }
 
     return NextResponse.json(news || []);
@@ -35,6 +69,10 @@ export async function GET() {
 
 // POST - Criar nova notícia
 export async function POST(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     
@@ -57,7 +95,16 @@ export async function POST(request: NextRequest) {
     sanitized.content = body.content;
     
     if (!valid) {
-      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+      return NextResponse.json({ error: friendlyErrors(errors), details: errors }, { status: 400 });
+    }
+
+    if (!DATE_REGEX.test(String(sanitized.date))) {
+      return NextResponse.json({ error: 'Data inválida.' }, { status: 400 });
+    }
+
+    const campaignId = parseCampaignId(body.campaign_id);
+    if (campaignId === false) {
+      return NextResponse.json({ error: 'Campanha inválida.' }, { status: 400 });
     }
     
     const color = CATEGORY_COLORS[sanitized.category as string] || 'from-gray-600 to-gray-800';
@@ -74,7 +121,9 @@ export async function POST(request: NextRequest) {
           image: sanitized.image || null,
           author: sanitized.author || 'CDL Ipirá',
           color: color,
-          is_published: true
+          // Sem o campo, publica (compatível com chamadas antigas); false salva como rascunho
+          is_published: body.is_published !== false,
+          ...(campaignId !== undefined && { campaign_id: campaignId })
         }
       ])
       .select()
@@ -82,7 +131,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao criar notícia:', error);
-      return NextResponse.json({ error: 'Erro ao criar notícia', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao criar notícia' }, { status: 500 });
     }
 
     // Registrar auditoria
@@ -103,10 +152,15 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar notícia existente
 export async function PUT(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     
-    const { id, ...updateData } = body;
+    const { id: rawId, ...updateData } = body;
+    const id = parseId(rawId);
     
     if (!id) {
       return NextResponse.json({ error: 'ID da notícia é obrigatório' }, { status: 400 });
@@ -131,7 +185,16 @@ export async function PUT(request: NextRequest) {
     sanitized.content = updateData.content;
     
     if (!valid) {
-      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+      return NextResponse.json({ error: friendlyErrors(errors), details: errors }, { status: 400 });
+    }
+
+    if (!DATE_REGEX.test(String(sanitized.date))) {
+      return NextResponse.json({ error: 'Data inválida.' }, { status: 400 });
+    }
+
+    const campaignId = parseCampaignId(updateData.campaign_id);
+    if (campaignId === false) {
+      return NextResponse.json({ error: 'Campanha inválida.' }, { status: 400 });
     }
     
     const color = CATEGORY_COLORS[sanitized.category as string] || 'from-gray-600 to-gray-800';
@@ -147,7 +210,8 @@ export async function PUT(request: NextRequest) {
         image: sanitized.image || null,
         author: sanitized.author || 'CDL Ipirá',
         color: color,
-        is_published: true
+        is_published: updateData.is_published !== false,
+        ...(campaignId !== undefined && { campaign_id: campaignId })
       })
       .eq('id', id)
       .select()
@@ -155,7 +219,7 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao atualizar notícia:', error);
-      return NextResponse.json({ error: 'Erro ao atualizar notícia', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao atualizar notícia' }, { status: 500 });
     }
 
     // Registrar auditoria
@@ -176,9 +240,13 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Excluir notícia
 export async function DELETE(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = parseId(searchParams.get('id'));
     
     if (!id) {
       return NextResponse.json({ error: 'ID da notícia é obrigatório' }, { status: 400 });
@@ -198,13 +266,13 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao excluir notícia:', error);
-      return NextResponse.json({ error: 'Erro ao excluir notícia', details: error }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao excluir notícia' }, { status: 500 });
     }
 
     // Registrar auditoria
     await auditServer.delete(
       'news',
-      id,
+      id.toString(),
       noticia?.title || 'Notícia desconhecida',
       {},
       request

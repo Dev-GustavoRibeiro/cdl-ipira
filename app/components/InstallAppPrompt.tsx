@@ -1,29 +1,51 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  FaTimes,
-  FaShareAlt,
-  FaPlusSquare,
-  FaEllipsisV,
-  FaChrome,
-  FaApple,
-  FaAndroid,
-  FaHome
-} from 'react-icons/fa';
+import Image from 'next/image';
+import { usePathname } from 'next/navigation';
+import { FaTimes, FaPlusSquare, FaEllipsisV, FaCheck, FaBolt, FaMobileAlt } from 'react-icons/fa';
 import { IoShareOutline } from 'react-icons/io5';
+import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 
 type DeviceType = 'ios' | 'android' | 'unknown';
 
+// Ícone em destaque ao lado de cada passo, imitando o botão que a pessoa vai procurar na tela
+const STEPS = {
+  ios: [
+    { icon: IoShareOutline, text: <>Toque em <strong>Compartilhar</strong> na barra inferior do Safari.</> },
+    { icon: FaPlusSquare, text: <>Role a lista e escolha <strong>&quot;Adicionar à Tela de Início&quot;</strong>.</> },
+    { icon: FaCheck, text: <>Toque em <strong>&quot;Adicionar&quot;</strong>, no canto superior direito, para finalizar.</> },
+  ],
+  android: [
+    { icon: FaEllipsisV, text: <>Toque nos <strong>três pontinhos</strong> no canto superior direito do Chrome.</> },
+    { icon: FaPlusSquare, text: <>Escolha <strong>&quot;Adicionar à tela inicial&quot;</strong> ou <strong>&quot;Instalar aplicativo&quot;</strong>.</> },
+    { icon: FaCheck, text: <>Toque em <strong>&quot;Adicionar&quot;</strong> para confirmar e criar o atalho.</> },
+  ],
+};
+
 export default function InstallAppPrompt() {
   const [isOpen, setIsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const isClient = useIsClient();
   const [deviceType, setDeviceType] = useState<DeviceType>('unknown');
-  const [currentStep, setCurrentStep] = useState(1);
+  const pathname = usePathname();
+  const firstPathname = useRef(pathname);
 
   useEffect(() => {
-    setMounted(true);
+    // Avisos de primeira visita em sequência: nunca na primeira página vista,
+    // só depois que o visitante navegou e já respondeu ao aviso de cookies
+    if (pathname === firstPathname.current) return;
+
+    let shouldShow = false;
+    try {
+      const lastShown = localStorage.getItem('install-prompt-shown');
+      const weekInMs = 24 * 60 * 60 * 1000 * 7; // 7 dias
+      shouldShow = Boolean(localStorage.getItem('cookie-consent'))
+        && (!lastShown || (Date.now() - parseInt(lastShown)) > weekInMs);
+    } catch {
+      // Storage bloqueado: não insiste com o convite
+    }
+    if (!shouldShow) return;
 
     // Detectar tipo de dispositivo
     const userAgent = navigator.userAgent.toLowerCase();
@@ -34,320 +56,135 @@ export default function InstallAppPrompt() {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-    // Verificar se já foi exibido recentemente
-    const lastShown = localStorage.getItem('install-prompt-shown');
-    const dayInMs = 24 * 60 * 60 * 1000 * 7; // 7 dias
-    const shouldShow = !lastShown || (Date.now() - parseInt(lastShown)) > dayInMs;
+    if (isStandalone || !(isIOS || isAndroid)) return;
 
-    if (!isStandalone && shouldShow && (isIOS || isAndroid)) {
+    // Mostrar após 3 segundos na nova página
+    const timer = setTimeout(() => {
       setDeviceType(isIOS ? 'ios' : 'android');
-      // Mostrar após 3 segundos
-      const timer = setTimeout(() => {
-        setIsOpen(true);
-      }, 3000);
-      return () => clearTimeout(timer);
+      setIsOpen(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [pathname]);
+
+  const remember = (timestamp: number) => {
+    try {
+      localStorage.setItem('install-prompt-shown', timestamp.toString());
+    } catch {
+      // Sem storage o convite pode voltar em outra visita
     }
-  }, []);
+  };
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('install-prompt-shown', Date.now().toString());
+    remember(Date.now());
   };
+
+  const dialogRef = useModalBehavior<HTMLDivElement>(isOpen, handleClose);
 
   const handleNeverShow = () => {
     setIsOpen(false);
     // Marcar para não mostrar mais (data muito no futuro)
-    localStorage.setItem('install-prompt-shown', (Date.now() + 365 * 24 * 60 * 60 * 1000 * 10).toString());
+    remember(Date.now() + 365 * 24 * 60 * 60 * 1000 * 10);
   };
 
-  const nextStep = () => {
-    if (deviceType === 'ios' && currentStep < 3) {
-      setCurrentStep(currentStep + 1);
-    } else if (deviceType === 'android' && currentStep < 3) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
+  if (!isClient || !isOpen) return null;
 
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  if (!mounted || !isOpen) return null;
-
-  const totalSteps = 3;
-
-  // Conteúdo para iOS
-  const IOSContent = () => (
-    <div className="space-y-4">
-      {/* Ícone do dispositivo */}
-      <div className="flex justify-center">
-        <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center shadow-inner">
-          <FaApple className="w-10 h-10 text-gray-600" />
-        </div>
-      </div>
-
-      {/* Passos */}
-      <div className="bg-gray-50 rounded-xl p-5">
-        {currentStep === 1 && (
-          <div className="text-center space-y-4 animate-blur-fade-in">
-            <div className="w-16 h-16 mx-auto bg-[var(--cdl-blue)] rounded-xl flex items-center justify-center">
-              <IoShareOutline className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-800">Passo 1: Toque em Compartilhar</h3>
-            <p className="text-gray-600">
-              Toque no ícone de <strong>compartilhar</strong> <IoShareOutline className="inline w-4 h-4 text-[var(--cdl-blue)]" /> na barra inferior do Safari.
-            </p>
-            <div className="bg-white rounded-lg p-3 border-2 border-dashed border-[var(--cdl-blue)]">
-              <div className="flex items-center justify-center gap-6 text-gray-400">
-                <span className="text-2xl">‹</span>
-                <span className="text-2xl">›</span>
-                <IoShareOutline className="w-6 h-6 text-[var(--cdl-blue)] animate-bounce" />
-                <span className="text-2xl">📑</span>
-                <span className="text-2xl">⬜</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 2 && (
-          <div className="text-center space-y-4 animate-blur-fade-in">
-            <div className="w-16 h-16 mx-auto bg-[var(--cdl-blue)] rounded-xl flex items-center justify-center">
-              <FaPlusSquare className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-800">Passo 2: Adicionar à Tela de Início</h3>
-            <p className="text-gray-600">
-              Role para baixo e toque em <strong>&quot;Adicionar à Tela de Início&quot;</strong>.
-            </p>
-            <div className="bg-white rounded-lg overflow-hidden border shadow-sm">
-              <div className="flex items-center gap-3 p-3 hover:bg-gray-50 border-b">
-                <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">📖</div>
-                <span className="text-gray-700">Adicionar à Lista de Leitura</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-[var(--cdl-yellow)]/20 border-2 border-[var(--cdl-yellow)]">
-                <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">
-                  <FaPlusSquare className="w-5 h-5 text-gray-600" />
-                </div>
-                <span className="text-gray-700 font-semibold">Adicionar à Tela de Início</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 hover:bg-gray-50">
-                <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">🔖</div>
-                <span className="text-gray-700">Adicionar Marcador</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 3 && (
-          <div className="text-center space-y-4 animate-blur-fade-in">
-            <div className="w-16 h-16 mx-auto bg-[var(--cdl-green)] rounded-xl flex items-center justify-center">
-              <FaHome className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-800">Passo 3: Confirmar</h3>
-            <p className="text-gray-600">
-              Toque em <strong>&quot;Adicionar&quot;</strong> no canto superior direito para finalizar.
-            </p>
-            <div className="bg-white rounded-lg overflow-hidden border shadow-sm p-4">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[var(--cdl-blue)] font-medium">Cancelar</span>
-                <span className="font-bold">Adicionar à Tela de Início</span>
-                <span className="text-[var(--cdl-blue)] font-semibold bg-[var(--cdl-yellow)]/30 px-2 py-1 rounded">Adicionar</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <img src="/logo-cdl.png" alt="CDL Ipirá" className="w-12 h-12 rounded-xl shadow" />
-                <div className="text-left">
-                  <p className="font-semibold">CDL Ipirá</p>
-                  <p className="text-sm text-gray-500">cdlipira.com.br</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  // Conteúdo para Android
-  const AndroidContent = () => (
-    <div className="space-y-4">
-      {/* Ícone do dispositivo */}
-      <div className="flex justify-center">
-        <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center shadow-inner">
-          <FaAndroid className="w-10 h-10 text-green-600" />
-        </div>
-      </div>
-
-      {/* Passos */}
-      <div className="bg-gray-50 rounded-xl p-5">
-        {currentStep === 1 && (
-          <div className="text-center space-y-4 animate-blur-fade-in">
-            <div className="w-16 h-16 mx-auto bg-[var(--cdl-blue)] rounded-xl flex items-center justify-center">
-              <FaEllipsisV className="w-6 h-6 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-800">Passo 1: Abra o Menu</h3>
-            <p className="text-gray-600">
-              Toque nos <strong>três pontinhos</strong> <FaEllipsisV className="inline w-3 h-3 text-[var(--cdl-blue)]" /> no canto superior direito do Chrome.
-            </p>
-            <div className="bg-white rounded-lg p-3 border-2 border-dashed border-[var(--cdl-blue)]">
-              <div className="flex items-center justify-end gap-3 text-gray-400">
-                <FaChrome className="w-6 h-6 text-blue-500" />
-                <span className="flex-1 text-left text-sm text-gray-500 bg-gray-100 rounded px-2 py-1">cdlipira.com.br</span>
-                <FaEllipsisV className="w-5 h-5 text-[var(--cdl-blue)] animate-bounce" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 2 && (
-          <div className="text-center space-y-4 animate-blur-fade-in">
-            <div className="w-16 h-16 mx-auto bg-[var(--cdl-blue)] rounded-xl flex items-center justify-center">
-              <FaPlusSquare className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-800">Passo 2: Adicionar à Tela Inicial</h3>
-            <p className="text-gray-600">
-              Toque em <strong>&quot;Adicionar à tela inicial&quot;</strong> ou <strong>&quot;Instalar aplicativo&quot;</strong>.
-            </p>
-            <div className="bg-white rounded-lg overflow-hidden border shadow-sm">
-              <div className="flex items-center gap-3 p-3 border-b">
-                <span className="text-xl">🔄</span>
-                <span className="text-gray-700">Nova guia</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 border-b">
-                <span className="text-xl">⭐</span>
-                <span className="text-gray-700">Favoritos</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-[var(--cdl-yellow)]/20 border-2 border-[var(--cdl-yellow)]">
-                <FaPlusSquare className="w-5 h-5 text-gray-600" />
-                <span className="text-gray-700 font-semibold">Adicionar à tela inicial</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 border-b">
-                <span className="text-xl">📲</span>
-                <span className="text-gray-700">Instalar aplicativo</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 3 && (
-          <div className="text-center space-y-4 animate-blur-fade-in">
-            <div className="w-16 h-16 mx-auto bg-[var(--cdl-green)] rounded-xl flex items-center justify-center">
-              <FaHome className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-800">Passo 3: Confirmar Instalação</h3>
-            <p className="text-gray-600">
-              Toque em <strong>&quot;Adicionar&quot;</strong> para confirmar e criar o atalho.
-            </p>
-            <div className="bg-white rounded-lg overflow-hidden border shadow-sm p-4">
-              <p className="text-gray-700 mb-4">Adicionar à tela inicial?</p>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg mb-4">
-                <img src="/logo-cdl.png" alt="CDL Ipirá" className="w-12 h-12 rounded-xl shadow" />
-                <div className="text-left">
-                  <p className="font-semibold">CDL Ipirá</p>
-                  <p className="text-sm text-gray-500">cdlipira.com.br</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button className="flex-1 py-2 text-gray-600">Cancelar</button>
-                <button className="flex-1 py-2 bg-[var(--cdl-blue)] text-white rounded-lg font-semibold">Adicionar</button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const steps = deviceType === 'ios' ? STEPS.ios : STEPS.android;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-100 flex items-end justify-center bg-[#001a3d]/60 backdrop-blur-sm sm:items-center sm:p-6"
       onClick={(e) => e.target === e.currentTarget && handleClose()}
     >
       <div
-        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden animate-slide-up"
+        ref={dialogRef}
+        className="relative max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-white shadow-[0_-20px_60px_-20px_rgba(0,26,61,0.5)] animate-[slide-up_0.3s_ease-out] sm:max-w-md sm:rounded-3xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="install-prompt-title"
+        aria-describedby="install-prompt-desc"
+        tabIndex={-1}
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-[var(--cdl-blue)] to-[var(--cdl-blue-light)] text-white p-5">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <img src="/logo-cdl.png" alt="CDL Ipirá" className="w-10 h-10 rounded-lg bg-white p-1" />
-              <div>
-                <h2 id="install-prompt-title" className="text-lg font-bold">Instale o CDL Ipirá</h2>
-                <p className="text-white/80 text-sm">Tenha acesso rápido ao nosso site</p>
-              </div>
-            </div>
-            <button
-              onClick={handleClose}
-              className="p-2 rounded-lg hover:bg-white/20 transition-colors"
-              aria-label="Fechar"
-            >
-              <FaTimes className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+        {/* Alça visual da folha (celular) */}
+        <div aria-hidden="true" className="mx-auto mt-3 h-1.5 w-10 rounded-full bg-gray-200 sm:hidden" />
 
-        {/* Conteúdo baseado no dispositivo */}
-        <div className="p-5">
-          {deviceType === 'ios' ? <IOSContent /> : <AndroidContent />}
-        </div>
+        <button
+          type="button"
+          onClick={handleClose}
+          aria-label="Fechar"
+          className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-[background-color,color,scale] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-95 motion-reduce:transition-none"
+        >
+          <FaTimes aria-hidden="true" className="h-4 w-4" />
+        </button>
 
-        {/* Indicador de passos */}
-        <div className="flex items-center justify-center gap-2 py-3">
-          {[1, 2, 3].map((step) => (
-            <button
-              key={step}
-              onClick={() => setCurrentStep(step)}
-              className={`w-3 h-3 rounded-full transition-all ${step === currentStep
-                  ? 'bg-[var(--cdl-blue)] scale-125'
-                  : step < currentStep
-                    ? 'bg-[var(--cdl-green)]'
-                    : 'bg-gray-300'
-                }`}
-              aria-label={`Ir para passo ${step}`}
+        <div className="px-6 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          {/* Ícone do app + título */}
+          <div className="flex flex-col items-center text-center">
+            <Image
+              src="/icons/icon-192.png"
+              alt=""
+              width={72}
+              height={72}
+              className="h-18 w-18 rounded-[1.25rem] shadow-[0_14px_30px_-12px_rgba(0,63,127,0.55)] ring-1 ring-black/5"
             />
-          ))}
-        </div>
+            <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#ffd000] px-3 py-1 text-[11px] font-bold tracking-[0.14em] text-[#003f7f] uppercase">
+              App gratuito
+            </span>
+            <h2 id="install-prompt-title" className="mt-3 text-2xl font-black leading-tight tracking-tight text-balance text-[#003f7f]">
+              Instale o CDL Ipirá
+            </h2>
+            <div aria-hidden="true" className="mt-3 h-1.5 w-16 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" />
+            <p id="install-prompt-desc" className="mt-3 max-w-[32ch] text-sm text-pretty text-gray-600">
+              Tenha acesso rápido ao nosso site direto da tela inicial, como um aplicativo.
+            </p>
+            <ul className="mt-4 flex flex-wrap justify-center gap-2 text-xs font-semibold text-[#003f7f]">
+              <li className="inline-flex items-center gap-1.5 rounded-full bg-[#003f7f]/5 px-3 py-1.5">
+                <FaBolt aria-hidden="true" className="h-3 w-3 text-[#00a859]" /> Abre em um toque
+              </li>
+              <li className="inline-flex items-center gap-1.5 rounded-full bg-[#003f7f]/5 px-3 py-1.5">
+                <FaMobileAlt aria-hidden="true" className="h-3 w-3 text-[#00a859]" /> Sem loja de apps
+              </li>
+            </ul>
+          </div>
 
-        {/* Footer com navegação */}
-        <div className="p-4 bg-gray-50 border-t flex gap-3">
-          {currentStep > 1 ? (
+          {/* Passos */}
+          <ol className="mt-6 space-y-2.5">
+            {steps.map(({ icon: Icon, text }, i) => (
+              <li key={i} className="flex items-center gap-3.5 rounded-2xl bg-gray-50 p-3.5 ring-1 ring-gray-100">
+                <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#003f7f] text-xs font-black text-white">
+                  {i + 1}
+                </span>
+                <p className="flex-1 text-sm leading-snug text-gray-700">
+                  <span className="sr-only">Passo {i + 1}: </span>
+                  {text}
+                </p>
+                <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#0066cc] shadow-sm ring-1 ring-gray-100">
+                  <Icon className="h-5 w-5" />
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          {/* Ações */}
+          <div className="mt-6 flex flex-col gap-2">
             <button
-              onClick={prevStep}
-              className="flex-1 py-3 px-4 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-100 transition-all"
+              type="button"
+              onClick={handleClose}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#003f7f] px-5 text-sm font-bold text-white shadow-[0_14px_30px_-14px_rgba(0,63,127,0.7)] transition-[background-color,scale] duration-200 hover:bg-[#0052a3] active:scale-[0.98] motion-reduce:transition-none"
             >
-              Voltar
+              Entendi
             </button>
-          ) : (
             <button
+              type="button"
               onClick={handleNeverShow}
-              className="flex-1 py-3 px-4 text-gray-500 rounded-xl font-medium hover:bg-gray-100 transition-all text-sm"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl px-5 text-sm font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
             >
               Não mostrar novamente
             </button>
-          )}
-
-          {currentStep < totalSteps ? (
-            <button
-              onClick={nextStep}
-              className="flex-1 py-3 px-4 bg-[var(--cdl-blue)] text-white rounded-xl font-semibold hover:bg-[var(--cdl-blue-light)] transition-all"
-            >
-              Próximo
-            </button>
-          ) : (
-            <button
-              onClick={handleClose}
-              className="flex-1 py-3 px-4 bg-[var(--cdl-green)] text-white rounded-xl font-semibold hover:opacity-90 transition-all"
-            >
-              Entendi!
-            </button>
-          )}
+          </div>
         </div>
       </div>
     </div>,
     document.body
   );
 }
-
