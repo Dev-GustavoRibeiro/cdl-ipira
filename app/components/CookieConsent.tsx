@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useIsClient } from '@/lib/hooks/useModalBehavior';
 import { CONSENT_CHANGE_EVENT, OPEN_CONSENT_EVENT, readConsent, saveConsent } from '@/lib/consent';
-import { LOADING_SCREEN_MS } from './LoadingScreen';
+import { onSiteReady } from './LoadingScreen';
 import { FaCookieBite, FaCheck, FaShieldAlt, FaPlay, FaChevronDown, FaTimes, FaSlidersH } from 'react-icons/fa';
 
 // Aceitar e recusar com o mesmo peso visual (orientação da ANPD): nenhum dos dois é o "botão principal"
@@ -50,11 +50,11 @@ export default function CookieConsent() {
   const switchId = `${uid}-terceiros`;
 
   useEffect(() => {
-    // Primeira visita: abre logo depois da tela de carregamento (ela fica por cima de tudo, em z-9999)
-    const timer = readConsent() ? undefined : setTimeout(() => setIsOpen(true), LOADING_SCREEN_MS + 300);
+    // Primeira visita: abre assim que a tela de carregamento sai e o site abre (antes disso ela cobre tudo)
+    const stopWaiting = readConsent() ? undefined : onSiteReady(() => setIsOpen(true));
 
     const reopen = () => {
-      clearTimeout(timer);
+      stopWaiting?.();
       const saved = readConsent();
       returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setTerceiros(saved?.terceiros === true);
@@ -68,7 +68,7 @@ export default function CookieConsent() {
     const onChange = () => {
       const saved = readConsent();
       if (!saved) return;
-      clearTimeout(timer);
+      stopWaiting?.();
       setTerceiros(saved.terceiros);
       setHasChoice(true);
       setIsOpen(false);
@@ -76,7 +76,7 @@ export default function CookieConsent() {
     window.addEventListener(OPEN_CONSENT_EVENT, reopen);
     window.addEventListener(CONSENT_CHANGE_EVENT, onChange);
     return () => {
-      clearTimeout(timer);
+      stopWaiting?.();
       window.removeEventListener(OPEN_CONSENT_EVENT, reopen);
       window.removeEventListener(CONSENT_CHANGE_EVENT, onChange);
     };

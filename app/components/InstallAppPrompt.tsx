@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { FaTimes, FaPlusSquare, FaEllipsisV, FaCheck, FaBolt, FaMobileAlt } from 'react-icons/fa';
 import { IoShareOutline } from 'react-icons/io5';
 import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
+import { onSiteReady } from './LoadingScreen';
 
 type DeviceType = 'ios' | 'android' | 'unknown';
 
@@ -58,12 +59,18 @@ export default function InstallAppPrompt() {
 
     if (isStandalone || !(isIOS || isAndroid)) return;
 
-    // Mostrar após 3 segundos na nova página
-    const timer = setTimeout(() => {
-      setDeviceType(isIOS ? 'ios' : 'android');
-      setIsOpen(true);
-    }, 3000);
-    return () => clearTimeout(timer);
+    // Mostrar 3 segundos depois que a nova página estiver aberta (nunca por baixo da tela de carregamento)
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stopWaiting = onSiteReady(() => {
+      timer = setTimeout(() => {
+        setDeviceType(isIOS ? 'ios' : 'android');
+        setIsOpen(true);
+      }, 3000);
+    });
+    return () => {
+      stopWaiting();
+      clearTimeout(timer);
+    };
   }, [pathname]);
 
   const remember = (timestamp: number) => {

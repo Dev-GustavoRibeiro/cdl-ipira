@@ -10,6 +10,7 @@ import 'swiper/css';
 import { FaArrowRight, FaChevronLeft, FaChevronRight, FaExternalLinkAlt, FaPause, FaPlay } from 'react-icons/fa';
 import { isOptimizableImage } from '@/lib/images';
 import { EASE, MOTION_OK, SplitText, gsap, useGSAP } from '@/lib/motion';
+import { onSiteReady } from './LoadingScreen';
 
 interface Slide {
   id: number;
@@ -205,6 +206,9 @@ export default function HeroCarousel({ rows = null }: { rows?: ApiSlide[] | null
   const [isDragging, setIsDragging] = useState(false);
   // Hero fora da tela (rolou para baixo): o avanço automático e o zoom lento esperam ele voltar
   const [inView, setInView] = useState(true);
+  // Tela de carregamento aberta: o 1º slide não gasta o tempo nem o zoom lento escondido atrás dela
+  const [siteOpen, setSiteOpen] = useState(false);
+  useEffect(() => onSiteReady(() => setSiteOpen(true)), []);
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION).matches, () => false);
   const tabHidden = useSyncExternalStore(subscribeVisibility, () => document.hidden, () => false);
   const rootRef = useRef<HTMLElement>(null);
@@ -233,7 +237,7 @@ export default function HeroCarousel({ rows = null }: { rows?: ApiSlide[] | null
   const total = slides.length;
   const hasMany = total > 1;
   const autoplay = hasMany && !reducedMotion;
-  const isPaused = isHovered || isFocused || tabHidden || isStopped || isDragging || !inView;
+  const isPaused = isHovered || isFocused || tabHidden || isStopped || isDragging || !inView || !siteOpen;
   const loading = isLoading || total === 0;
 
   useEffect(() => {
@@ -315,7 +319,7 @@ export default function HeroCarousel({ rows = null }: { rows?: ApiSlide[] | null
       aria-roledescription={!loading && hasMany ? 'carrossel' : undefined}
       aria-label={loading ? 'Carregando destaques' : 'Destaques da CDL Ipirá'}
       aria-busy={loading || undefined}
-      className={`relative isolate w-full overflow-hidden bg-[#001a3d] ${HERO_HEIGHT} [--hero-low:max(4.25rem,var(--services-overlap)+0.75rem)] md:[--hero-low:max(4.75rem,var(--services-overlap)+0.75rem)] lg:[--hero-low:max(var(--scene-blend),5.25rem,var(--services-overlap)+1rem)] short-landscape:[--hero-low:max(var(--scene-blend),var(--services-overlap)+0.5rem)] ${hasMany ? '[--hero-ctrl:3.25rem]' : '[--hero-ctrl:0px]'} ${inView ? '' : '[&_[data-kb]]:[animation-play-state:paused]'}`}
+      className={`relative isolate w-full overflow-hidden bg-[#001a3d] ${HERO_HEIGHT} [--hero-low:max(4.25rem,var(--services-overlap)+0.75rem)] md:[--hero-low:max(4.75rem,var(--services-overlap)+0.75rem)] lg:[--hero-low:max(var(--scene-blend),5.25rem,var(--services-overlap)+1rem)] short-landscape:[--hero-low:max(var(--scene-blend),var(--services-overlap)+0.5rem)] ${hasMany ? '[--hero-ctrl:3.25rem]' : '[--hero-ctrl:0px]'} ${inView && siteOpen ? '' : '[&_[data-kb]]:[animation-play-state:paused]'}`}
       // Mouse sobre o texto ou os controles pausa (quem está lendo não perde o slide); sobre a foto, segue
       onPointerOver={(e) => e.pointerType === 'mouse' && setIsHovered(!!(e.target as Element).closest('[data-hero-copy],[data-hero-controls] button,[data-hero-arrow]'))}
       onPointerLeave={() => setIsHovered(false)}
