@@ -29,7 +29,7 @@ const HistoryContent = () => {
                 <FaBuilding aria-hidden="true" className="h-5 w-5" />
               </span>
               <span>
-                <span className="block text-xs font-medium text-gray-600">Sede própria</span>
+                <span className="block text-xs font-medium text-gray-600">Sede no Passarela Center</span>
                 <span className="block text-base font-black tracking-tight text-[#003f7f] sm:text-lg">Centro de Ipirá</span>
               </span>
             </div>
@@ -57,10 +57,10 @@ const HistoryContent = () => {
               <p>
                 Desde sua fundação, a CDL Ipirá tem sido uma instituição fundamental para o{' '}
                 <strong className="text-[#003f7f]">desenvolvimento econômico e social</strong> de nossa cidade, oferecendo serviços essenciais
-                como o SPC Brasil, assessoria jurídica, certificado digital e muito mais.
+                como o SPC Brasil, orientação jurídica, certificado digital e muito mais.
               </p>
               <p>
-                Ao longo dos anos, expandimos nossa atuação, sempre inovando e buscando as melhores soluções para nossos associados.
+                Ao longo dos anos, expandimos nossa atuação, buscando novas soluções para nossos associados.
                 Promovemos eventos, cursos e ações que fortalecem não apenas o setor comercial, mas toda a comunidade.
               </p>
             </div>
@@ -69,7 +69,7 @@ const HistoryContent = () => {
             <div className="relative mt-8 max-w-[62ch] overflow-hidden rounded-2xl bg-linear-to-r from-[#003f7f]/[0.05] to-[#00a859]/[0.06] p-6 pl-7 ring-1 ring-[#003f7f]/[0.07]">
               <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1.5 bg-linear-to-b from-[#003f7f] via-[#00a859] to-[#ffd000]" />
               <p className="text-lg font-black tracking-tight text-[#003f7f]">Nossa missão continua</p>
-              <p className="mt-1.5 text-sm leading-relaxed text-gray-600 sm:text-base">
+              <p className="mt-1.5 text-base leading-relaxed text-gray-600">
                 Com uma trajetória marcada pela dedicação, continuamos sendo parceiros essenciais para o sucesso dos negócios em Ipirá.
               </p>
             </div>

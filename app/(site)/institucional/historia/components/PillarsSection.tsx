@@ -34,7 +34,7 @@ const PillarsSection = () => {
           icon={FaCompass}
           eyebrow="O que nos guia"
           title="Nossos Pilares"
-          description="Os fundamentos que guiam nossa atuação desde o primeiro dia."
+          description="Os fundamentos que guiam a atuação da CDL Ipirá."
         />
 
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-3 lg:gap-8">
@@ -53,7 +53,7 @@ const PillarsSection = () => {
                 <Icon aria-hidden="true" className="h-6 w-6 sm:h-7 sm:w-7" />
               </span>
               <h3 className="mt-6 text-2xl font-black tracking-tight text-[#003f7f] sm:text-3xl">{title}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-pretty text-gray-600 sm:text-base">{description}</p>
+              <p className="mt-3 text-base leading-relaxed text-pretty text-gray-600">{description}</p>
               <span className="mt-auto inline-flex items-center gap-2 pt-6 text-sm font-bold text-[#003f7f]">
                 Saiba mais<span className="sr-only"> sobre {title.toLowerCase()}</span>
                 <FaArrowRight aria-hidden="true" className="h-3 w-3 transition-[translate] duration-300 group-hover:translate-x-1 motion-reduce:transition-none" />

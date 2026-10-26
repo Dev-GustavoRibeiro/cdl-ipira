@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
-import { sanitizeString } from '@/lib/security';
+import { isSafeLink, sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getAdminUser } from '@/lib/supabase-server';
 
@@ -30,6 +30,18 @@ function validateAlbumPayload(payload: ReturnType<typeof sanitizeAlbumPayload>) 
     return 'Título, categoria e data são obrigatórios.';
   }
 
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) {
+    return 'Data inválida.';
+  }
+
+  if (payload.title.length > 200 || payload.category.length > 50 || (payload.location?.length ?? 0) > 200 || (payload.description?.length ?? 0) > 2000) {
+    return 'Texto longo demais: título até 200, local até 200 e descrição até 2000 caracteres.';
+  }
+
+  if ((payload.cover_url && !isSafeLink(payload.cover_url, 1000)) || (payload.cover && !isSafeLink(payload.cover, 1000))) {
+    return 'A capa deve ser um endereço http(s):// ou um caminho do site.';
+  }
+
   return null;
 }
 
@@ -39,9 +51,10 @@ export async function GET() {
   }
 
   try {
+    // Contagem de fotos embutida (uma consulta só, em vez de uma por álbum)
     const { data: albums, error } = await supabaseAdmin
       .from('albums')
-      .select('*')
+      .select('*, album_photos(count)')
       .order('date', { ascending: false });
 
     if (error) {
@@ -49,21 +62,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Erro ao buscar álbuns.' }, { status: 500 });
     }
 
-    const albumsWithCount = await Promise.all(
-      (albums || []).map(async (album) => {
-        const { count } = await supabaseAdmin
-          .from('album_photos')
-          .select('*', { count: 'exact', head: true })
-          .eq('album_id', album.id);
-
-        return {
-          ...album,
-          cover_url: album.cover_url || album.cover,
-          is_active: album.is_active !== false,
-          photo_count: count || 0,
-        };
-      })
-    );
+    const albumsWithCount = (albums || []).map(({ album_photos, ...album }) => ({
+      ...album,
+      cover_url: album.cover_url || album.cover,
+      is_active: album.is_active !== false,
+      photo_count: album_photos?.[0]?.count ?? 0,
+    }));
 
     return NextResponse.json(albumsWithCount);
   } catch (error) {

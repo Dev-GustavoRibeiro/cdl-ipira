@@ -3,11 +3,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import DOMPurify from 'isomorphic-dompurify';
+import { sanitizeNewsHtml } from '@/lib/sanitize';
 import { supabase } from '@/lib/supabase';
 import {
   FaArrowLeft,
   FaArrowRight,
+  FaBullhorn,
   FaFacebookF,
   FaLinkedinIn,
   FaNewspaper,
@@ -17,13 +18,14 @@ import {
   FaUser,
   FaWhatsapp,
 } from 'react-icons/fa';
+import JsonLd from '@/app/components/seo/JsonLd';
 import { formatDateBR, formatDateLong } from '@/lib/date';
 import { isOptimizableImage } from '@/lib/images';
+import { breadcrumbJsonLd, newsArticleJsonLd, pageMetadata, SITE_URL } from '@/lib/seo';
 
 // Regera a página no máximo a cada 5 minutos (novas notícias/edições aparecem sem novo deploy)
 export const revalidate = 300;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.cdlipira.com.br';
 const DEFAULT_COLOR = 'from-[#003f7f] to-[#0066cc]';
 
 // Tipografia do corpo (sem plugin de typography): 18px, entrelinha 1.8 e estilos para o HTML do editor
@@ -50,9 +52,13 @@ interface News {
   category: string | null;
   color: string | null;
   author: string | null;
+  updated_at: string | null;
+  campaign_id: number | null;
+  /** Campanha ligada; o RLS devolve null para campanha desativada */
+  campaigns: { slug: string; title: string } | null;
 }
 
-const NEWS_COLUMNS = 'id, title, excerpt, content, image, date, category, color, author';
+const NEWS_COLUMNS = 'id, title, excerpt, content, image, date, category, color, author, updated_at, campaign_id, campaigns(slug, title)';
 
 // cache(): generateMetadata e a página compartilham a mesma consulta
 const getNews = cache(async (rawId: string): Promise<News | null> => {
@@ -64,7 +70,8 @@ const getNews = cache(async (rawId: string): Promise<News | null> => {
     .select(NEWS_COLUMNS)
     .eq('id', id)
     .eq('is_published', true)
-    .maybeSingle();
+    // Sem tipos gerados, o embed viria tipado como lista; para muitos-para-um o PostgREST devolve um objeto
+    .maybeSingle<News>();
 
   if (error) {
     console.error('Erro ao carregar notícia:', error.message);
@@ -73,17 +80,27 @@ const getNews = cache(async (rawId: string): Promise<News | null> => {
   return data;
 });
 
-/** "Leia também": as 3 notícias publicadas mais recentes, exceto a atual. */
+/** "Leia também": 3 notícias, primeiro as da mesma campanha, depois as da mesma categoria, completando com as mais recentes. */
 async function getRelatedNews(news: News): Promise<News[]> {
-  const { data, error } = await supabase
-    .from('news')
-    .select(NEWS_COLUMNS)
-    .eq('is_published', true)
-    .neq('id', news.id)
-    .order('date', { ascending: false, nullsFirst: false })
-    .limit(3);
-  if (error) console.error('Erro ao carregar notícias relacionadas:', error.message);
-  return data || [];
+  const recent = (column?: 'campaign_id' | 'category', value?: number | string) => {
+    const query = supabase.from('news').select(NEWS_COLUMNS).eq('is_published', true).neq('id', news.id);
+    return (column ? query.eq(column, value) : query)
+      .order('date', { ascending: false, nullsFirst: false })
+      .limit(3)
+      .overrideTypes<News[], { merge: false }>();
+  };
+  const results = await Promise.all([
+    news.campaign_id ? recent('campaign_id', news.campaign_id) : null,
+    news.category ? recent('category', news.category) : null,
+    recent(),
+  ]);
+
+  const related = new Map<number, News>();
+  for (const result of results) {
+    if (result?.error) console.error('Erro ao carregar notícias relacionadas:', result.error.message);
+    for (const item of result?.data || []) if (related.size < 3) related.set(item.id, item);
+  }
+  return [...related.values()];
 }
 
 const hasHtml = (text: string) => /<[a-z][\s\S]*>/i.test(text);
@@ -110,20 +127,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  const description = getSummary(news);
-  return {
+  return pageMetadata({
     title: news.title,
-    description,
-    alternates: { canonical: `/imprensa/noticias/${news.id}` },
-    openGraph: {
-      type: 'article',
-      title: news.title,
-      description,
-      url: `/imprensa/noticias/${news.id}`,
-      publishedTime: news.date || undefined,
-      images: news.image ? [news.image] : undefined,
-    },
-  };
+    description: getSummary(news),
+    path: `/imprensa/noticias/${news.id}`,
+    image: news.image,
+    article: { publishedTime: news.date, modifiedTime: news.updated_at, section: news.category },
+  });
 }
 
 export default async function NoticiaDetailPage({ params }: PageProps) {
@@ -154,6 +164,7 @@ export default async function NoticiaDetailPage({ params }: PageProps) {
     { label: 'WhatsApp', icon: FaWhatsapp, href: `https://api.whatsapp.com/send?text=${shareText}%20${shareUrl}` },
   ];
 
+  const path = `/imprensa/noticias/${news.id}`;
   return (
     <>
       <article>
@@ -195,12 +206,25 @@ export default async function NoticiaDetailPage({ params }: PageProps) {
               </nav>
 
               <div className="mt-auto pt-16 animate-blur-fade-in">
-                {news.category && (
-                  <span className="inline-flex items-center gap-2 rounded-full bg-[#ffd000] px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-[#003f7f] shadow-sm">
-                    <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#003f7f]" />
-                    {news.category}
-                  </span>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {news.category && (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#ffd000] px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-[#003f7f] shadow-sm">
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#003f7f]" />
+                      {news.category}
+                    </span>
+                  )}
+                  {/* Notícia de campanha: atalho para a página dela (regulamento, lojas, sorteios) */}
+                  {news.campaigns && (
+                    <Link
+                      href={`/imprensa/campanhas/${news.campaigns.slug}`}
+                      className="group inline-flex min-h-8 items-center gap-2 rounded-full bg-white/12 px-4 py-1.5 text-left text-xs leading-tight font-bold text-white ring-1 ring-white/35 backdrop-blur-sm transition-[background-color,color] duration-200 hover:bg-white hover:text-[#003f7f]"
+                    >
+                      <FaBullhorn aria-hidden="true" className="h-3 w-3 shrink-0 text-[#ffd000] transition-colors group-hover:text-[#003f7f]" />
+                      Campanha {news.campaigns.title}
+                      <FaArrowRight aria-hidden="true" className="h-2.5 w-2.5 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+                    </Link>
+                  )}
+                </div>
                 <h1 className="mt-4 text-3xl font-black leading-[1.08] tracking-tight text-balance text-white drop-shadow-[0_2px_12px_rgba(0,26,61,0.5)] sm:text-4xl md:text-5xl lg:text-[3.5rem]">
                   {news.title}
                 </h1>
@@ -239,7 +263,7 @@ export default async function NoticiaDetailPage({ params }: PageProps) {
 
               {/* Conteúdo pode vir em HTML (sanitizado) ou texto puro (um parágrafo por quebra de linha) */}
               {hasHtml(content) ? (
-                <div className={BODY_CLASS} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }} />
+                <div className={BODY_CLASS} dangerouslySetInnerHTML={{ __html: sanitizeNewsHtml(content) }} />
               ) : (
                 <div className={BODY_CLASS}>
                   {content.split('\n').map((paragraph) => paragraph.trim()).filter(Boolean).map((paragraph, index) => (
@@ -273,7 +297,7 @@ export default async function NoticiaDetailPage({ params }: PageProps) {
 
               <Link
                 href="/imprensa/noticias"
-                className="group mt-10 inline-flex items-center gap-2 text-sm font-bold text-[#003f7f] transition-colors hover:text-[#0052a3] sm:text-base"
+                className="group mt-8 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-[#003f7f] transition-colors hover:text-[#0052a3] sm:text-base"
               >
                 <FaArrowLeft aria-hidden="true" className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-x-1 motion-reduce:transition-none" />
                 Voltar para Notícias
@@ -363,6 +387,13 @@ export default async function NoticiaDetailPage({ params }: PageProps) {
           </div>
         </section>
       )}
+      {/* NewsArticle: data, foto e autor para os resultados de notícia do Google */}
+      <JsonLd
+        data={[
+          newsArticleJsonLd(news, getSummary(news), path),
+          breadcrumbJsonLd(['Notícias', '/imprensa/noticias'], [news.title, path]),
+        ]}
+      />
     </>
   );
 }

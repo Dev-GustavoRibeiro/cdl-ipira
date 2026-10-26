@@ -4,6 +4,41 @@ import { getAdminUser } from '@/lib/supabase-server';
 import { validateAndSanitize } from '@/lib/security';
 import { auditServer } from '@/lib/audit-server';
 
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Título',
+  description: 'Descrição',
+  date: 'Data',
+  time: 'Horário',
+  location: 'Local',
+  category: 'Categoria',
+  status: 'Status',
+  image: 'Imagem de capa',
+  gradient: 'Cor do card',
+};
+
+/** "Campo 'location' excede..." -> "Local excede..." (mensagem que o painel mostra no aviso) */
+function friendlyErrors(errors: string[]): string {
+  return errors.map((e) => e.replace(/Campo '(\w+)'/, (_, key: string) => FIELD_LABELS[key] || key)).join(' ');
+}
+
+const STATUSES = ['upcoming', 'ongoing', 'past'];
+
+/** Regras que o validateAndSanitize não cobre (formatos aceitos pelas colunas date/time/status/attendees). */
+function checkFormats(sanitized: Record<string, unknown>, attendees: unknown): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(sanitized.date))) return 'Data inválida.';
+  if (sanitized.time && !/^\d{2}:\d{2}(:\d{2})?$/.test(String(sanitized.time))) return 'Horário inválido.';
+  if (sanitized.status && !STATUSES.includes(String(sanitized.status))) return 'Status inválido.';
+  if (attendees !== undefined && attendees !== null && attendees !== '' && !(Number.isInteger(Number(attendees)) && Number(attendees) >= 0)) {
+    return 'O número de inscritos exibido deve ser um inteiro igual ou maior que zero.';
+  }
+  return null;
+}
+
+function parseId(value: unknown): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 /** campaign_id do corpo: id > 0, null (sem campanha) ou undefined (campo ausente, não altera). false = inválido. */
 function parseCampaignId(value: unknown): number | null | undefined | false {
   if (value === undefined) return undefined;
@@ -11,6 +46,14 @@ function parseCampaignId(value: unknown): number | null | undefined | false {
   const id = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
   return Number.isInteger(id) && id > 0 ? id : false;
 }
+
+/** registration_enabled do corpo: boolean, ou undefined (campo ausente, não altera). null = inválido. */
+function parseRegistrationEnabled(value: unknown): boolean | undefined | null {
+  if (value === undefined) return undefined;
+  return typeof value === 'boolean' ? value : null;
+}
+
+const INVALID_REGISTRATION = { error: 'O campo "Aceita inscrições" deve ser verdadeiro ou falso.' };
 
 // GET - Listar todos os eventos (incluindo inativos para admin)
 export async function GET() {
@@ -70,12 +113,22 @@ export async function POST(request: NextRequest) {
     });
 
     if (!valid) {
-      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+      return NextResponse.json({ error: friendlyErrors(errors), details: errors }, { status: 400 });
+    }
+
+    const formatError = checkFormats(sanitized, body.attendees);
+    if (formatError) {
+      return NextResponse.json({ error: formatError }, { status: 400 });
     }
 
     const campaignId = parseCampaignId(body.campaign_id);
     if (campaignId === false) {
       return NextResponse.json({ error: 'Campanha inválida.' }, { status: 400 });
+    }
+
+    const registrationEnabled = parseRegistrationEnabled(body.registration_enabled);
+    if (registrationEnabled === null) {
+      return NextResponse.json(INVALID_REGISTRATION, { status: 400 });
     }
 
     const { data, error } = await supabaseAdmin
@@ -91,8 +144,9 @@ export async function POST(request: NextRequest) {
           status: sanitized.status || 'upcoming',
           image: sanitized.image || null,
           gradient: sanitized.gradient || 'from-[#003f7f] to-[#0066cc]',
-          attendees: body.attendees ? parseInt(body.attendees) : 0,
+          attendees: body.attendees ? Number(body.attendees) : 0,
           is_active: true,
+          registration_enabled: registrationEnabled ?? true,
           ...(campaignId !== undefined && { campaign_id: campaignId })
         }
       ])
@@ -129,7 +183,8 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const { id, ...updateData } = body;
+    const { id: rawId, ...updateData } = body;
+    const id = parseId(rawId);
 
     if (!id) {
       return NextResponse.json({ error: 'ID do evento é obrigatório' }, { status: 400 });
@@ -154,12 +209,22 @@ export async function PUT(request: NextRequest) {
     });
 
     if (!valid) {
-      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+      return NextResponse.json({ error: friendlyErrors(errors), details: errors }, { status: 400 });
+    }
+
+    const formatError = checkFormats(sanitized, body.attendees);
+    if (formatError) {
+      return NextResponse.json({ error: formatError }, { status: 400 });
     }
 
     const campaignId = parseCampaignId(updateData.campaign_id);
     if (campaignId === false) {
       return NextResponse.json({ error: 'Campanha inválida.' }, { status: 400 });
+    }
+
+    const registrationEnabled = parseRegistrationEnabled(updateData.registration_enabled);
+    if (registrationEnabled === null) {
+      return NextResponse.json(INVALID_REGISTRATION, { status: 400 });
     }
 
     const updatePayload: Record<string, unknown> = {
@@ -175,12 +240,16 @@ export async function PUT(request: NextRequest) {
       is_active: true
     };
 
-    if (body.attendees !== undefined) {
-      updatePayload.attendees = parseInt(body.attendees);
+    if (body.attendees !== undefined && body.attendees !== null && body.attendees !== '') {
+      updatePayload.attendees = Number(body.attendees);
     }
 
     if (campaignId !== undefined) {
       updatePayload.campaign_id = campaignId;
+    }
+
+    if (registrationEnabled !== undefined) {
+      updatePayload.registration_enabled = registrationEnabled;
     }
 
     const { data, error } = await supabaseAdmin
@@ -219,7 +288,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = parseId(searchParams.get('id'));
 
     if (!id) {
       return NextResponse.json({ error: 'ID do evento é obrigatório' }, { status: 400 });
@@ -245,7 +314,7 @@ export async function DELETE(request: NextRequest) {
     // Registrar auditoria
     await auditServer.delete(
       'events',
-      id,
+      id.toString(),
       evento?.title || 'Evento desconhecido',
       {},
       request

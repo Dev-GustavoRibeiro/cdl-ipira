@@ -20,13 +20,13 @@ const certificateTypes: {
     title: 'Pessoa Física e Jurídica',
     icon: FaBuilding,
     audience: 'Uso geral',
-    description: 'Certificado digital ICP-Brasil para pessoas físicas e jurídicas. Ideal para realizar transações online, assinar documentos e acessar serviços governamentais com total segurança.',
+    description: 'Certificado digital ICP-Brasil para pessoas físicas e jurídicas. Indicado para assinar documentos, acessar serviços do governo e fazer transações online.',
     features: [
       'Assinatura digital de documentos',
       'Acesso a serviços governamentais',
       'Transações bancárias online',
       'Declaração de Imposto de Renda',
-      'Validade jurídica garantida'
+      'Validade jurídica (MP 2.200-2/2001)'
     ],
     accent: 'sky'
   },
@@ -35,13 +35,12 @@ const certificateTypes: {
     title: 'e-Jurídico',
     icon: FaGavel,
     audience: 'Advogados',
-    description: 'Certificado digital exclusivo para advogados. Permite assinar petições, acessar sistemas do Poder Judiciário e realizar atos processuais com validade jurídica.',
+    description: 'Certificado digital para advogados. Permite assinar petições, acessar sistemas do Poder Judiciário e realizar atos processuais com validade jurídica.',
     features: [
       'Assinatura de petições digitais',
       'Acesso ao PJe (Processo Judicial Eletrônico)',
       'Validade jurídica em processos',
-      'Agilidade em atos processuais',
-      'Conformidade com normas do CNJ'
+      'Agilidade em atos processuais'
     ],
     accent: 'green'
   },
@@ -55,8 +54,7 @@ const certificateTypes: {
       'Assinatura de receitas digitais',
       'Prontuários eletrônicos',
       'Prescrições médicas digitais',
-      'Conformidade com normas da ANVISA',
-      'Validade legal em documentos médicos'
+      'Validade jurídica (MP 2.200-2/2001)'
     ],
     accent: 'yellow'
   }

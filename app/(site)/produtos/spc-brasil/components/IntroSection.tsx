@@ -13,7 +13,7 @@ const IntroSection = () => {
           eyebrow="Sobre o SPC"
           icon={FaShieldAlt}
           title="O que é o SPC Brasil?"
-          subtitle="O SPC Brasil é o maior sistema de proteção ao crédito do país, oferecendo soluções completas para empresas e consumidores. Com mais de 50 anos de experiência, ajudamos milhões de brasileiros a proteger, negociar e construir seu histórico creditício."
+          subtitle="O SPC Brasil é o serviço de proteção ao crédito do Sistema CNDL, do qual a CDL Ipirá faz parte. Pela CDL, a empresa associada consulta CPF e CNPJ antes de vender a prazo e tem acesso às soluções do SPC Brasil."
         />
       </div>
     </section>

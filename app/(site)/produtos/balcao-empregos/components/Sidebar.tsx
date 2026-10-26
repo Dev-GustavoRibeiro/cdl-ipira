@@ -9,9 +9,9 @@ interface SidebarProps {
 }
 
 const benefits = [
-  'Acesso a currículos qualificados',
-  'Divulgação gratuita para associados',
-  'Processo de recrutamento simplificado',
+  'Contato de candidatos interessados',
+  'Divulgação da vaga no site da CDL',
+  'Envio dos dados da vaga pelo WhatsApp',
   'Suporte da equipe CDL',
 ];
 
@@ -29,20 +29,20 @@ const Sidebar = ({ onOpenModal }: SidebarProps) => {
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#ffd000]">Para empresas</p>
         <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">Quer contratar?</h3>
-        <p className="mt-2 max-w-[40ch] text-white/80">Inicie seu recrutamento completo e preencha suas vagas!</p>
+        <p className="mt-2 max-w-[40ch] text-white/80">Envie os dados da vaga e a equipe da CDL faz a divulgação.</p>
         <button type="button" onClick={onOpenModal} aria-haspopup="dialog" className={`${btnYellow} mt-6 w-full sm:w-auto`}>
           <FaPlus aria-hidden="true" className="h-3.5 w-3.5" />
           Cadastre sua vaga
         </button>
       </div>
 
-      <div className="border-t border-white/15 pt-5 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-10 lg:border-t lg:border-l-0 lg:pt-6 lg:pl-0 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-10">
+      <div className="border-t border-white/15 pt-2 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-10 lg:border-t lg:border-l-0 lg:pt-6 lg:pl-0 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-10">
         <button
           type="button"
           onClick={() => setShowBenefits((open) => !open)}
           aria-expanded={showBenefits}
           aria-controls="beneficios-balcao"
-          className="flex w-full items-center justify-between gap-3 rounded-lg text-left font-bold sm:hidden"
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left font-bold sm:hidden"
         >
           Benefícios
           <FaChevronDown

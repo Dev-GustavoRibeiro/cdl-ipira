@@ -1,10 +1,11 @@
 import React from 'react';
 import { FaArrowRight, FaBalanceScale, FaCheckCircle } from 'react-icons/fa';
 
+// Só o que a CDL já informa no site; profissional (nome/OAB) e canais de atendimento aguardam confirmação
 const highlights = [
   'Gratuito para associados em dia',
-  'Atendimento presencial, por telefone ou online',
-  'Advogados especializados em direito empresarial',
+  'Dúvidas jurídicas do dia a dia da sua empresa',
+  'Atendimento agendado pela equipe da CDL',
 ];
 
 const HeroSection = () => {
@@ -18,14 +19,14 @@ const HeroSection = () => {
           <div className="text-center lg:text-left animate-blur-fade-in">
             <span className="inline-flex items-center gap-2 rounded-full bg-[#ffd000] px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-[#003f7f] shadow-sm">
               <FaBalanceScale aria-hidden="true" className="h-3.5 w-3.5" />
-              Benefício exclusivo
+              Benefício para associados
             </span>
             <h1 className="mt-4 text-4xl font-black leading-[1.05] tracking-tight text-balance text-[#003f7f] sm:text-5xl lg:text-6xl">
               Orientação Jurídica
             </h1>
             <div aria-hidden="true" className="mx-auto mt-5 h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] lg:mx-0" />
             <p className="mx-auto mt-5 max-w-[60ch] text-base text-gray-600 md:text-lg lg:mx-0">
-              Proteja seu negócio com orientações jurídicas especializadas. Serviço exclusivo e gratuito para associados da CDL Ipirá.
+              Tire dúvidas jurídicas do dia a dia da sua empresa. Benefício gratuito para associados em dia com a CDL Ipirá.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
               <a
@@ -55,7 +56,7 @@ const HeroSection = () => {
                 </span>
                 <p className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-[#ffd000]">Para associados CDL Ipirá</p>
                 <p className="mt-2 text-2xl font-black leading-tight tracking-tight text-balance sm:text-3xl">
-                  Segurança jurídica para o dia a dia do seu negócio
+                  Orientação jurídica para o dia a dia do seu negócio
                 </p>
                 <ul className="mt-6 space-y-3">
                   {highlights.map((item) => (

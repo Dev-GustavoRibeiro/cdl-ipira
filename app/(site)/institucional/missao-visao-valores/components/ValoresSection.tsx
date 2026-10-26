@@ -28,25 +28,25 @@ const valores = [
     icon: FaRocket,
     title: 'Eficiência',
     description: 'Gestão da qualidade, fidelização, inovação, performance e solução ao associado.',
-    fullDescription: 'Buscamos sempre os melhores resultados com processos otimizados e soluções que realmente fazem a diferença.',
+    fullDescription: 'Buscamos resultados com processos simples e soluções úteis para o dia a dia do associado.',
   },
   {
     icon: FaShieldAlt,
     title: 'Ética',
     description: 'Transparência em todas as ações, respeito aos associados e à comunidade.',
-    fullDescription: 'Agimos com integridade absoluta. A confiança dos nossos associados é nosso maior patrimônio.',
+    fullDescription: 'Agimos com integridade. A confiança dos nossos associados é o nosso maior patrimônio.',
   },
   {
     icon: FaLightbulb,
     title: 'Inovação',
     description: 'Busca constante por novas soluções e tecnologias para melhor atender.',
-    fullDescription: 'Estamos sempre à frente, buscando as melhores tecnologias e práticas do mercado para beneficiar nossos associados.',
+    fullDescription: 'Buscamos novas tecnologias e práticas para atender melhor os associados.',
   },
   {
     icon: FaChartLine,
     title: 'Excelência',
     description: 'Compromisso com a qualidade em tudo o que fazemos para nossos associados.',
-    fullDescription: 'Não nos contentamos com o bom, buscamos sempre o excepcional em cada entrega.',
+    fullDescription: 'Buscamos qualidade em cada serviço prestado aos associados.',
   },
 ];
 
@@ -68,15 +68,14 @@ const ValoresSection = () => {
               <li key={valor.title} className={`relative overflow-hidden rounded-3xl bg-white p-7 ring-1 ring-[#003f7f]/[0.07] sm:p-8 ${shadowCard}`}>
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute -top-2 right-5 text-7xl font-black tracking-tighter text-[#003f7f]/[0.05] select-none"
-                >
-                  {String(index + 1).padStart(2, '0')}
-                </span>
+                  data-n={String(index + 1).padStart(2, '0')}
+                  className="pointer-events-none absolute -top-2 right-5 text-7xl font-black tracking-tighter text-[#003f7f]/[0.05] select-none before:content-[attr(data-n)]"
+                />
                 <span className={`relative flex h-14 w-14 items-center justify-center rounded-2xl shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)] ${tiles[index % 3]}`}>
                   <Icon aria-hidden="true" className="h-6 w-6" />
                 </span>
                 <h3 className="relative mt-6 text-xl font-black tracking-tight text-[#003f7f] sm:text-2xl">{valor.title}</h3>
-                <p className="relative mt-3 text-sm leading-relaxed text-pretty text-gray-600 sm:text-base">{valor.fullDescription}</p>
+                <p className="relative mt-3 text-base leading-relaxed text-pretty text-gray-600">{valor.fullDescription}</p>
               </li>
             );
           })}

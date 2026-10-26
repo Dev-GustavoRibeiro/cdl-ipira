@@ -12,7 +12,7 @@ interface ResultsFiltersProps {
 }
 
 const pillClass = (active: boolean) =>
-  `inline-flex shrink-0 items-center gap-2 rounded-full py-2 pr-2 pl-4 text-sm font-bold transition-[background-color,color,box-shadow,scale] duration-200 active:scale-[0.98] ${
+  `inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full py-1.5 pr-2 pl-4 text-sm font-bold transition-[background-color,color,box-shadow,scale] duration-200 active:scale-[0.98] ${
     active
       ? 'bg-[#003f7f] text-white shadow-[0_8px_20px_-8px_rgba(0,63,127,0.7)]'
       : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:text-[#003f7f] hover:ring-[#003f7f]/30'

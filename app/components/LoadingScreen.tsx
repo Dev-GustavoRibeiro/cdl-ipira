@@ -70,6 +70,8 @@ const SESSION_KEY = 'cdl_loaded';
 // Não segura o conteúdo: no máximo ~600ms visível + fade curto, uma vez por sessão
 const MAX_VISIBLE_MS = 600;
 const FADE_MS = 300;
+/** Tempo total da tela (contado da hidratação): o aviso de cookies espera por ele para não nascer escondido atrás dela */
+export const LOADING_SCREEN_MS = MAX_VISIBLE_MS + FADE_MS;
 
 export default function LoadingScreen() {
   const [phase, setPhase] = useState<'visible' | 'fading' | 'gone'>('visible');

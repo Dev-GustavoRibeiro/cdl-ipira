@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { FaBullhorn, FaPhone } from 'react-icons/fa';
+import { FaBullhorn, FaPhoneAlt } from 'react-icons/fa';
 import { SectionHeader, cardSurface } from '../../_components/ProductUI';
+import { CONTACT } from '@/app/components/navigation/navItems';
 
 const IntroSection = () => {
   return (
@@ -19,27 +20,25 @@ const IntroSection = () => {
 
         <div className="space-y-6 lg:col-span-7 lg:pt-11">
           <p className="max-w-[62ch] text-base leading-relaxed text-gray-700 sm:text-lg">
-            Iniciativas como <strong className="text-[#003f7f]">CDL Conecta</strong>,{' '}
-            <strong className="text-[#003f7f]">Minha Empresa Faz História</strong>,{' '}
-            <strong className="text-[#003f7f]">CDL Cast</strong> e{' '}
-            <strong className="text-[#003f7f]">CDL News</strong> geram visibilidade, reconhecimento e fortalecem a imagem dos negócios.
+            A <strong className="text-[#003f7f]">CDL Ipirá</strong> divulga empresas associadas nos seus perfis no Facebook, Instagram e YouTube,
+            conforme a programação de conteúdo.
           </p>
           <p className="max-w-[62ch] text-base leading-relaxed text-gray-700 sm:text-lg">
-            Desde vídeos de boas-vindas até podcasts, compartilhamos informações estratégicas, incentivamos o empreendedorismo e contribuímos para o crescimento econômico. Histórias inspiradoras que fortalecem os laços da comunidade com credibilidade, relevância e valor.
+            Posts, vídeos, entrevistas e histórias de empresas mostram quem faz o comércio de Ipirá e aproximam os negócios da comunidade.
           </p>
 
           <div className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6 ${cardSurface}`}>
             <p className="font-semibold text-gray-800">Quer destacar sua empresa? Entre em contato conosco.</p>
             <a
-              href="tel:+557532541599"
+              href={CONTACT.phone.href}
               className="group inline-flex shrink-0 items-center gap-3 rounded-2xl text-[#003f7f] transition-colors hover:text-[#0052a3]"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#003f7f] text-white transition-[scale] duration-200 group-hover:scale-105 motion-reduce:transition-none">
-                <FaPhone aria-hidden="true" className="h-4 w-4" />
+                <FaPhoneAlt aria-hidden="true" className="h-4 w-4" />
               </span>
               <span>
                 <span className="block text-xs font-semibold text-gray-600">Central de Atendimento CDL Ipirá</span>
-                <span className="block text-lg font-black">(75) 3254-1599</span>
+                <span className="block text-lg font-black">{CONTACT.phone.label}</span>
               </span>
             </a>
           </div>

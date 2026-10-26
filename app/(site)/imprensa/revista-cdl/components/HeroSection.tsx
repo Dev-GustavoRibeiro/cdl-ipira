@@ -15,7 +15,7 @@ const HeroSection = () => {
           </h1>
           <div className="h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] mx-auto mb-5" aria-hidden="true"></div>
           <p className="text-gray-700 text-base md:text-lg">
-            Acesse as edições da Revista CDL Ipirá com notícias, artigos, entrevistas e informações sobre o comércio local e regional.
+            As edições da Revista CDL Ipirá, com notícias, artigos e entrevistas sobre o comércio local e regional, são publicadas aqui.
           </p>
         </div>
       </div>

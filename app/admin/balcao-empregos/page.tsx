@@ -1,703 +1,404 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaCheckCircle, FaSpinner, FaSave, FaEnvelope, FaPhone, FaUser, FaFileAlt } from 'react-icons/fa';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  FaBriefcase, FaEdit, FaExclamationTriangle, FaExternalLinkAlt, FaEye, FaEyeSlash, FaFileAlt, FaMapMarkerAlt, FaPlus,
+  FaRedo, FaSearch, FaTrash, FaUsers,
+} from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ResumeManagerModal from '../components/ResumeManagerModal';
 import { fetchWithCSRF } from '@/lib/csrf-client';
 import { formatDateBR, todayISO } from '@/lib/date';
+import {
+  AdminCard, AdminPageHeader, Button, Checkbox, DataTable, EmptyState, FilterPills, FormField, IconButton, Input, SearchInput,
+  StatusBadge, Textarea, buttonClass, type DataTableColumn,
+} from '../_components';
 
 interface Vaga {
   id: number;
   title: string;
   company: string;
   quantity: number;
-  date: string;
-  status: 'active' | 'pending' | 'closed';
-  is_active?: boolean;
-  description?: string;
-  location?: string;
-  category?: string;
-  contact_name?: string;
-  contact_email?: string;
-  contact_phone?: string;
+  date: string | null;
+  is_active: boolean;
+  description?: string | null;
+  location?: string | null;
+  category?: string | null;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
 }
 
-export default function AdminBalcaoEmpregosPage() {
-  const [vagas, setVagas] = useState<Vaga[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'pending' | 'closed'>('all');
+interface FormState {
+  id?: number;
+  title: string;
+  company: string;
+  quantity: string;
+  description: string;
+  location: string;
+  category: string;
+  is_active: boolean;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+}
 
-  // Modal states
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
-  const [selectedJobForResumes, setSelectedJobForResumes] = useState<{id: number, title: string} | null>(null);
+const EMPTY_FORM: FormState = {
+  title: '', company: '', quantity: '1', description: '', location: '', category: '', is_active: true,
+  contact_name: '', contact_email: '', contact_phone: '',
+};
+
+const CATEGORY_SUGGESTIONS = ['Vendas', 'Comércio', 'Administrativo', 'Atendimento', 'Logística', 'Saúde', 'Serviços', 'Indústria'];
+
+type Filter = 'all' | 'active' | 'inactive';
+
+/** fetch + JSON; erro com a mensagem da API */
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await (init ? fetchWithCSRF(url, init) : fetch(url));
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.details?.join(' ') || data?.error || 'Não foi possível concluir a operação.');
+  return data as T;
+}
+
+const jsonInit = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Não foi possível concluir a operação.');
+
+/** Corpo do PUT/POST a partir de uma vaga (o PUT regrava todos os campos) */
+const toPayload = (v: Vaga | FormState) => ({
+  title: v.title,
+  company: v.company,
+  quantity: Number(v.quantity),
+  description: v.description ?? '',
+  location: v.location ?? '',
+  category: v.category ?? '',
+  is_active: v.is_active,
+  contact_name: v.contact_name ?? '',
+  contact_email: v.contact_email ?? '',
+  contact_phone: v.contact_phone ?? '',
+});
+
+export default function AdminBalcaoEmpregosPage() {
+  const [version, setVersion] = useState(0);
+  const [list, setList] = useState<{ v: number; rows: Vaga[]; error?: string }>({ v: -1, rows: [] });
+  const [filter, setFilter] = useState<Filter>('all');
+  const [search, setSearch] = useState('');
+
+  const [form, setForm] = useState<FormState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  
-  // Dialog states para alertas personalizados
-  const [deleteDialog, setDeleteDialog] = useState<{isOpen: boolean, id: number | null, title: string}>({
-    isOpen: false,
-    id: null,
-    title: ''
-  });
+  const [toDelete, setToDelete] = useState<Vaga | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [successDialog, setSuccessDialog] = useState<{isOpen: boolean, message: string, type: 'success' | 'edit' | 'delete'}>({
-    isOpen: false,
-    message: '',
-    type: 'success'
-  });
-  const [formData, setFormData] = useState({
-    title: '',
-    company: '',
-    quantity: 1,
-    description: '',
-    location: '',
-    category: '',
-    status: 'active',
-    contact_name: '',
-    contact_email: '',
-    contact_phone: ''
-  });
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [resumesFor, setResumesFor] = useState<Vaga | null>(null);
 
   useEffect(() => {
-    fetchVagas();
-  }, []);
+    let active = true;
+    api<Vaga[]>('/api/admin/jobs').then(
+      (rows) => active && setList({ v: version, rows: rows || [] }),
+      (error) => active && setList((prev) => ({ v: version, rows: prev.rows, error: errorMessage(error) }))
+    );
+    return () => {
+      active = false;
+    };
+  }, [version]);
 
-  async function fetchVagas() {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/admin/jobs');
-      const data = await response.json();
+  const reload = () => setVersion((v) => v + 1);
+  const isLoading = list.v === -1;
+  const rows = list.rows;
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao carregar vagas');
-      }
+  const counts = useMemo(
+    () => ({ all: rows.length, active: rows.filter((r) => r.is_active).length, inactive: rows.filter((r) => !r.is_active).length }),
+    [rows]
+  );
 
-      if (data) {
-        const mappedVagas = data.map((item: Vaga & { created_at?: string }) => ({
-          id: item.id,
-          title: item.title,
-          company: item.company,
-          quantity: item.quantity,
-          date: formatDateBR(item.date),
-          status: item.is_active ? 'active' : 'pending',
-          is_active: item.is_active,
-          description: item.description,
-          location: item.location,
-          category: item.category,
-          contact_name: item.contact_name,
-          contact_email: item.contact_email,
-          contact_phone: item.contact_phone
-        }));
-        setVagas(mappedVagas as Vaga[]);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar vagas:', error);
-      toast.error('Erro ao carregar vagas');
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter(
+      (r) =>
+        (filter === 'all' || (filter === 'active') === r.is_active) &&
+        (!q || [r.title, r.company, r.location, r.category, r.contact_name].some((v) => v?.toLowerCase().includes(q)))
+    );
+  }, [rows, filter, search]);
 
-  function openDeleteDialog(vaga: Vaga) {
-    setDeleteDialog({
-      isOpen: true,
-      id: vaga.id,
-      title: vaga.title
-    });
-  }
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => (f ? { ...f, [key]: value } : f));
 
-  async function handleConfirmDelete() {
-    if (!deleteDialog.id) return;
-    
-    setIsDeleting(true);
-    try {
-      const response = await fetchWithCSRF(`/api/admin/jobs?id=${deleteDialog.id}`, {
-        method: 'DELETE',
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao excluir vaga');
-      }
-
-      // Atualiza o estado local removendo a vaga
-      setVagas(currentVagas => currentVagas.filter(v => v.id !== deleteDialog.id));
-      
-      // Fecha o dialog de confirmação
-      setDeleteDialog({ isOpen: false, id: null, title: '' });
-      
-      // Mostra o dialog de sucesso
-      setSuccessDialog({
-        isOpen: true,
-        message: 'A vaga foi excluída permanentemente do sistema.',
-        type: 'delete'
-      });
-    } catch (error) {
-      console.error('Erro ao excluir vaga:', error);
-      setDeleteDialog({ isOpen: false, id: null, title: '' });
-      toast.error('Erro ao excluir vaga. Verifique as permissões no banco de dados.');
-    } finally {
-      setIsDeleting(false);
-    }
-  }
-
-  async function handleToggleStatus(id: number, currentStatus: boolean) {
-    try {
-      const vaga = vagas.find((item) => item.id === id);
-      if (!vaga) return;
-
-      const response = await fetchWithCSRF('/api/admin/jobs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          title: vaga.title,
-          company: vaga.company,
-          quantity: vaga.quantity,
-          description: vaga.description,
-          location: vaga.location,
-          category: vaga.category,
-          contact_name: vaga.contact_name,
-          contact_email: vaga.contact_email,
-          contact_phone: vaga.contact_phone,
-          is_active: !currentStatus,
-        }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao atualizar status');
-      }
-      
-      toast.success(currentStatus ? 'Vaga desativada' : 'Vaga ativada com sucesso');
-      fetchVagas();
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status');
-    }
-  }
-
-  const handleOpenResumes = (vaga: Vaga) => {
-    setSelectedJobForResumes({ id: vaga.id, title: vaga.title });
-    setIsResumeModalOpen(true);
-  };
-
-  const handleOpenModal = (vaga?: Vaga) => {
-    if (vaga) {
-      setEditingId(vaga.id);
-      setFormData({
-        title: vaga.title,
-        company: vaga.company,
-        quantity: vaga.quantity,
-        description: vaga.description || '',
-        location: vaga.location || '',
-        category: vaga.category || '',
-        status: vaga.is_active ? 'active' : 'pending',
-        contact_name: vaga.contact_name || '',
-        contact_email: vaga.contact_email || '',
-        contact_phone: vaga.contact_phone || ''
-      });
-    } else {
-      setEditingId(null);
-      setFormData({
-        title: '',
-        company: '',
-        quantity: 1,
-        description: '',
-        location: '',
-        category: '',
-        status: 'active',
-        contact_name: '',
-        contact_email: '',
-        contact_phone: ''
-      });
-    }
-    setIsModalOpen(true);
-  };
+  const openForm = (vaga?: Vaga) =>
+    setForm(
+      vaga
+        ? {
+            id: vaga.id,
+            title: vaga.title,
+            company: vaga.company,
+            quantity: String(vaga.quantity ?? 1),
+            description: vaga.description ?? '',
+            location: vaga.location ?? '',
+            category: vaga.category ?? '',
+            is_active: vaga.is_active,
+            contact_name: vaga.contact_name ?? '',
+            contact_email: vaga.contact_email ?? '',
+            contact_phone: vaga.contact_phone ?? '',
+          }
+        : { ...EMPTY_FORM }
+    );
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form) return;
     setIsSaving(true);
-
     try {
-      const payload = {
-        title: formData.title,
-        company: formData.company,
-        quantity: formData.quantity,
-        description: formData.description,
-        location: formData.location,
-        category: formData.category,
-        is_active: formData.status === 'active',
-        date: editingId ? undefined : todayISO(),
-        contact_name: formData.contact_name,
-        contact_email: formData.contact_email,
-        contact_phone: formData.contact_phone
-      };
-
-      const wasEditing = !!editingId;
-      let response: Response;
-
-      if (editingId) {
-        response = await fetchWithCSRF('/api/admin/jobs', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingId, ...payload }),
-        });
-      } else {
-        response = await fetchWithCSRF('/api/admin/jobs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao salvar vaga');
-      }
-
-      setIsModalOpen(false);
-      fetchVagas();
-      
-      // Mostra o dialog de sucesso
-      setSuccessDialog({
-        isOpen: true,
-        message: wasEditing 
-          ? 'A vaga foi atualizada com sucesso!' 
-          : 'A nova vaga foi cadastrada com sucesso!',
-        type: wasEditing ? 'edit' : 'success'
-      });
+      const body = form.id ? { id: form.id, ...toPayload(form) } : { ...toPayload(form), date: todayISO() };
+      await api('/api/admin/jobs', jsonInit(form.id ? 'PUT' : 'POST', body));
+      toast.success(form.id ? 'Vaga atualizada.' : form.is_active ? 'Vaga publicada no site.' : 'Vaga cadastrada (oculta no site).');
+      setForm(null);
+      reload();
     } catch (error) {
-      console.error('Erro ao salvar vaga:', error);
-      toast.error('Erro ao salvar vaga.');
+      toast.error(errorMessage(error));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const toggleActive = async (vaga: Vaga) => {
+    setTogglingId(vaga.id);
+    try {
+      await api('/api/admin/jobs', jsonInit('PUT', { id: vaga.id, ...toPayload({ ...vaga, is_active: !vaga.is_active }) }));
+      setList((l) => ({ ...l, rows: l.rows.map((r) => (r.id === vaga.id ? { ...r, is_active: !vaga.is_active } : r)) }));
+      toast.success(vaga.is_active ? 'Vaga ocultada do site.' : 'Vaga publicada no site.');
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setTogglingId(null);
+    }
   };
 
-  const filteredVagas = vagas.filter(vaga => {
-    const matchesSearch = vaga.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          vaga.company.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (filterStatus === 'all') return matchesSearch;
-    if (filterStatus === 'active') return matchesSearch && vaga.is_active;
-    if (filterStatus === 'pending') return matchesSearch && !vaga.is_active;
-    return matchesSearch;
-  });
+  const handleConfirmDelete = async () => {
+    if (!toDelete) return;
+    setIsDeleting(true);
+    try {
+      await api(`/api/admin/jobs?id=${toDelete.id}`, { method: 'DELETE' });
+      setList((l) => ({ ...l, rows: l.rows.filter((r) => r.id !== toDelete.id) }));
+      toast.success('Vaga excluída.');
+      setToDelete(null);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] mb-2">
-            Gerenciar Vagas
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
-            Aprove vagas pendentes e gerencie as existentes
+  const columns: DataTableColumn<Vaga>[] = [
+    {
+      key: 'vaga',
+      header: 'Vaga',
+      primary: true,
+      cell: (v) => (
+        <div className="min-w-0">
+          <p className="font-semibold text-gray-900">{v.title}</p>
+          <p className="text-sm font-normal text-gray-500">{v.company}</p>
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-medium text-gray-600">
+            <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5">
+              <FaUsers aria-hidden="true" className="h-3 w-3 text-gray-400" />
+              {v.quantity} {v.quantity === 1 ? 'vaga' : 'vagas'}
+            </span>
+            {v.location && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5">
+                <FaMapMarkerAlt aria-hidden="true" className="h-3 w-3 text-gray-400" />
+                {v.location}
+              </span>
+            )}
+            {v.category && <span className="rounded-md bg-[#003f7f]/[0.06] px-2 py-0.5 text-[#003f7f]">{v.category}</span>}
+          </p>
+          <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-normal text-gray-500">
+            <span className="tabular-nums">Publicada em {formatDateBR(v.date) || '—'}</span>
+            {(v.contact_name || v.contact_phone) && (
+              <span>
+                Contato: {[v.contact_name, v.contact_phone].filter(Boolean).join(' · ')}
+              </span>
+            )}
           </p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center gap-2 bg-[#003f7f] text-white px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 shadow-lg"
-        >
-          <FaPlus />
-          Nova Vaga
-        </button>
-      </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (v) => (v.is_active ? <StatusBadge variant="success">Ativa</StatusBadge> : <StatusBadge variant="neutral">Inativa</StatusBadge>),
+    },
+  ];
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <button
-          type="button"
-          onClick={() => setFilterStatus('all')}
-          aria-pressed={filterStatus === 'all'}
-          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'all' ? 'border-[#003f7f] ring-2 ring-[#003f7f]/20' : 'border-transparent hover:border-gray-200'}`}
-        >
-          <div className="text-gray-500 text-xs font-bold uppercase mb-1">Total de Vagas</div>
-          <div className="text-2xl font-black text-gray-900">{vagas.length}</div>
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilterStatus('active')}
-          aria-pressed={filterStatus === 'active'}
-          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'active' ? 'border-[#00a859] ring-2 ring-[#00a859]/20' : 'border-transparent hover:border-gray-200'}`}
-        >
-          <div className="text-[#00a859] text-xs font-bold uppercase mb-1">Vagas Ativas</div>
-          <div className="text-2xl font-black text-gray-900">{vagas.filter(v => v.is_active).length}</div>
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilterStatus('pending')}
-          aria-pressed={filterStatus === 'pending'}
-          className={`w-full text-left bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer transition-all ${filterStatus === 'pending' ? 'border-[#ffd000] ring-2 ring-[#ffd000]/20' : 'border-transparent hover:border-gray-200'}`}
-        >
-          <div className="text-[#b39200] text-xs font-bold uppercase mb-1">Pendentes/Inativas</div>
-          <div className="text-2xl font-black text-gray-900">{vagas.filter(v => !v.is_active).length}</div>
-        </button>
-      </div>
+  const rowActions = (v: Vaga) => (
+    <>
+      <Button variant="secondary" size="sm" icon={FaFileAlt} onClick={() => setResumesFor(v)} aria-label={`Currículos da vaga ${v.title}`}>
+        Currículos
+      </Button>
+      <IconButton
+        icon={v.is_active ? FaEyeSlash : FaEye}
+        label={v.is_active ? `Ocultar a vaga ${v.title} do site` : `Publicar a vaga ${v.title} no site`}
+        onClick={() => toggleActive(v)}
+        disabled={togglingId === v.id}
+      />
+      <IconButton icon={FaEdit} label={`Editar a vaga ${v.title}`} onClick={() => openForm(v)} />
+      <IconButton icon={FaTrash} variant="danger" label={`Excluir a vaga ${v.title}`} onClick={() => setToDelete(v)} />
+    </>
+  );
 
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-        <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
-          <input
-            type="text"
-            aria-label="Buscar por vaga ou empresa"
-            placeholder="Buscar por vaga ou empresa..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-          />
-        </div>
-      </div>
+  const hasFilters = filter !== 'all' || search.trim() !== '';
 
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#003f7f] text-white">
-              <tr>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Vaga / Empresa</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Contato</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Status</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-8">
-                    <div className="flex justify-center items-center gap-2 text-[#003f7f]">
-                      <FaSpinner className="animate-spin" />
-                      <span>Carregando vagas...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredVagas.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-8 text-gray-500">
-                    Nenhuma vaga encontrada.
-                  </td>
-                </tr>
-              ) : (
-                filteredVagas.map((vaga) => (
-                  <tr key={vaga.id} className="hover:bg-gray-50">
-                    <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 text-base">{vaga.title}</span>
-                        <span className="text-sm text-gray-600">{vaga.company}</span>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                          <span className="bg-gray-100 px-2 py-0.5 rounded">{vaga.quantity} vaga(s)</span>
-                          <span>{vaga.location}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      {(vaga.contact_name || vaga.contact_email || vaga.contact_phone) ? (
-                        <div className="text-sm text-gray-600 space-y-1">
-                          {vaga.contact_name && (
-                            <div className="flex items-center gap-1.5">
-                              <FaUser className="w-3 h-3 text-gray-400" />
-                              {vaga.contact_name}
-                            </div>
-                          )}
-                          {vaga.contact_email && (
-                            <div className="flex items-center gap-1.5">
-                              <FaEnvelope className="w-3 h-3 text-gray-400" />
-                              {vaga.contact_email}
-                            </div>
-                          )}
-                          {vaga.contact_phone && (
-                            <div className="flex items-center gap-1.5">
-                              <FaPhone className="w-3 h-3 text-gray-400" />
-                              {vaga.contact_phone}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">Sem contato</span>
-                      )}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      <button 
-                        onClick={() => handleToggleStatus(vaga.id, !!vaga.is_active)}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:scale-105 shadow-sm ${
-                          vaga.is_active
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                        }`}
-                        title={vaga.is_active ? "Clique para desativar" : "Clique para ativar (aprovar)"}
-                      >
-                        {vaga.is_active ? (
-                          <>
-                            <FaCheckCircle /> Ativa
-                          </>
-                        ) : (
-                          <>
-                            <FaSpinner /> Pendente
-                          </>
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleOpenResumes(vaga)}
-                          className="p-2 text-[#003f7f] bg-blue-50 hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
-                          title="Gerenciar Currículos"
-                          aria-label={`Gerenciar currículos da vaga ${vaga.title}`}
-                        >
-                          <FaFileAlt className="w-4 h-4" />
-                        </button>
-                        <Link
-                          href={`/produtos/balcao-empregos`}
-                          target="_blank"
-                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Visualizar no site"
-                          aria-label={`Visualizar vaga ${vaga.title} no site`}
-                        >
-                          <FaEye className="w-4 h-4" />
-                        </Link>
-                        <button
-                          onClick={() => handleOpenModal(vaga)}
-                          className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
-                          title="Editar"
-                          aria-label={`Editar vaga ${vaga.title}`}
-                        >
-                          <FaEdit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openDeleteDialog(vaga)}
-                          className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
-                          title="Excluir"
-                          aria-label={`Excluir vaga ${vaga.title}`}
-                        >
-                          <FaTrash className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+  const empty = list.error && rows.length === 0 ? (
+    <EmptyState
+      icon={FaExclamationTriangle}
+      title="Não foi possível carregar as vagas"
+      description={list.error}
+      action={<Button icon={FaRedo} onClick={reload}>Tentar novamente</Button>}
+    />
+  ) : hasFilters ? (
+    <EmptyState
+      icon={FaSearch}
+      title="Nenhuma vaga encontrada"
+      description="Tente outro termo de busca ou outro filtro."
+      action={
+        <Button variant="secondary" onClick={() => { setFilter('all'); setSearch(''); }}>
+          Limpar filtros
+        </Button>
+      }
+    />
+  ) : (
+    <EmptyState
+      icon={FaBriefcase}
+      title="Nenhuma vaga cadastrada"
+      description="Cadastre as vagas enviadas pelas empresas associadas para divulgar no Balcão de Empregos."
+      action={<Button icon={FaPlus} onClick={() => openForm()}>Nova vaga</Button>}
+    />
+  );
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingId ? 'Editar Vaga' : 'Nova Vaga'}
-      >
-        <form onSubmit={handleSave} className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="md:col-span-2">
-              <label htmlFor="job-title" className="block text-sm font-bold text-gray-700 mb-2">
-                Título da Vaga *
-              </label>
-              <input
-                type="text"
-                id="job-title"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                placeholder="Ex: Vendedor Externo"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="job-company" className="block text-sm font-bold text-gray-700 mb-2">
-                Empresa *
-              </label>
-              <input
-                type="text"
-                id="job-company"
-                name="company"
-                value={formData.company}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                placeholder="Nome da Empresa"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="job-quantity" className="block text-sm font-bold text-gray-700 mb-2">
-                Quantidade *
-              </label>
-              <input
-                type="number"
-                id="job-quantity"
-                name="quantity"
-                min="1"
-                value={formData.quantity}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="job-location" className="block text-sm font-bold text-gray-700 mb-2">
-                Local
-              </label>
-              <input
-                type="text"
-                id="job-location"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                placeholder="Ex: Centro, Ipirá"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="job-status" className="block text-sm font-bold text-gray-700 mb-2">
-                Status
-              </label>
-              <select
-                id="job-status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              >
-                <option value="active">Ativa (Visível no site)</option>
-                <option value="pending">Pendente (Oculta)</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-2 border-t border-gray-100 pt-4 mt-2">
-              <h4 className="font-bold text-[#003f7f] mb-3">Informações de Contato (Interno)</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="job-contact-name" className="block text-sm font-bold text-gray-700 mb-2">
-                    Nome do Contato
-                  </label>
-                  <input
-                    type="text"
-                    id="job-contact-name"
-                    name="contact_name"
-                    value={formData.contact_name}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="job-contact-phone" className="block text-sm font-bold text-gray-700 mb-2">
-                    Telefone do Contato
-                  </label>
-                  <input
-                    type="text"
-                    id="job-contact-phone"
-                    name="contact_phone"
-                    value={formData.contact_phone}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label htmlFor="job-contact-email" className="block text-sm font-bold text-gray-700 mb-2">
-                    Email do Contato
-                  </label>
-                  <input
-                    type="email"
-                    id="job-contact-email"
-                    name="contact_email"
-                    value={formData.contact_email}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <label htmlFor="job-description" className="block text-sm font-bold text-gray-700 mb-2">
-                Descrição da Vaga *
-              </label>
-              <textarea
-                id="job-description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                required
-                rows={4}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent resize-none"
-                placeholder="Descreva os requisitos e benefícios da vaga"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FaSave />
-              {isSaving ? 'Salvando...' : 'Salvar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-all duration-300"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {selectedJobForResumes && (
-        <ResumeManagerModal
-          isOpen={isResumeModalOpen}
-          onClose={() => setIsResumeModalOpen(false)}
-          jobId={selectedJobForResumes.id}
-          jobTitle={selectedJobForResumes.title}
-        />
-      )}
-
-      {/* Dialog de Confirmação de Exclusão */}
-      <ConfirmDialog
-        isOpen={deleteDialog.isOpen}
-        onClose={() => setDeleteDialog({ isOpen: false, id: null, title: '' })}
-        onConfirm={handleConfirmDelete}
-        title="Excluir Vaga"
-        message={`Tem certeza que deseja excluir a vaga "${deleteDialog.title}"? Esta ação não pode ser desfeita.`}
-        type="delete"
-        confirmText="Sim, Excluir"
-        cancelText="Cancelar"
-        isLoading={isDeleting}
+  return (
+    <div className="space-y-6 sm:space-y-8">
+      <AdminPageHeader
+        title="Balcão de Empregos"
+        description="Vagas divulgadas no site e currículos recebidos para cada uma."
+        actions={
+          <>
+            <a href="/produtos/balcao-empregos" target="_blank" rel="noopener noreferrer" className={buttonClass('secondary')}>
+              <FaExternalLinkAlt aria-hidden="true" className="h-3.5 w-3.5" />
+              Ver no site
+              <span className="sr-only">(abre em nova aba)</span>
+            </a>
+            <Button icon={FaPlus} onClick={() => openForm()}>
+              Nova vaga
+            </Button>
+          </>
+        }
       />
 
-      {/* Dialog de Sucesso */}
+      <AdminCard flush>
+        <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+          <FilterPills<Filter>
+            label="Filtrar por status"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'Todas', count: counts.all },
+              { value: 'active', label: 'Ativas', count: counts.active },
+              { value: 'inactive', label: 'Inativas', count: counts.inactive },
+            ]}
+          />
+          <SearchInput label="Buscar por vaga, empresa ou local" placeholder="Buscar vaga ou empresa…" value={search} onChange={setSearch} className="xl:w-80" />
+        </div>
+        <DataTable caption="Vagas do Balcão de Empregos" rows={filtered} getRowId={(v) => v.id} columns={columns} rowActions={rowActions} loading={isLoading} empty={empty} />
+      </AdminCard>
+
+      <Modal
+        isOpen={!!form}
+        onClose={() => !isSaving && setForm(null)}
+        title={form?.id ? 'Editar vaga' : 'Nova vaga'}
+        subtitle="Título, empresa, local e descrição aparecem no site. O contato é só para uso da CDL."
+      >
+        {form && (
+          <form onSubmit={handleSave} className="space-y-5">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <FormField label="Título da vaga" required className="sm:col-span-2">
+                <Input value={form.title} onChange={(e) => setField('title', e.target.value)} required maxLength={150} placeholder="Ex.: Vendedor(a) externo" />
+              </FormField>
+              <FormField label="Empresa" required>
+                <Input value={form.company} onChange={(e) => setField('company', e.target.value)} required maxLength={150} />
+              </FormField>
+              <FormField label="Quantidade de vagas" required>
+                <Input type="number" inputMode="numeric" min={1} max={9999} step={1} value={form.quantity} onChange={(e) => setField('quantity', e.target.value)} required />
+              </FormField>
+              <FormField label="Local">
+                <Input value={form.location} onChange={(e) => setField('location', e.target.value)} maxLength={150} placeholder="Ex.: Centro, Ipirá" />
+              </FormField>
+              <FormField label="Área" hint="Escolha uma sugestão ou digite.">
+                <Input list="job-categories" value={form.category} onChange={(e) => setField('category', e.target.value)} maxLength={80} />
+              </FormField>
+              <datalist id="job-categories">
+                {CATEGORY_SUGGESTIONS.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+              <FormField label="Descrição" required className="sm:col-span-2" hint="Requisitos, atividades e benefícios.">
+                <Textarea value={form.description} onChange={(e) => setField('description', e.target.value)} required rows={5} maxLength={5000} />
+              </FormField>
+            </div>
+
+            <fieldset className="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-200/80 sm:p-5">
+              <legend className="sr-only">Contato da empresa</legend>
+              <p aria-hidden="true" className="text-sm font-bold text-gray-900">Contato da empresa</p>
+              <p className="mb-4 text-xs text-gray-500">Uso interno: não aparece no site.</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField label="Nome">
+                  <Input value={form.contact_name} onChange={(e) => setField('contact_name', e.target.value)} maxLength={120} autoComplete="off" />
+                </FormField>
+                <FormField label="Telefone">
+                  <Input type="tel" inputMode="tel" value={form.contact_phone} onChange={(e) => setField('contact_phone', e.target.value)} maxLength={30} autoComplete="off" />
+                </FormField>
+                <FormField label="E-mail" className="sm:col-span-2">
+                  <Input type="email" value={form.contact_email} onChange={(e) => setField('contact_email', e.target.value)} maxLength={254} autoComplete="off" />
+                </FormField>
+              </div>
+            </fieldset>
+
+            <Checkbox
+              label="Vaga ativa (visível no site)"
+              description="Desmarque para guardar a vaga sem divulgar."
+              checked={form.is_active}
+              onChange={(e) => setField('is_active', e.target.checked)}
+            />
+
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={() => setForm(null)} disabled={isSaving}>
+                Cancelar
+              </Button>
+              <Button type="submit" loading={isSaving}>
+                {isSaving ? 'Salvando…' : form.id ? 'Salvar alterações' : 'Cadastrar vaga'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <ResumeManagerModal
+        isOpen={!!resumesFor}
+        onClose={() => setResumesFor(null)}
+        jobId={resumesFor?.id ?? null}
+        jobTitle={resumesFor ? `${resumesFor.title} · ${resumesFor.company}` : ''}
+      />
+
       <ConfirmDialog
-        isOpen={successDialog.isOpen}
-        onClose={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
-        title={
-          successDialog.type === 'delete' ? 'Vaga Excluída' :
-          successDialog.type === 'edit' ? 'Vaga Atualizada' :
-          'Vaga Cadastrada'
-        }
-        message={successDialog.message}
-        type={successDialog.type === 'delete' ? 'success' : successDialog.type}
-        confirmText="OK"
-        showCancel={false}
-        onConfirm={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
+        isOpen={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir vaga"
+        message={`Excluir a vaga "${toDelete?.title ?? ''}" (${toDelete?.company ?? ''})? Esta ação não pode ser desfeita.`}
+        type="delete"
+        confirmText="Sim, excluir"
+        isLoading={isDeleting}
       />
     </div>
   );

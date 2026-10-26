@@ -1,381 +1,408 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Image from 'next/image';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaEyeSlash, FaUpload, FaImages, FaTimes, FaCloudUploadAlt, FaCalendarAlt, FaMapMarkerAlt, FaBullhorn } from 'react-icons/fa';
+import {
+  FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaImages, FaTimes, FaCloudUploadAlt, FaCalendarAlt, FaMapMarkerAlt,
+  FaBullhorn, FaArrowLeft, FaArrowRight, FaRedo, FaUpload,
+} from 'react-icons/fa';
+import { toast } from 'sonner';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { toast } from 'sonner';
 import { fetchWithCSRF } from '@/lib/csrf-client';
 import { formatDateBR, todayISO } from '@/lib/date';
+import { isOptimizableImage } from '@/lib/images';
 import type { Campaign } from '@/lib/campaigns';
+import {
+  AdminCard, AdminPageHeader, Button, Checkbox, EmptyState, FilterPills, FormField, IconButton, ImageUploadField, Input,
+  ImageRightsNotice, Pagination, SearchInput, Select, StatusBadge, Textarea, cardSurface, cx, focusRing, useOpenOnNovo,
+} from '@/app/admin/_components';
 
 interface Album {
   id: number;
   title: string;
-  description?: string;
+  description: string | null;
   category: string;
   date: string;
-  location?: string;
-  cover_url?: string;
-  cover?: string; // Compatibilidade
-  is_active?: boolean;
-  photo_count?: number;
-  campaign_id?: number | null;
+  location: string | null;
+  cover_url: string | null;
+  cover?: string | null;
+  is_active: boolean;
+  photo_count: number;
+  campaign_id: number | null;
 }
 
 interface AlbumPhoto {
   id: number;
   album_id: number;
   url: string;
-  title?: string;
+  title: string | null;
   display_order: number;
 }
 
-const categorias = [
-  'Eventos',
-  'Networking',
-  'Capacitação',
-  'Institucional',
-  'Comercial',
-  'Política',
-  'Outros'
-];
+/** Arquivo escolhido + pré-visualização local (blob:), liberada ao remover. */
+interface PendingFile {
+  file: File;
+  url: string;
+}
+
+type CampaignOption = Pick<Campaign, 'id' | 'title' | 'is_active'>;
+type VisibilityFilter = 'all' | 'visible' | 'hidden';
+type DeleteTarget = { type: 'album'; album: Album } | { type: 'photo'; photo: AlbumPhoto };
+
+const CATEGORIES = ['Eventos', 'Networking', 'Capacitação', 'Institucional', 'Comercial', 'Política', 'Outros'];
+const PAGE_SIZE = 9;
+// ponytail: o bucket aceita 20 MB, mas o proxy.ts passa por /api/* e o Next só repassa 10 MB do corpo (proxyClientMaxBodySize)
+const MAX_PHOTO_MB = 10;
+// Os mesmos tipos que o /api/upload aceita (HEIC do iPhone, por exemplo, é recusado lá)
+const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const PHOTO_ACCEPT = PHOTO_TYPES.join(',');
+const isAcceptedPhoto = (file: File) => PHOTO_TYPES.includes(file.type) && file.size <= MAX_PHOTO_MB * 1024 * 1024;
+
+const emptyForm = () => ({
+  title: '',
+  description: '',
+  category: 'Eventos',
+  date: todayISO(),
+  location: '',
+  cover_url: '',
+  campaign_id: '',
+  is_active: true,
+});
+type FormState = ReturnType<typeof emptyForm>;
+type FormErrors = Partial<Record<keyof FormState, string>>;
+
+async function request<T = unknown>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetchWithCSRF(url, init);
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error || `Erro ${response.status} ao falar com o servidor.`);
+  return data as T;
+}
+
+const errorMessage = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
+
+async function uploadImage(file: File, folder: string): Promise<string> {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('bucket', 'gallery');
+  body.append('folder', folder);
+  const data = await request<{ url?: string }>('/api/upload', { method: 'POST', body });
+  if (!data.url) throw new Error('O envio não retornou o endereço da imagem.');
+  return data.url;
+}
+
+/** Separa imagens válidas (tipo e tamanho) e avisa sobre as recusadas. */
+function acceptImages(list: FileList | null): PendingFile[] {
+  const files = Array.from(list ?? []);
+  const ok = files.filter(isAcceptedPhoto);
+  const rejected = files.length - ok.length;
+  if (rejected > 0) {
+    toast.error(`${rejected} arquivo(s) ignorado(s): use imagens PNG, JPG ou WebP de até ${MAX_PHOTO_MB} MB.`);
+  }
+  return ok.map((file) => ({ file, url: URL.createObjectURL(file) }));
+}
+
+const revokeAll = (files: PendingFile[]) => files.forEach((f) => URL.revokeObjectURL(f.url));
+const fileTitle = (file: File) => file.name.replace(/\.[^/.]+$/, '').slice(0, 200);
+
+/** Sobe os arquivos um a um e grava cada foto; continua se um falhar e devolve quantos falharam (e o primeiro motivo). */
+async function uploadPhotos(albumId: number, files: PendingFile[], startOrder: number, onProgress: (done: number) => void) {
+  let failed = 0;
+  let firstError = '';
+  for (const [index, { file }] of files.entries()) {
+    try {
+      const url = await uploadImage(file, `albums/${albumId}`);
+      await request('/api/admin/album-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ album_id: albumId, url, title: fileTitle(file), display_order: startOrder + index - failed }),
+      });
+    } catch (error) {
+      failed++;
+      firstError ||= errorMessage(error, '');
+      console.error(`Erro ao enviar ${file.name}:`, error);
+    }
+    onProgress(index + 1);
+  }
+  return { failed, reason: firstError ? ` Motivo: ${firstError}` : '' };
+}
+
+function ProgressBar({ done, total, label }: { done: number; total: number; label: string }) {
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  return (
+    <div role="status" className="space-y-1.5">
+      <div className="flex justify-between text-sm font-medium text-gray-700">
+        <span>{label}</span>
+        <span className="tabular-nums">
+          {done} de {total}
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+        <div className="h-full rounded-full bg-[#00a859] transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${percent}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** Área de escolha de várias fotos (clique, teclado ou arrastar). */
+function PhotoDropZone({ onFiles, disabled, label }: { onFiles: (files: PendingFile[]) => void; disabled?: boolean; label: string }) {
+  const inputId = useId();
+  const [dragging, setDragging] = useState(false);
+  return (
+    <div>
+      <label
+        htmlFor={inputId}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (!disabled) onFiles(acceptImages(e.dataTransfer.files));
+        }}
+        className={cx(
+          'flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-5 text-center transition-colors',
+          'has-[input:focus-visible]:border-[#0066cc] has-[input:focus-visible]:ring-4 has-[input:focus-visible]:ring-[#0066cc]/15',
+          dragging ? 'border-[#0066cc] bg-[#0066cc]/5' : 'border-gray-300 bg-gray-50/60 hover:border-[#003f7f]/40 hover:bg-[#003f7f]/[0.03]',
+          disabled && 'pointer-events-none opacity-60'
+        )}
+      >
+        <span className="flex size-11 items-center justify-center rounded-xl bg-white text-[#003f7f] ring-1 ring-gray-200">
+          <FaCloudUploadAlt aria-hidden="true" className="h-5 w-5" />
+        </span>
+        <span className="text-sm font-semibold text-gray-800">
+          <span className="text-[#0052a3]">{label}</span> ou arraste as imagens
+        </span>
+        <span className="text-xs text-gray-500">Várias de uma vez · PNG, JPG ou WebP até {MAX_PHOTO_MB} MB cada</span>
+        <input
+          id={inputId}
+          type="file"
+          accept={PHOTO_ACCEPT}
+          multiple
+          className="sr-only"
+          disabled={disabled}
+          aria-describedby={`${inputId}-rights`}
+          onChange={(e) => {
+            onFiles(acceptImages(e.target.files));
+            e.target.value = '';
+          }}
+        />
+      </label>
+      <ImageRightsNotice id={`${inputId}-rights`} />
+    </div>
+  );
+}
+
+/** Miniaturas das fotos escolhidas (ainda não enviadas), com remover. */
+function PendingGrid({ files, onRemove, disabled }: { files: PendingFile[]; onRemove: (index: number) => void; disabled?: boolean }) {
+  return (
+    <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+      {files.map(({ file, url }, index) => (
+        <li key={url} className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200">
+          <Image src={url} alt={file.name} fill sizes="120px" className="object-cover" unoptimized />
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            disabled={disabled}
+            aria-label={`Remover ${file.name}`}
+            title="Remover"
+            className={cx(
+              'absolute top-1 right-1 flex size-11 items-center justify-center rounded-full pointer-fine:size-8 bg-white/95 text-gray-700 shadow ring-1 ring-gray-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50',
+              focusRing
+            )}
+          >
+            <FaTimes aria-hidden="true" className="h-3 w-3" />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default function AdminGaleriaFotosPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [albums, setAlbums] = useState<Album[]>([]);
-  const [campanhas, setCampanhas] = useState<Pick<Campaign, 'id' | 'title'>[]>([]);
+  const [campanhas, setCampanhas] = useState<CampaignOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Modal de álbum
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentAlbum, setCurrentAlbum] = useState<Partial<Album>>({});
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [visibility, setVisibility] = useState<VisibilityFilter>('all');
+  const [page, setPage] = useState(1);
 
-  // Modal de fotos
-  const [isPhotosModalOpen, setIsPhotosModalOpen] = useState(false);
-  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  // Formulário do álbum
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<FormState>(emptyForm);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [initialPhotos, setInitialPhotos] = useState<PendingFile[]>([]);
+
+  // Fotos do álbum
+  const [photosAlbum, setPhotosAlbum] = useState<Album | null>(null);
   const [albumPhotos, setAlbumPhotos] = useState<AlbumPhoto[]>([]);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
+  const [newPhotos, setNewPhotos] = useState<PendingFile[]>([]);
+  const [isReordering, setIsReordering] = useState(false);
+  const [orderMessage, setOrderMessage] = useState('');
 
-  // Upload states
-  const [selectedCover, setSelectedCover] = useState<File | null>(null);
-  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
-  const [initialPhotos, setInitialPhotos] = useState<File[]>([]); // Fotos para novo álbum
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const coverInputRef = useRef<HTMLInputElement>(null);
-  const photosInputRef = useRef<HTMLInputElement>(null);
-  const initialPhotosInputRef = useRef<HTMLInputElement>(null);
-
-  // Dialog states
-  const [deleteDialog, setDeleteDialog] = useState<{isOpen: boolean, id: number | null, title: string, type: 'album' | 'photo'}>({
-    isOpen: false,
-    id: null,
-    title: '',
-    type: 'album'
-  });
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [successDialog, setSuccessDialog] = useState<{isOpen: boolean, message: string, type: 'success' | 'edit' | 'delete'}>({
-    isOpen: false,
-    message: '',
-    type: 'success'
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  // Pré-visualizações ainda abertas, liberadas se a página for desmontada
+  const pendingRef = useRef<PendingFile[]>([]);
+  useEffect(() => {
+    pendingRef.current = [...initialPhotos, ...newPhotos];
   });
+  useEffect(() => () => revokeAll(pendingRef.current), []);
+
+  const loadAlbums = useCallback(
+    () =>
+      request<Album[]>('/api/admin/albums')
+        .then((data) => {
+          setAlbums(data);
+          setLoadError(false);
+        })
+        .catch((error) => {
+          setLoadError(true);
+          toast.error(errorMessage(error, 'Erro ao carregar álbuns.'));
+        })
+        .finally(() => setIsLoading(false)),
+    []
+  );
 
   useEffect(() => {
-    fetchAlbums();
-    // Campanhas para o select (se falhar, o formulário segue só com "Nenhuma")
-    fetch('/api/admin/campanhas')
-      .then((response) => (response.ok ? response.json() : []))
+    loadAlbums();
+    request<CampaignOption[]>('/api/admin/campanhas')
       .then(setCampanhas)
       .catch(() => setCampanhas([]));
-  }, []);
+  }, [loadAlbums]);
 
-  async function fetchAlbums() {
-    setIsLoading(true);
+  const loadPhotos = (albumId: number) =>
+    request<AlbumPhoto[]>(`/api/admin/album-photos?albumId=${albumId}`)
+      .then(setAlbumPhotos)
+      .catch((error) => toast.error(errorMessage(error, 'Erro ao carregar as fotos.')))
+      .finally(() => setIsLoadingPhotos(false));
+
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setFormData((current) => ({ ...current, [key]: value }));
+    setErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
+  };
+
+  // ===== Álbum =====
+  const openAlbumModal = (album?: Album) => {
+    setEditingId(album?.id ?? null);
+    setFormData(
+      album
+        ? {
+            title: album.title?.trim() || '',
+            description: album.description || '',
+            category: album.category || 'Eventos',
+            date: /^\d{4}-\d{2}-\d{2}/.test(album.date || '') ? album.date.slice(0, 10) : '',
+            location: album.location || '',
+            cover_url: album.cover_url || '',
+            campaign_id: album.campaign_id ? String(album.campaign_id) : '',
+            is_active: album.is_active !== false,
+          }
+        : emptyForm()
+    );
+    setErrors({});
+    revokeAll(initialPhotos);
+    setInitialPhotos([]);
+    setIsModalOpen(true);
+  };
+  // Atalhos do painel (?novo=1) abrem direto o formulário de criação
+  useOpenOnNovo(() => openAlbumModal());
+
+  const closeAlbumModal = () => {
+    if (isSaving || isUploadingCover) return;
+    revokeAll(initialPhotos);
+    setInitialPhotos([]);
+    setIsModalOpen(false);
+  };
+
+  const handleCoverSelect = async (file: File) => {
+    if (!isAcceptedPhoto(file)) {
+      setErrors((current) => ({ ...current, cover_url: `Use uma imagem PNG, JPG ou WebP de até ${MAX_PHOTO_MB} MB.` }));
+      return;
+    }
+    setIsUploadingCover(true);
     try {
-      const response = await fetch('/api/admin/albums');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao carregar álbuns');
-      setAlbums(data || []);
+      setField('cover_url', await uploadImage(file, 'covers'));
+      toast.success('Capa enviada.');
     } catch (error) {
-      console.error('Erro ao carregar álbuns:', error);
-      toast.error('Erro ao carregar álbuns');
+      toast.error(errorMessage(error, 'Erro ao enviar a capa.'));
     } finally {
-      setIsLoading(false);
+      setIsUploadingCover(false);
     }
-  }
-
-  const fetchAlbumPhotos = async (albumId: number) => {
-    setIsLoadingPhotos(true);
-    try {
-      const response = await fetch(`/api/admin/album-photos?albumId=${albumId}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao carregar fotos');
-      setAlbumPhotos(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar fotos:', error);
-      toast.error('Erro ao carregar fotos');
-    } finally {
-      setIsLoadingPhotos(false);
-    }
-  };
-
-  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 20 * 1024 * 1024) {
-        toast.error('Imagem muito grande. Máximo: 20MB');
-        return;
-      }
-      setSelectedCover(file);
-    }
-  };
-
-  const handlePhotosSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const validFiles = files.filter(file => {
-      if (file.size > 20 * 1024 * 1024) {
-        toast.error(`${file.name} é muito grande. Máximo: 20MB`);
-        return false;
-      }
-      return true;
-    });
-    setSelectedPhotos(prev => [...prev, ...validFiles]);
-  };
-
-  const handleInitialPhotosSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const validFiles = files.filter(file => {
-      if (file.size > 20 * 1024 * 1024) {
-        toast.error(`${file.name} é muito grande. Máximo: 20MB`);
-        return false;
-      }
-      return true;
-    });
-    setInitialPhotos(prev => [...prev, ...validFiles]);
-  };
-
-  const removeInitialPhoto = (index: number) => {
-    setInitialPhotos(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const uploadImage = async (file: File, folder: string): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('bucket', 'gallery');
-    formData.append('folder', folder);
-
-    const response = await fetchWithCSRF('/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    const data = await response.json();
-
-    if (!response.ok || !data.url) {
-      throw new Error(data.error || 'Erro ao enviar imagem');
-    }
-
-    return data.url;
   };
 
   const handleSaveAlbum = async (e: React.FormEvent) => {
     e.preventDefault();
+    const found: FormErrors = {};
+    if (!formData.title.trim()) found.title = 'Informe o título do álbum.';
+    if (!formData.category) found.category = 'Escolha a categoria.';
+    if (!formData.date) found.date = 'Informe a data.';
+    setErrors(found);
+    const firstInvalid = Object.keys(found)[0];
+    if (firstInvalid) {
+      document.getElementById(`album-${firstInvalid}`)?.focus();
+      return;
+    }
+
     setIsSaving(true);
-    setIsUploading(true);
-
     try {
-      let coverUrl = currentAlbum.cover_url;
-
-      if (selectedCover) {
-        coverUrl = await uploadImage(selectedCover, 'covers');
-      }
-
-      const albumData: Record<string, unknown> = {
-        title: currentAlbum.title,
-        description: currentAlbum.description || null,
-        category: currentAlbum.category,
-        date: currentAlbum.date,
-        location: currentAlbum.location || null,
-        is_active: currentAlbum.is_active !== false,
-        campaign_id: currentAlbum.campaign_id ?? null,
-      };
-      
-      // Adicionar cover/cover_url dependendo da estrutura da tabela
-      if (coverUrl) {
-        albumData.cover_url = coverUrl;
-        albumData.cover = coverUrl; // Para compatibilidade
-      }
-
-      let albumId = currentAlbum.id;
-      let response: Response;
-
-      if (isEditing && currentAlbum.id) {
-        response = await fetchWithCSRF('/api/admin/albums', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: currentAlbum.id, ...albumData }),
-        });
-      } else {
-        response = await fetchWithCSRF('/api/admin/albums', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(albumData),
-        });
-      }
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao salvar álbum');
-      }
-
-      if (!isEditing) {
-        albumId = result.data?.id;
-      }
-
-      // Upload das fotos iniciais (apenas para novo álbum)
-      if (!isEditing && initialPhotos.length > 0 && albumId) {
-        const totalPhotos = initialPhotos.length;
-        let uploaded = 0;
-        
-        for (const file of initialPhotos) {
-          const url = await uploadImage(file, `albums/${albumId}`);
-          const photoResponse = await fetchWithCSRF('/api/admin/album-photos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              album_id: albumId,
-              url,
-              title: file.name.replace(/\.[^/.]+$/, ''),
-              display_order: uploaded,
-            }),
-          });
-          const photoData = await photoResponse.json();
-          if (!photoResponse.ok) {
-            throw new Error(photoData.error || 'Erro ao salvar foto inicial');
-          }
-          uploaded++;
-          setUploadProgress(Math.round((uploaded / totalPhotos) * 100));
-        }
-      }
-
-      const wasEditing = isEditing;
-      const photosUploaded = initialPhotos.length;
-      await fetchAlbums();
-      closeAlbumModal();
-
-      setSuccessDialog({
-        isOpen: true,
-        message: wasEditing
-          ? 'O álbum foi atualizado com sucesso!'
-          : photosUploaded > 0 
-            ? `Álbum criado com ${photosUploaded} foto(s)!`
-            : 'O novo álbum foi criado com sucesso!',
-        type: wasEditing ? 'edit' : 'success'
+      const saved = await request<{ data?: { id: number } }>('/api/admin/albums', {
+        method: editingId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(editingId && { id: editingId }),
+          title: formData.title.trim(),
+          description: formData.description.trim() || null,
+          category: formData.category,
+          date: formData.date,
+          location: formData.location.trim() || null,
+          cover_url: formData.cover_url,
+          cover: formData.cover_url,
+          is_active: formData.is_active,
+          campaign_id: formData.campaign_id ? Number(formData.campaign_id) : null,
+        }),
       });
+
+      const albumId = editingId ?? saved.data?.id;
+      let failed = 0;
+      let reason = '';
+      if (!editingId && albumId && initialPhotos.length > 0) {
+        setProgress({ done: 0, total: initialPhotos.length });
+        const result = await uploadPhotos(albumId, initialPhotos, 0, (done) => setProgress({ done, total: initialPhotos.length }));
+        failed = result.failed;
+        reason = result.reason;
+      }
+
+      const sent = initialPhotos.length - failed;
+      if (failed > 0) toast.error(`Álbum criado, mas ${failed} foto(s) não foram enviadas. Tente de novo em “Fotos”.${reason}`);
+      else toast.success(editingId ? 'Álbum atualizado.' : sent > 0 ? `Álbum criado com ${sent} foto(s).` : 'Álbum criado.');
+
+      revokeAll(initialPhotos);
+      setInitialPhotos([]);
+      setIsModalOpen(false);
+      loadAlbums();
     } catch (error) {
-      console.error('Erro ao salvar álbum:', error);
-      toast.error(`Erro ao salvar álbum: ${error instanceof Error ? error.message : 'tente novamente'}`);
+      toast.error(errorMessage(error, 'Erro ao salvar o álbum.'));
     } finally {
       setIsSaving(false);
-      setIsUploading(false);
-      setUploadProgress(0);
+      setProgress(null);
     }
   };
 
-  const handleUploadPhotos = async () => {
-    if (!selectedAlbum || selectedPhotos.length === 0) return;
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
+  const toggleActive = async (album: Album) => {
+    setTogglingId(album.id);
     try {
-      const totalPhotos = selectedPhotos.length;
-      let uploaded = 0;
-
-      for (const file of selectedPhotos) {
-        const url = await uploadImage(file, `albums/${selectedAlbum.id}`);
-
-        const response = await fetchWithCSRF('/api/admin/album-photos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            album_id: selectedAlbum.id,
-            url,
-            title: file.name.replace(/\.[^/.]+$/, ''),
-            display_order: albumPhotos.length + uploaded,
-          }),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'Erro ao salvar foto');
-        }
-
-        uploaded++;
-        setUploadProgress(Math.round((uploaded / totalPhotos) * 100));
-      }
-
-      toast.success(`${totalPhotos} foto(s) enviada(s) com sucesso!`);
-      setSelectedPhotos([]);
-      fetchAlbumPhotos(selectedAlbum.id);
-      fetchAlbums();
-    } catch (error) {
-      console.error('Erro ao enviar fotos:', error);
-      toast.error('Erro ao enviar fotos');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  };
-
-  const openDeleteDialog = (id: number, title: string, type: 'album' | 'photo') => {
-    setDeleteDialog({ isOpen: true, id, title, type });
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteDialog.id) return;
-
-    setIsDeleting(true);
-    try {
-      if (deleteDialog.type === 'album') {
-        const response = await fetchWithCSRF(`/api/admin/albums?id=${deleteDialog.id}`, {
-          method: 'DELETE',
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Erro ao excluir álbum');
-        setAlbums(current => current.filter(a => a.id !== deleteDialog.id));
-      } else {
-        const response = await fetchWithCSRF(`/api/admin/album-photos?id=${deleteDialog.id}`, {
-          method: 'DELETE',
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Erro ao excluir foto');
-        setAlbumPhotos(current => current.filter(p => p.id !== deleteDialog.id));
-        fetchAlbums();
-      }
-
-      setDeleteDialog({ isOpen: false, id: null, title: '', type: 'album' });
-      setSuccessDialog({
-        isOpen: true,
-        message: deleteDialog.type === 'album' 
-          ? 'O álbum foi excluído permanentemente.'
-          : 'A foto foi excluída permanentemente.',
-        type: 'delete'
-      });
-    } catch (error) {
-      console.error('Erro ao excluir:', error);
-      toast.error('Erro ao excluir');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleToggleActive = async (album: Album) => {
-    try {
-      const response = await fetchWithCSRF('/api/admin/albums', {
+      await request('/api/admin/albums', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -386,581 +413,602 @@ export default function AdminGaleriaFotosPage() {
           date: album.date,
           location: album.location,
           cover_url: album.cover_url,
-          cover: album.cover,
+          cover: album.cover ?? album.cover_url,
           is_active: !album.is_active,
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status');
-      toast.success(album.is_active ? 'Álbum ocultado' : 'Álbum ativado');
-      fetchAlbums();
+      setAlbums((current) => current.map((a) => (a.id === album.id ? { ...a, is_active: !album.is_active } : a)));
+      toast.success(album.is_active ? 'Álbum ocultado do site.' : 'Álbum visível no site.');
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status');
+      toast.error(errorMessage(error, 'Erro ao alterar a visibilidade.'));
+    } finally {
+      setTogglingId(null);
     }
   };
 
-  const openAlbumModal = (album?: Album) => {
-    if (album) {
-      setCurrentAlbum(album);
-      setIsEditing(true);
-    } else {
-      setCurrentAlbum({
-        date: todayISO(),
-        is_active: true,
-        category: 'Eventos'
-      });
-      setIsEditing(false);
-    }
-    setSelectedCover(null);
-    setIsModalOpen(true);
-  };
-
-  const closeAlbumModal = () => {
-    setIsModalOpen(false);
-    setCurrentAlbum({});
-    setIsEditing(false);
-    setSelectedCover(null);
-    setInitialPhotos([]);
-    setUploadProgress(0);
-  };
-
-  const openPhotosModal = async (album: Album) => {
-    setSelectedAlbum(album);
-    setIsPhotosModalOpen(true);
-    await fetchAlbumPhotos(album.id);
-  };
-
-  const closePhotosModal = () => {
-    setIsPhotosModalOpen(false);
-    setSelectedAlbum(null);
+  // ===== Fotos =====
+  const openPhotos = (album: Album) => {
+    setPhotosAlbum(album);
     setAlbumPhotos([]);
-    setSelectedPhotos([]);
+    setIsLoadingPhotos(true);
+    setOrderMessage('');
+    loadPhotos(album.id);
   };
 
-  const filteredAlbums = albums.filter(album => {
-    const matchesSearch = album.title?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || album.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const closePhotos = () => {
+    if (progress) return; // envio em andamento
+    revokeAll(newPhotos);
+    setNewPhotos([]);
+    setPhotosAlbum(null);
+    setAlbumPhotos([]);
+  };
+
+  const handleUploadPhotos = async () => {
+    if (!photosAlbum || newPhotos.length === 0) return;
+    const files = newPhotos;
+    const startOrder = albumPhotos.reduce((max, p) => Math.max(max, (p.display_order ?? 0) + 1), 0);
+    setProgress({ done: 0, total: files.length });
+    const { failed, reason } = await uploadPhotos(photosAlbum.id, files, startOrder, (done) => setProgress({ done, total: files.length }));
+    setProgress(null);
+
+    if (failed > 0) toast.error(`${files.length - failed} de ${files.length} foto(s) enviadas. ${failed} falharam; tente de novo.${reason}`);
+    else toast.success(`${files.length} foto(s) enviada(s).`);
+
+    revokeAll(files);
+    setNewPhotos([]);
+    loadPhotos(photosAlbum.id);
+    loadAlbums();
+  };
+
+  const movePhoto = async (index: number, direction: -1 | 1) => {
+    if (!photosAlbum) return;
+    const target = index + direction;
+    if (target < 0 || target >= albumPhotos.length) return;
+    const previous = albumPhotos;
+    const next = [...albumPhotos];
+    [next[index], next[target]] = [next[target], next[index]];
+    setAlbumPhotos(next);
+    setIsReordering(true);
+    try {
+      await request('/api/admin/album-photos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ album_id: photosAlbum.id, ids: next.map((p) => p.id) }),
+      });
+      setOrderMessage(`Foto movida para a posição ${target + 1} de ${next.length}.`);
+    } catch (error) {
+      setAlbumPhotos(previous);
+      toast.error(errorMessage(error, 'Erro ao salvar a nova ordem.'));
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
+  // ===== Exclusão =====
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      if (deleteTarget.type === 'album') {
+        await request(`/api/admin/albums?id=${deleteTarget.album.id}`, { method: 'DELETE' });
+        toast.success('Álbum excluído.');
+        loadAlbums();
+      } else {
+        const { photo } = deleteTarget;
+        await request(`/api/admin/album-photos?id=${photo.id}`, { method: 'DELETE' });
+        setAlbumPhotos((current) => current.filter((p) => p.id !== photo.id));
+        toast.success('Foto excluída.');
+        loadAlbums();
+      }
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error(errorMessage(error, 'Erro ao excluir.'));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // ===== Lista =====
+  const term = searchTerm.trim().toLowerCase();
+  const searched = albums.filter(
+    (a) =>
+      (!term || a.title?.toLowerCase().includes(term) || a.location?.toLowerCase().includes(term)) &&
+      (categoryFilter === 'all' || a.category === categoryFilter)
+  );
+  const filtered = searched.filter((a) => (visibility === 'all' ? true : visibility === 'visible' ? a.is_active : !a.is_active));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageAlbums = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPhotos = albums.reduce((sum, a) => sum + (a.photo_count || 0), 0);
+  const campaignTitle = (id: number | null) => campanhas.find((c) => c.id === id)?.title;
+  const categoryOptions = formData.category && !CATEGORIES.includes(formData.category) ? [...CATEGORIES, formData.category] : CATEGORIES;
+  const resetFilters = () => {
+    setSearchTerm('');
+    setCategoryFilter('all');
+    setVisibility('all');
+    setPage(1);
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] mb-2">
-            Galeria de Fotos
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
-            Gerencie álbuns e fotos do site
-          </p>
-        </div>
-        <button
-          onClick={() => openAlbumModal()}
-          className="inline-flex items-center gap-2 bg-[#003f7f] text-white px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 shadow-lg"
-        >
-          <FaPlus />
-          Novo Álbum
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Galeria de fotos"
+        description={
+          isLoading
+            ? 'Álbuns e fotos exibidos na galeria do site.'
+            : `${albums.length} ${albums.length === 1 ? 'álbum' : 'álbuns'} · ${totalPhotos.toLocaleString('pt-BR')} fotos no total.`
+        }
+        actions={
+          <Button icon={FaPlus} onClick={() => openAlbumModal()}>
+            Novo álbum
+          </Button>
+        }
+      />
 
-      {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-gray-500 text-xs font-bold uppercase mb-1">Total de Álbuns</div>
-          <div className="text-2xl font-black text-gray-900">{albums.length}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-[#00a859] text-xs font-bold uppercase mb-1">Álbuns Ativos</div>
-          <div className="text-2xl font-black text-gray-900">{albums.filter(a => a.is_active).length}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-[#003f7f] text-xs font-bold uppercase mb-1">Total de Fotos</div>
-          <div className="text-2xl font-black text-gray-900">{albums.reduce((acc, a) => acc + (a.photo_count || 0), 0)}</div>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Buscar álbuns..."
-              aria-label="Buscar álbuns"
+      <AdminCard flush>
+        <div className="flex flex-col gap-3 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex w-full flex-col gap-3 sm:flex-row xl:max-w-xl">
+            <SearchInput
+              label="Buscar álbuns"
+              placeholder="Buscar por título ou local"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+              onChange={(value) => {
+                setSearchTerm(value);
+                setPage(1);
+              }}
+              className="w-full"
             />
-          </div>
-          <select
-            aria-label="Filtrar por categoria"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent bg-white"
-          >
-            <option value="all">Todas as categorias</option>
-            {categorias.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Grid de álbuns */}
-      {isLoading ? (
-        <div className="flex justify-center items-center py-16">
-          <div className="flex items-center gap-3 text-[#003f7f]">
-            <FaSpinner className="animate-spin w-6 h-6" />
-            <span className="text-lg font-medium">Carregando álbuns...</span>
-          </div>
-        </div>
-      ) : filteredAlbums.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md p-12 text-center">
-          <FaImages className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-gray-700 mb-2">Nenhum álbum encontrado</h3>
-          <p className="text-gray-500">Clique em &quot;Novo Álbum&quot; para criar.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAlbums.map((album) => {
-            const campanha = campanhas.find((c) => c.id === album.campaign_id);
-            return (
-              <div
-                key={album.id}
-                className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 ${!album.is_active ? 'opacity-60' : ''}`}
+            <div className="sm:w-52 sm:shrink-0">
+              <Select
+                aria-label="Filtrar por categoria"
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setPage(1);
+                }}
               >
-                {/* Capa */}
-                <div className="relative h-48 bg-gradient-to-br from-[#003f7f] to-[#0052a3]">
-                  {album.cover_url ? (
-                    <Image src={album.cover_url} alt={album.title} fill className="object-cover" />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <FaImages className="w-16 h-16 text-white/30" />
-                    </div>
-                  )}
-                  {/* Badge de status e contagem */}
-                  <div className="absolute top-3 left-3 flex gap-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${album.is_active ? 'bg-green-500 text-white' : 'bg-gray-500 text-white'}`}>
-                      {album.is_active ? 'Ativo' : 'Oculto'}
-                    </span>
-                    <span className="bg-black/70 text-white px-2 py-1 rounded-full text-xs font-bold">
-                      {album.photo_count || 0} fotos
-                    </span>
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div className="p-4">
-                  <span className="inline-block bg-[#003f7f]/10 text-[#003f7f] px-2 py-0.5 rounded text-xs font-bold mb-2">
-                    {album.category}
-                  </span>
-                  {campanha && (
-                    <span className="inline-flex items-center gap-1 ml-2 bg-[#ffd000]/20 text-[#003f7f] px-2 py-0.5 rounded-full text-xs font-bold mb-2">
-                      <FaBullhorn className="w-3 h-3" aria-hidden="true" />
-                      {campanha.title}
-                    </span>
-                  )}
-                  <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{album.title}</h3>
-                  <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
-                    <div className="flex items-center gap-1">
-                      <FaCalendarAlt className="w-3 h-3" />
-                      {formatDateBR(album.date)}
-                    </div>
-                    {album.location && (
-                      <div className="flex items-center gap-1">
-                        <FaMapMarkerAlt className="w-3 h-3" />
-                        <span className="truncate max-w-[100px]">{album.location}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Ações */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => openPhotosModal(album)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-3 py-2 rounded-lg font-bold hover:bg-[#0066cc] transition-colors text-sm"
-                    >
-                      <FaImages className="w-3 h-3" />
-                      Fotos
-                    </button>
-                    <button
-                      onClick={() => handleToggleActive(album)}
-                      className={`p-2 rounded-lg transition-colors ${album.is_active ? 'text-green-600 hover:bg-green-100' : 'text-gray-500 hover:bg-gray-100'}`}
-                      title={album.is_active ? 'Ocultar' : 'Ativar'}
-                      aria-label={`${album.is_active ? 'Ocultar' : 'Ativar'} ${album.title}`}
-                    >
-                      {album.is_active ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
-                    </button>
-                    <button
-                      onClick={() => openAlbumModal(album)}
-                      className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
-                      title="Editar"
-                      aria-label={`Editar ${album.title}`}
-                    >
-                      <FaEdit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => openDeleteDialog(album.id, album.title, 'album')}
-                      className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
-                      title="Excluir"
-                      aria-label={`Excluir ${album.title}`}
-                    >
-                      <FaTrash className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                <option value="all">Todas as categorias</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <FilterPills<VisibilityFilter>
+            label="Filtrar por visibilidade"
+            value={visibility}
+            onChange={(value) => {
+              setVisibility(value);
+              setPage(1);
+            }}
+            options={[
+              { value: 'all', label: 'Todos', count: isLoading ? undefined : searched.length },
+              { value: 'visible', label: 'Visíveis', count: isLoading ? undefined : searched.filter((a) => a.is_active).length },
+              { value: 'hidden', label: 'Ocultos', count: isLoading ? undefined : searched.filter((a) => !a.is_active).length },
+            ]}
+          />
         </div>
+      </AdminCard>
+
+      {isLoading ? (
+        <ul aria-busy="true" aria-label="Carregando álbuns" className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <li key={i} aria-hidden="true" className={cx(cardSurface, 'overflow-hidden')}>
+              <div className="aspect-[16/10] animate-pulse bg-gray-100 motion-reduce:animate-none" />
+              <div className="space-y-3 p-4">
+                <span className="block h-3 w-1/3 animate-pulse rounded bg-gray-100 motion-reduce:animate-none" />
+                <span className="block h-4 w-3/4 animate-pulse rounded bg-gray-100 motion-reduce:animate-none" />
+                <span className="block h-9 w-full animate-pulse rounded-xl bg-gray-100 motion-reduce:animate-none" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : pageAlbums.length === 0 ? (
+        <AdminCard flush>
+          {loadError ? (
+            <EmptyState
+              icon={FaRedo}
+              title="Não foi possível carregar os álbuns"
+              description="Verifique a conexão e tente de novo."
+              action={
+                <Button
+                  variant="secondary"
+                  icon={FaRedo}
+                  onClick={() => {
+                    setIsLoading(true);
+                    loadAlbums();
+                  }}
+                >
+                  Tentar novamente
+                </Button>
+              }
+            />
+          ) : albums.length === 0 ? (
+            <EmptyState
+              icon={FaImages}
+              title="Nenhum álbum ainda"
+              description="Crie um álbum e envie as fotos do evento de uma vez."
+              action={
+                <Button icon={FaPlus} onClick={() => openAlbumModal()}>
+                  Novo álbum
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              title="Nenhum álbum encontrado"
+              description="Tente outro termo de busca ou outro filtro."
+              action={
+                <Button variant="secondary" onClick={resetFilters}>
+                  Limpar filtros
+                </Button>
+              }
+            />
+          )}
+        </AdminCard>
+      ) : (
+        <>
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3" aria-label="Álbuns">
+            {pageAlbums.map((album) => {
+              const campaign = campaignTitle(album.campaign_id);
+              return (
+                <li key={album.id} className={cx(cardSurface, 'flex min-w-0 flex-col overflow-hidden')}>
+                  <div className="relative aspect-[16/10] bg-linear-to-br from-[#003f7f] to-[#0052a3]">
+                    {album.cover_url ? (
+                      <Image
+                        src={album.cover_url}
+                        alt=""
+                        fill
+                        sizes="(min-width: 1280px) 30vw, (min-width: 640px) 45vw, 100vw"
+                        className={cx('object-cover', !album.is_active && 'opacity-50 grayscale')}
+                        unoptimized={!isOptimizableImage(album.cover_url)}
+                      />
+                    ) : (
+                      <span className="flex h-full items-center justify-center text-white/30">
+                        <FaImages aria-hidden="true" className="h-12 w-12" />
+                      </span>
+                    )}
+                    <div className="absolute inset-x-3 top-3 flex flex-wrap gap-1.5">
+                      <StatusBadge variant={album.is_active ? 'success' : 'neutral'} className="bg-white! shadow-sm">
+                        {album.is_active ? 'Visível' : 'Oculto'}
+                      </StatusBadge>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#001a3d]/80 px-2.5 py-0.5 text-xs font-semibold text-white tabular-nums backdrop-blur-sm">
+                        <FaImages aria-hidden="true" className="h-3 w-3" />
+                        {album.photo_count} {album.photo_count === 1 ? 'foto' : 'fotos'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-4">
+                    <div className="flex flex-wrap gap-1.5">
+                      <StatusBadge variant="info" dot={false}>
+                        {album.category}
+                      </StatusBadge>
+                      {campaign && (
+                        <StatusBadge variant="warning" dot={false}>
+                          <FaBullhorn aria-hidden="true" className="h-2.5 w-2.5" />
+                          <span className="truncate">{campaign}</span>
+                        </StatusBadge>
+                      )}
+                    </div>
+                    <h2 className="mt-2 line-clamp-2 text-base font-bold text-gray-900">{album.title}</h2>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
+                      <span className="inline-flex items-center gap-1.5 tabular-nums">
+                        <FaCalendarAlt aria-hidden="true" className="h-3 w-3" />
+                        {formatDateBR(album.date)}
+                      </span>
+                      {album.location && (
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <FaMapMarkerAlt aria-hidden="true" className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{album.location}</span>
+                        </span>
+                      )}
+                    </p>
+
+                    <div className="mt-auto flex items-center gap-1 pt-4">
+                      <Button variant="secondary" size="sm" icon={FaImages} className="flex-1" onClick={() => openPhotos(album)}>
+                        Fotos
+                        <span className="sr-only"> de {album.title}</span>
+                      </Button>
+                      <IconButton
+                        icon={album.is_active ? FaEyeSlash : FaEye}
+                        label={album.is_active ? `Ocultar “${album.title}” do site` : `Mostrar “${album.title}” no site`}
+                        onClick={() => toggleActive(album)}
+                        disabled={togglingId === album.id}
+                      />
+                      <IconButton icon={FaEdit} label={`Editar “${album.title}”`} onClick={() => openAlbumModal(album)} />
+                      <IconButton
+                        icon={FaTrash}
+                        variant="danger"
+                        label={`Excluir “${album.title}”`}
+                        onClick={() => setDeleteTarget({ type: 'album', album })}
+                      />
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {totalPages > 1 && (
+            <AdminCard flush>
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                total={filtered.length}
+                pageSize={PAGE_SIZE}
+                className="border-t-0!"
+              />
+            </AdminCard>
+          )}
+        </>
       )}
 
-      {/* Modal de Álbum */}
-      <Modal isOpen={isModalOpen} onClose={closeAlbumModal} title={isEditing ? 'Editar Álbum' : 'Novo Álbum'}>
-        <form onSubmit={handleSaveAlbum} className="space-y-5">
-          <div>
-            <label htmlFor="album-title" className="block text-sm font-bold text-gray-700 mb-2">Título *</label>
-            <input
-              id="album-title"
-              type="text"
-              required
-              value={currentAlbum.title || ''}
-              onChange={(e) => setCurrentAlbum({ ...currentAlbum, title: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
-              placeholder="Ex: Encontro de Lojistas 2025"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="album-description" className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
-            <textarea
-              id="album-description"
-              value={currentAlbum.description || ''}
-              onChange={(e) => setCurrentAlbum({ ...currentAlbum, description: e.target.value })}
-              rows={2}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="album-category" className="block text-sm font-bold text-gray-700 mb-2">Categoria *</label>
-              <select
-                id="album-category"
+      {/* Formulário do álbum */}
+      <Modal isOpen={isModalOpen} onClose={closeAlbumModal} title={editingId ? 'Editar álbum' : 'Novo álbum'} subtitle="Campos com * são obrigatórios.">
+        <form onSubmit={handleSaveAlbum} noValidate className="space-y-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <FormField label="Título" id="album-title" required error={errors.title} className="md:col-span-2">
+              <Input
+                value={formData.title}
+                onChange={(e) => setField('title', e.target.value)}
                 required
-                value={currentAlbum.category || ''}
-                onChange={(e) => setCurrentAlbum({ ...currentAlbum, category: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
-              >
-                {categorias.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                maxLength={200}
+                placeholder="Ex.: Encontro de Lojistas 2026"
+              />
+            </FormField>
+
+            <FormField label="Categoria" id="album-category" required error={errors.category}>
+              <Select value={formData.category} onChange={(e) => setField('category', e.target.value)} required>
+                {categoryOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="album-date" className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
-              <input
-                id="album-date"
-                type="date"
-                required
-                value={currentAlbum.date ? currentAlbum.date.split('T')[0] : ''}
-                onChange={(e) => setCurrentAlbum({ ...currentAlbum, date: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
-              />
-            </div>
-            <div>
-              <label htmlFor="album-location" className="block text-sm font-bold text-gray-700 mb-2">Local</label>
-              <input
-                id="album-location"
-                type="text"
-                value={currentAlbum.location || ''}
-                onChange={(e) => setCurrentAlbum({ ...currentAlbum, location: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
-                placeholder="Ex: CDL Ipirá"
-              />
-            </div>
-          </div>
+              </Select>
+            </FormField>
 
-          <div>
-            <label htmlFor="album-campaign" className="block text-sm font-bold text-gray-700 mb-2">Campanha</label>
-            <select
-              id="album-campaign"
-              value={currentAlbum.campaign_id ?? ''}
-              onChange={(e) => setCurrentAlbum({ ...currentAlbum, campaign_id: e.target.value ? Number(e.target.value) : null })}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f]"
-            >
-              <option value="">Nenhuma</option>
-              {campanhas.map(campanha => (
-                <option key={campanha.id} value={campanha.id}>{campanha.title}</option>
-              ))}
-            </select>
-          </div>
+            <FormField label="Data" id="album-date" required error={errors.date}>
+              <Input type="date" value={formData.date} onChange={(e) => setField('date', e.target.value)} required />
+            </FormField>
 
-          {/* Upload de Capa */}
-          <div>
-            <span className="block text-sm font-bold text-gray-700 mb-2">Imagem de Capa</span>
-            <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverSelect} className="hidden" />
-            
-            {!selectedCover && !currentAlbum.cover_url ? (
-              <button
-                type="button"
-                onClick={() => coverInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
-              >
-                <FaCloudUploadAlt className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                <span className="block text-gray-600 text-sm">Clique para selecionar uma imagem</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-4">
-                <div className="relative w-20 h-14 rounded-lg overflow-hidden bg-gray-200">
-                  {selectedCover ? (
-                    <Image src={URL.createObjectURL(selectedCover)} alt="Preview" fill className="object-cover" />
-                  ) : currentAlbum.cover_url ? (
-                    <Image src={currentAlbum.cover_url} alt="Capa atual" fill className="object-cover" />
-                  ) : null}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900 text-sm">{selectedCover ? selectedCover.name : 'Capa atual'}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => coverInputRef.current?.click()}
-                  className="text-sm text-[#003f7f] hover:underline"
-                >
-                  Trocar
-                </button>
+            <FormField label="Local" id="album-location">
+              <Input value={formData.location} onChange={(e) => setField('location', e.target.value)} maxLength={200} placeholder="Ex.: CDL Ipirá" />
+            </FormField>
+
+            <FormField label="Campanha" id="album-campaign" hint="Opcional.">
+              <Select value={formData.campaign_id} onChange={(e) => setField('campaign_id', e.target.value)}>
+                <option value="">Nenhuma</option>
+                {campanhas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                    {c.is_active === false ? ' (oculta no site)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+
+            <FormField label="Descrição" id="album-description" className="md:col-span-2">
+              <Textarea
+                value={formData.description}
+                onChange={(e) => setField('description', e.target.value)}
+                rows={2}
+                maxLength={2000}
+                placeholder="Sobre o que são as fotos"
+              />
+            </FormField>
+
+            <ImageUploadField
+              label="Imagem de capa"
+              id="album-cover"
+              className="md:col-span-2"
+              value={formData.cover_url || null}
+              onSelect={handleCoverSelect}
+              onRemove={() => setField('cover_url', '')}
+              uploading={isUploadingCover}
+              accept={PHOTO_ACCEPT}
+              error={errors.cover_url}
+              hint={`PNG, JPG ou WebP até ${MAX_PHOTO_MB} MB. Sem capa, o site usa um fundo azul.`}
+              // Álbum novo: o aviso de direito de imagem já aparece logo abaixo, no campo das fotos
+              rightsNotice={!!editingId}
+            />
+
+            {!editingId && (
+              <div className="space-y-3 md:col-span-2">
+                <p className="text-sm font-semibold text-gray-700">
+                  Fotos do álbum <span className="font-normal text-gray-500">(opcional)</span>
+                </p>
+                <PhotoDropZone
+                  label="Escolher fotos"
+                  disabled={isSaving}
+                  onFiles={(files) => setInitialPhotos((current) => [...current, ...files])}
+                />
+                {initialPhotos.length > 0 && (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-gray-700">{initialPhotos.length} foto(s) para enviar ao salvar</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isSaving}
+                        onClick={() => {
+                          revokeAll(initialPhotos);
+                          setInitialPhotos([]);
+                        }}
+                      >
+                        Remover todas
+                      </Button>
+                    </div>
+                    <PendingGrid
+                      files={initialPhotos}
+                      disabled={isSaving}
+                      onRemove={(index) =>
+                        setInitialPhotos((current) => {
+                          URL.revokeObjectURL(current[index].url);
+                          return current.filter((_, i) => i !== index);
+                        })
+                      }
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            <Checkbox
+              className="rounded-xl bg-gray-50 px-4 ring-1 ring-gray-200 md:col-span-2"
+              label="Visível no site"
+              description="Desmarque para ocultar o álbum sem excluir."
+              checked={formData.is_active}
+              onChange={(e) => setField('is_active', e.target.checked)}
+            />
+
+            {isSaving && progress && (
+              <div className="md:col-span-2">
+                <ProgressBar done={progress.done} total={progress.total} label="Enviando fotos…" />
               </div>
             )}
           </div>
 
-          {/* Upload de Fotos (apenas para novo álbum) */}
-          {!isEditing && (
-            <div>
-              <span className="block text-sm font-bold text-gray-700 mb-2">
-                Fotos do Álbum <span className="text-gray-400 font-normal">(opcional)</span>
-              </span>
-              <input 
-                ref={initialPhotosInputRef} 
-                type="file" 
-                accept="image/*" 
-                multiple 
-                onChange={handleInitialPhotosSelect} 
-                className="hidden" 
-              />
-              
-              <button
-                type="button"
-                onClick={() => initialPhotosInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
-              >
-                <FaCloudUploadAlt className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <span className="block text-gray-600 text-sm">Clique para selecionar fotos</span>
-                <span className="block text-gray-400 text-xs mt-1">Múltiplas fotos permitidas (máx. 20MB cada)</span>
-              </button>
-
-              {initialPhotos.length > 0 && (
-                <div className="mt-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">
-                      {initialPhotos.length} foto(s) selecionada(s)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setInitialPhotos([])}
-                      className="text-sm text-red-500 hover:underline"
-                    >
-                      Limpar todas
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-[150px] overflow-y-auto">
-                    {initialPhotos.map((file, index) => (
-                      <div key={index} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
-                        <Image 
-                          src={URL.createObjectURL(file)} 
-                          alt={file.name} 
-                          fill 
-                          className="object-cover" 
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); removeInitialPhoto(index); }}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                          aria-label={`Remover ${file.name}`}
-                        >
-                          <FaTimes className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => initialPhotosInputRef.current?.click()}
-                      className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
-                      aria-label="Adicionar mais fotos"
-                    >
-                      <FaPlus className="w-4 h-4 text-gray-400" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={currentAlbum.is_active !== false}
-              onChange={(e) => setCurrentAlbum({ ...currentAlbum, is_active: e.target.checked })}
-              className="w-5 h-5 text-[#00a859] border-gray-300 rounded"
-            />
-            <label htmlFor="is_active" className="text-sm font-medium text-gray-700">Álbum visível no site</label>
-          </div>
-
-          {/* Barra de progresso */}
-          {isSaving && initialPhotos.length > 0 && uploadProgress > 0 && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Enviando fotos...</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-[#00a859] h-2 rounded-full transition-all duration-300" 
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] disabled:opacity-50"
-            >
-              {isSaving ? <><FaSpinner className="animate-spin" /> Salvando...</> : <><FaSave /> Salvar</>}
-            </button>
-            <button type="button" onClick={closeAlbumModal} disabled={isSaving} className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-50">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={closeAlbumModal} disabled={isSaving || isUploadingCover}>
               Cancelar
-            </button>
+            </Button>
+            <Button type="submit" loading={isSaving} disabled={isUploadingCover}>
+              {isSaving ? 'Salvando…' : editingId ? 'Salvar alterações' : initialPhotos.length > 0 ? `Criar álbum e enviar ${initialPhotos.length} foto(s)` : 'Criar álbum'}
+            </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Modal de Fotos do Álbum */}
-      <Modal isOpen={isPhotosModalOpen} onClose={closePhotosModal} title={`Fotos: ${selectedAlbum?.title || ''}`}>
-        <div className="space-y-5">
-          {/* Upload de novas fotos */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Adicionar Fotos</label>
-            <input ref={photosInputRef} type="file" accept="image/*" multiple onChange={handlePhotosSelect} className="hidden" />
-            
-            <div
-              onClick={() => photosInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
-            >
-              <FaCloudUploadAlt className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-600 text-sm">Clique para selecionar fotos (múltiplas)</p>
-              <p className="text-gray-400 text-xs mt-1">JPG, PNG, WebP (máx. 20MB cada)</p>
-            </div>
-
-            {selectedPhotos.length > 0 && (
-              <div className="mt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">{selectedPhotos.length} foto(s) selecionada(s)</span>
-                  <button
-                    onClick={() => setSelectedPhotos([])}
-                    className="text-sm text-red-500 hover:underline"
-                  >
-                    Limpar
-                  </button>
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {selectedPhotos.slice(0, 8).map((file, index) => (
-                    <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                      <Image src={URL.createObjectURL(file)} alt={file.name} fill className="object-cover" />
-                    </div>
-                  ))}
-                  {selectedPhotos.length > 8 && (
-                    <div className="aspect-square rounded-lg bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-600 font-bold">+{selectedPhotos.length - 8}</span>
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={handleUploadPhotos}
-                  disabled={isUploading}
-                  className="w-full inline-flex items-center justify-center gap-2 bg-[#00a859] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#00d670] disabled:opacity-50"
-                >
-                  {isUploading ? (
-                    <><FaSpinner className="animate-spin" /> Enviando... {uploadProgress}%</>
-                  ) : (
-                    <><FaUpload /> Enviar {selectedPhotos.length} foto(s)</>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Fotos existentes */}
-          <div>
-            <h4 className="text-sm font-bold text-gray-700 mb-3">Fotos do Álbum ({albumPhotos.length})</h4>
-            {isLoadingPhotos ? (
-              <div className="flex justify-center py-8">
-                <FaSpinner className="animate-spin w-6 h-6 text-[#003f7f]" />
-              </div>
-            ) : albumPhotos.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">Nenhuma foto neste álbum ainda.</p>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto">
-                {albumPhotos.map((photo) => (
-                  <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
-                    <Image src={photo.url} alt={photo.title || ''} fill className="object-cover" />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <button
-                        onClick={() => openDeleteDialog(photo.id, photo.title || 'esta foto', 'photo')}
-                        className="p-2 bg-red-600 text-white rounded-full hover:bg-red-700"
-                      >
-                        <FaTrash className="w-3 h-3" />
-                      </button>
-                    </div>
+      {/* Fotos do álbum */}
+      <Modal
+        isOpen={photosAlbum !== null}
+        onClose={closePhotos}
+        title="Fotos do álbum"
+        subtitle={photosAlbum ? `${photosAlbum.title} · ${albumPhotos.length} ${albumPhotos.length === 1 ? 'foto' : 'fotos'}` : undefined}
+      >
+        <div className="space-y-6">
+          <section aria-label="Adicionar fotos" className="space-y-3">
+            <PhotoDropZone label="Adicionar fotos" disabled={progress !== null} onFiles={(files) => setNewPhotos((current) => [...current, ...files])} />
+            {newPhotos.length > 0 && (
+              <>
+                <PendingGrid
+                  files={newPhotos}
+                  disabled={progress !== null}
+                  onRemove={(index) =>
+                    setNewPhotos((current) => {
+                      URL.revokeObjectURL(current[index].url);
+                      return current.filter((_, i) => i !== index);
+                    })
+                  }
+                />
+                {progress ? (
+                  <ProgressBar done={progress.done} total={progress.total} label="Enviando fotos…" />
+                ) : (
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        revokeAll(newPhotos);
+                        setNewPhotos([]);
+                      }}
+                    >
+                      Limpar seleção
+                    </Button>
+                    <Button icon={FaUpload} onClick={handleUploadPhotos}>
+                      Enviar {newPhotos.length} foto(s)
+                    </Button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
-          </div>
+          </section>
 
-          <button onClick={closePhotosModal} className="w-full px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-50">
-            Fechar
-          </button>
+          <section aria-labelledby="album-photos-heading">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h3 id="album-photos-heading" className="text-sm font-bold text-gray-900">
+                Fotos publicadas
+              </h3>
+              {albumPhotos.length > 1 && <p className="text-xs text-gray-500">Use as setas para mudar a ordem no site.</p>}
+            </div>
+            <p aria-live="polite" className="sr-only">
+              {orderMessage}
+            </p>
+
+            {isLoadingPhotos ? (
+              <ul aria-busy="true" aria-label="Carregando fotos" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <li key={i} aria-hidden="true" className="aspect-square animate-pulse rounded-xl bg-gray-100 motion-reduce:animate-none" />
+                ))}
+              </ul>
+            ) : albumPhotos.length === 0 ? (
+              <EmptyState icon={FaImages} title="Nenhuma foto neste álbum" description="Adicione fotos acima para elas aparecerem na galeria." className="py-8! sm:py-10!" />
+            ) : (
+              <ol className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {albumPhotos.map((photo, index) => (
+                  <li key={photo.id} className="overflow-hidden rounded-xl bg-white ring-1 ring-gray-200">
+                    <div className="relative aspect-square bg-gray-100">
+                      <Image
+                        src={photo.url}
+                        alt={photo.title || `Foto ${index + 1}`}
+                        fill
+                        sizes="(min-width: 640px) 200px, 45vw"
+                        className="object-cover"
+                        unoptimized={!isOptimizableImage(photo.url)}
+                      />
+                      <span className="absolute top-2 left-2 rounded-full bg-[#001a3d]/80 px-2 py-0.5 text-xs font-bold text-white tabular-nums">
+                        {index + 1}
+                      </span>
+                      {index === 0 && (
+                        <span className="absolute top-2 right-2 rounded-full bg-[#ffd000] px-2 py-0.5 text-[11px] font-bold text-[#003f7f]">1ª no site</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-1 p-1">
+                      <div className="flex">
+                        <IconButton
+                          icon={FaArrowLeft}
+                          label={`Mover foto ${index + 1} para antes`}
+                          onClick={() => movePhoto(index, -1)}
+                          disabled={index === 0 || isReordering}
+                        />
+                        <IconButton
+                          icon={FaArrowRight}
+                          label={`Mover foto ${index + 1} para depois`}
+                          onClick={() => movePhoto(index, 1)}
+                          disabled={index === albumPhotos.length - 1 || isReordering}
+                        />
+                      </div>
+                      <IconButton icon={FaTrash} variant="danger" label={`Excluir foto ${index + 1}`} onClick={() => setDeleteTarget({ type: 'photo', photo })} />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+
+          <div className="flex justify-end border-t border-gray-100 pt-4">
+            <Button variant="secondary" onClick={closePhotos} disabled={progress !== null}>
+              Fechar
+            </Button>
+          </div>
         </div>
       </Modal>
 
-      {/* Dialog de Confirmação de Exclusão */}
       <ConfirmDialog
-        isOpen={deleteDialog.isOpen}
-        onClose={() => setDeleteDialog({ isOpen: false, id: null, title: '', type: 'album' })}
-        onConfirm={handleConfirmDelete}
-        title={deleteDialog.type === 'album' ? 'Excluir Álbum' : 'Excluir Foto'}
-        message={`Tem certeza que deseja excluir ${deleteDialog.title}? ${deleteDialog.type === 'album' ? 'Todas as fotos serão removidas.' : ''}`}
+        isOpen={deleteTarget !== null}
+        onClose={() => !isDeleting && setDeleteTarget(null)}
+        onConfirm={confirmDelete}
         type="delete"
-        confirmText="Sim, Excluir"
-        cancelText="Cancelar"
+        title={deleteTarget?.type === 'photo' ? 'Excluir foto?' : 'Excluir álbum?'}
+        message={
+          deleteTarget?.type === 'album'
+            ? `“${deleteTarget.album.title}” e ${deleteTarget.album.photo_count} foto(s) serão removidos do site. Esta ação não pode ser desfeita.`
+            : 'A foto será removida do álbum. Esta ação não pode ser desfeita.'
+        }
+        confirmText="Excluir"
         isLoading={isDeleting}
-      />
-
-      {/* Dialog de Sucesso */}
-      <ConfirmDialog
-        isOpen={successDialog.isOpen}
-        onClose={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
-        title={successDialog.type === 'delete' ? 'Excluído' : successDialog.type === 'edit' ? 'Atualizado' : 'Cadastrado'}
-        message={successDialog.message}
-        type={successDialog.type === 'delete' ? 'success' : successDialog.type}
-        confirmText="OK"
-        showCancel={false}
-        onConfirm={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
       />
     </div>
   );

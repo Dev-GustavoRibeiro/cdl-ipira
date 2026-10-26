@@ -96,6 +96,9 @@ const GaleriaFotosPage = () => {
     }
   };
 
+  // Só as categorias que têm álbum (filtro que leva a lista vazia frustra)
+  const categories = ['Todos', ...[...new Set(albums.map((album) => album.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+
   const filteredAlbums = albums.filter(album => {
     const matchesSearch = (album.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (album.location || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -134,9 +137,10 @@ const GaleriaFotosPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50">
+    <>
       <HeroSection />
       <FiltersSection
+        categories={categories}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         activeCategory={activeCategory}
@@ -181,7 +185,7 @@ const GaleriaFotosPage = () => {
         onNextPhoto={nextPhoto}
         onSelectPhoto={setSelectedPhotoIndex}
       />
-    </div>
+    </>
   );
 };
 

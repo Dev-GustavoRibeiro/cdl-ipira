@@ -49,11 +49,11 @@ export default function NotFoundScreen() {
                 minLength={2}
                 enterKeyHint="search"
                 placeholder="O que você procura?"
-                className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-base text-gray-900 outline-none placeholder:text-gray-400 [&::-webkit-search-cancel-button]:appearance-none"
+                className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-base text-gray-900 outline-none placeholder:text-gray-500 [&::-webkit-search-cancel-button]:appearance-none"
               />
               <button
                 type="submit"
-                className="shrink-0 rounded-xl bg-[#003f7f] px-5 py-2.5 text-sm font-bold text-white transition-[background-color,scale] duration-200 hover:bg-[#0052a3] active:scale-[0.98]"
+                className="min-h-11 shrink-0 rounded-xl bg-[#003f7f] px-5 py-2.5 text-sm font-bold text-white transition-[background-color,scale] duration-200 hover:bg-[#0052a3] active:scale-[0.98]"
               >
                 Buscar
               </button>

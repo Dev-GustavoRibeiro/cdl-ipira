@@ -1,12 +1,17 @@
 {
+  "id": "/",
   "name": "CDL Ipirá",
   "short_name": "CDL Ipirá",
-  "description": "Aplicativo oficial da CDL Ipirá",
+  "description": "App da CDL Ipirá, a Câmara de Dirigentes Lojistas de Ipirá-BA: notícias, campanhas, eventos, vagas de emprego, SPC Brasil e certificado digital.",
+  "lang": "pt-BR",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#003f7f",
   "orientation": "portrait",
+  "categories": ["business", "news"],
   "icons": [
     {
       "src": "/icons/icon-192.png",

@@ -3,9 +3,12 @@
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { FaPlay, FaArrowRight, FaVideo, FaClock } from 'react-icons/fa';
+import { FaPlay, FaVideo, FaClock } from 'react-icons/fa';
+import SectionCarousel, { SectionHeading, useCardsMotion, type PerView } from './carousel/SectionCarousel';
+import { useReveal } from './motion/useReveal';
 import { isOptimizableImage } from '@/lib/images';
-import { formatDateBR } from '@/lib/date';
+import { formatDateBR, formatDateLong } from '@/lib/date';
+import { EASE, MOTION_OK, gsap, useGSAP } from '@/lib/motion';
 
 interface Video {
   id: number;
@@ -20,6 +23,9 @@ interface Video {
 
 const videoHref = (video: Video) => `/imprensa/tv-lojista?video=${video.id}`;
 
+// Lista de vídeos: cartões compactos (miniatura + título), mais por vista que os cartões das outras seções
+const STRIP_PER_VIEW: PerView = { base: 1.2, sm: 1.8, md: 2.5, lg: 3, '2xl': 4 };
+
 /** Miniatura com fallback: capa do painel → maxresdefault (nem todo vídeo tem) → hqdefault → foto da sede. */
 function VideoThumb({ video, large = false, sizes }: { video: Video; large?: boolean; sizes: string }) {
   const yt = video.youtube_id ? `https://i.ytimg.com/vi/${video.youtube_id}` : '';
@@ -31,157 +37,262 @@ function VideoThumb({ video, large = false, sizes }: { video: Video; large?: boo
   return (
     <Image
       src={src}
-      alt={video.title}
+      // Decorativa: o título do vídeo já está no texto ao lado
+      alt=""
       fill
       sizes={sizes}
       unoptimized={!isOptimizableImage(src)}
       onError={() => setIndex((i) => Math.min(i + 1, candidates.length - 1))}
       // object-cover em 16:9 corta as tarjas pretas do hqdefault (4:3)
-      className="object-cover text-transparent transition-transform duration-700 ease-out group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+      className="object-cover text-transparent transition-transform duration-900 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.05] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
     />
   );
 }
 
-function FeaturedVideo({ video }: { video: Video }) {
-  const date = formatDateBR(video.date);
+/**
+ * Vídeo em destaque (abre o player na página da TV). Mídia 16:9 com altura limitada pela tela (--tv-h, da seção):
+ * até o lg o texto fica sobre a imagem (abaixo dela quando é o único vídeo e sobra altura); do lg em diante, num painel
+ * ao lado. `previous` fica por baixo durante a troca (o novo é revelado por cima dele).
+ */
+function FeaturedVideo({ video, previous, solo }: { video: Video; previous: Video | null; solo: boolean }) {
+  const date = formatDateLong(video.date);
 
   return (
-    <Link
-      href={videoHref(video)}
-      className="group block rounded-3xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ffd000] focus-visible:ring-offset-4 focus-visible:ring-offset-[#003f7f]"
-    >
-      <article className="relative overflow-hidden rounded-3xl bg-white/5 shadow-[0_30px_60px_-25px_rgba(0,0,0,0.6)] ring-1 ring-white/15 transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_40px_70px_-25px_rgba(0,0,0,0.7)] group-hover:ring-[#ffd000]/40 group-active:scale-[0.99] motion-reduce:group-hover:translate-y-0">
-        <div className="relative aspect-video overflow-hidden bg-[#003366]">
-          <VideoThumb video={video} large sizes="(min-width: 1024px) 52rem, 100vw" />
-          {/* No mobile o texto fica abaixo da imagem; do md em diante, sobre ela */}
-          <div className="absolute inset-0 bg-black/15 md:bg-linear-to-t md:from-black/90 md:via-black/35 md:to-black/5" />
+    <div data-cinema className="mt-[clamp(0.875rem,2.4svh,1.75rem)]">
+      <article className="group relative overflow-hidden rounded-[1.75rem] bg-[#00264d] shadow-[0_30px_60px_-30px_rgba(0,0,0,0.7)] ring-1 ring-white/15 transition-[box-shadow] duration-300 hover:ring-[#ffd000]/45 has-focus-visible:outline-3 has-focus-visible:outline-offset-3 has-focus-visible:outline-[#ffd000] lg:flex">
+        <div className="relative aspect-video max-h-(--tv-h) w-full shrink-0 overflow-hidden bg-[#003366] lg:max-h-none lg:w-[min(64%,calc(var(--tv-h)*16/9))]">
+          {previous && previous.id !== video.id && (
+            <div aria-hidden="true" className="absolute inset-0">
+              <VideoThumb key={previous.id} video={previous} large sizes="(min-width: 1024px) 60rem, 100vw" />
+            </div>
+          )}
+          <div data-feature-media className="absolute inset-0">
+            <VideoThumb key={video.id} video={video} large sizes="(min-width: 1024px) 60rem, 100vw" />
+          </div>
+          {/* Véu só embaixo (texto sobreposto até o lg), forte na faixa do texto: as miniaturas do YouTube trazem letras
+              grandes gravadas que competiriam com o título. Do lg em diante a foto fica limpa */}
+          {!solo && <div className="absolute inset-0 bg-linear-to-t from-black/95 via-black/70 via-50% to-transparent lg:hidden" />}
 
-          <span className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#ffd000] text-[#003f7f] shadow-[0_0_0_10px_rgba(255,208,0,0.22),0_20px_40px_-10px_rgba(0,0,0,0.5)] transition-transform duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100 sm:h-20 sm:w-20 md:top-[42%] xl:h-24 xl:w-24">
-            <FaPlay className="ml-1 h-6 w-6 sm:h-7 sm:w-7 xl:h-9 xl:w-9" aria-hidden />
+          <span className={`absolute left-1/2 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#ffd000] text-[#003f7f] shadow-[0_0_0_8px_rgba(255,208,0,0.22),0_20px_40px_-10px_rgba(0,0,0,0.5)] transition-[scale] duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100 sm:h-16 sm:w-16 md:h-20 md:w-20 lg:top-1/2 ${solo ? 'top-1/2' : 'top-[40%]'}`}>
+            <span data-pulse aria-hidden="true" className="absolute inset-0 rounded-full border-2 border-[#ffd000] opacity-0" />
+            <FaPlay aria-hidden="true" className="ml-[6%] h-[36%] w-[36%]" />
           </span>
-
           {video.duration && (
-            <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/65 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm sm:right-5 sm:top-5">
-              <FaClock className="h-3 w-3" aria-hidden />
+            <span className="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-1 text-xs font-bold text-white tabular-nums sm:top-4 sm:right-4">
+              <FaClock aria-hidden="true" className="h-3 w-3" />
               <span className="sr-only">Duração:</span> {video.duration}
             </span>
           )}
         </div>
 
-        <div className="p-5 sm:p-6 md:absolute md:inset-x-0 md:bottom-0 md:p-8 lg:p-10">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#ffd000] px-3 py-1 text-[11px] font-black uppercase tracking-wider text-[#003f7f]">
-              Em destaque
-            </span>
+        <div
+          data-feature-text
+          // Anuncia o vídeo novo quando outro é escolhido na lista
+          aria-live="polite"
+          className={`p-4 sm:p-6 lg:static ${solo ? '' : 'absolute inset-x-0 bottom-0'} lg:flex lg:min-w-0 lg:flex-1 lg:flex-col lg:justify-center lg:p-[clamp(1.5rem,3.5svh,2.75rem)]`}
+        >
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="rounded-full bg-[#ffd000] px-2.5 py-0.5 text-[11px] font-black tracking-wider text-[#003f7f] uppercase">Em destaque</span>
             {video.category && (
-              <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
-                {video.category}
-              </span>
+              // Fundo sólido: sobre a miniatura (até o lg) um selo translúcido some nas letras claras da imagem
+              <span className="rounded-full bg-[#001a3d]/85 px-2.5 py-0.5 text-[11px] font-bold tracking-wider text-white uppercase ring-1 ring-white/20 ring-inset">{video.category}</span>
             )}
-            {date && <span className="text-xs font-medium text-white/75">{date}</span>}
+            {date && <span className="hidden text-xs font-medium text-white/75 sm:inline">{date}</span>}
           </div>
-          <h3 className="mt-3 line-clamp-3 text-lg font-black leading-snug tracking-tight text-white text-balance transition-colors duration-300 group-hover:text-[#ffd000] sm:text-2xl md:line-clamp-2! lg:text-3xl">
-            {video.title}
-          </h3>
-        </div>
-      </article>
-    </Link>
-  );
-}
-
-/** Um único vídeo: player à esquerda e detalhes à direita, alinhado à largura das outras seções. */
-function SingleVideo({ video }: { video: Video }) {
-  const date = formatDateBR(video.date);
-
-  return (
-    <Link
-      href={videoHref(video)}
-      className="group block rounded-3xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ffd000] focus-visible:ring-offset-4 focus-visible:ring-offset-[#003f7f]"
-    >
-      <article className="grid overflow-hidden rounded-3xl bg-white/5 shadow-[0_30px_60px_-25px_rgba(0,0,0,0.6)] ring-1 ring-white/15 backdrop-blur-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_40px_70px_-25px_rgba(0,0,0,0.7)] group-hover:ring-[#ffd000]/40 group-active:scale-[0.99] motion-reduce:group-hover:translate-y-0 xl:grid-cols-3">
-        <div className="relative overflow-hidden bg-[#003366] xl:col-span-2">
-          {/* Garante no mínimo 16:9; se o painel ao lado for mais alto, a imagem acompanha a altura da linha */}
-          <div aria-hidden className="aspect-video" />
-          <VideoThumb video={video} large sizes="(min-width: 1280px) 52rem, 100vw" />
-          <div className="absolute inset-0 bg-black/20 transition-colors duration-300 group-hover:bg-black/5" />
-          <span className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#ffd000] text-[#003f7f] shadow-[0_0_0_10px_rgba(255,208,0,0.22),0_20px_40px_-10px_rgba(0,0,0,0.5)] transition-transform duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100 sm:h-20 sm:w-20 lg:h-24 lg:w-24">
-            <FaPlay className="ml-1 h-6 w-6 sm:h-7 sm:w-7 lg:h-9 lg:w-9" aria-hidden />
-          </span>
-          {video.duration && (
-            <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/65 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm sm:right-5 sm:top-5">
-              <FaClock className="h-3 w-3" aria-hidden />
-              <span className="sr-only">Duração:</span> {video.duration}
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-col justify-center p-6 sm:p-8 xl:p-10">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#ffd000] px-3 py-1 text-[11px] font-black uppercase tracking-wider text-[#003f7f]">
-              Em destaque
-            </span>
-            {video.category && (
-              <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
-                {video.category}
-              </span>
-            )}
-          </div>
-          <h3 className="mt-4 line-clamp-4 text-xl font-black leading-snug tracking-tight text-white text-balance transition-colors duration-300 group-hover:text-[#ffd000] sm:text-2xl">
-            {video.title}
+          <h3 className="mt-2 text-base leading-snug font-black tracking-tight text-balance text-white transition-colors duration-300 group-hover:text-[#ffd000] sm:mt-3 sm:text-xl md:text-2xl lg:text-[clamp(1.25rem,3svh,1.875rem)]">
+            {/* Link "esticado": o ::after cobre o cartão inteiro */}
+            <Link href={videoHref(video)} className="after:absolute after:inset-0 after:z-10 after:content-[''] focus-visible:shadow-none! focus-visible:outline-none!">
+              <span className="sr-only">Assistir: </span>
+              <span className="line-clamp-2 lg:line-clamp-3">{video.title}</span>
+            </Link>
           </h3>
           {video.description && (
-            <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-white/75 text-pretty sm:text-base">{video.description}</p>
+            // Painel estreito (lg) em tela baixa: sem resumo, para o painel não passar da altura do vídeo
+            <p className="mt-3 hidden text-[15px] leading-relaxed text-pretty text-white/75 lg:line-clamp-3 lg:[@media(max-height:760px)]:line-clamp-2 lg:max-xl:[@media(max-height:800px)]:hidden">{video.description}</p>
           )}
-          {date && <p className="mt-3 text-xs font-medium text-white/65">Publicado em {date}</p>}
-          <span className="mt-6 inline-flex w-fit items-center gap-2.5 rounded-full bg-white px-5 py-3 text-sm font-black text-[#003f7f] shadow-[0_15px_30px_-15px_rgba(0,0,0,0.5)] transition-colors duration-300 group-hover:bg-[#ffd000]">
-            <FaPlay className="h-3 w-3" aria-hidden />
+          <span aria-hidden="true" className="mt-[clamp(1rem,3svh,1.75rem)] hidden w-fit items-center gap-2.5 rounded-full bg-white px-5 py-3 text-sm font-black text-[#003f7f] shadow-[0_15px_30px_-15px_rgba(0,0,0,0.5)] transition-colors duration-300 group-hover:bg-[#ffd000] lg:inline-flex">
+            <FaPlay className="h-3 w-3" />
             Assistir agora
           </span>
         </div>
       </article>
-    </Link>
+    </div>
   );
 }
 
-/** Vídeo secundário: miniatura com título sobreposto. No desktop, dois deles dividem a altura do destaque. */
-function VideoTile({ video }: { video: Video }) {
+/** Esqueleto do destaque (mesma caixa: 16:9 limitada pela tela; painel ao lado no lg). */
+function FeaturedSkeleton() {
+  const pulse = 'animate-pulse bg-white/10 motion-reduce:animate-none';
   return (
-    <Link
-      href={videoHref(video)}
-      className="group block h-full rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ffd000] focus-visible:ring-offset-4 focus-visible:ring-offset-[#003f7f]"
+    <div aria-hidden="true" className="mt-[clamp(0.875rem,2.4svh,1.75rem)] overflow-hidden rounded-[1.75rem] ring-1 ring-white/10 lg:flex">
+      <div className={`aspect-video max-h-(--tv-h) w-full shrink-0 lg:max-h-none lg:w-[min(64%,calc(var(--tv-h)*16/9))] ${pulse}`} />
+      <div className="hidden flex-1 flex-col justify-center gap-3 p-10 lg:flex">
+        <div className={`h-5 w-40 rounded-full ${pulse}`} />
+        <div className={`h-7 w-11/12 rounded-full ${pulse}`} />
+        <div className={`h-7 w-2/3 rounded-full ${pulse}`} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Vídeo da lista: escolhe o destaque (o vídeo atual fica marcado). O marcado tem fundo mais escuro que o azul da seção,
+ * não mais claro: sobre o branco translúcido o "Em destaque" amarelo de 10px e a data ficavam abaixo de 4,5:1.
+ */
+function VideoChip({ video, active, onSelect }: { video: Video; active: boolean; onSelect: (video: Video) => void }) {
+  const date = formatDateBR(video.date);
+
+  return (
+    <article
+      data-card
+      className={`group relative flex h-full items-center gap-3 rounded-2xl p-2 pr-3 ring-1 transition-[background-color,box-shadow,translate] duration-300 hover:-translate-y-0.5 has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#ffd000] motion-reduce:hover:translate-y-0 ${active ? 'bg-[#001a3d]/45 ring-[#ffd000]/70' : 'bg-white/6 ring-white/12 hover:bg-white/10 hover:ring-white/30'}`}
     >
-      <article className="relative aspect-video h-full overflow-hidden rounded-2xl bg-[#003366] shadow-[0_20px_40px_-20px_rgba(0,0,0,0.6)] ring-1 ring-white/15 transition-all duration-300 group-hover:-translate-y-1 group-hover:ring-[#ffd000]/40 group-active:scale-[0.98] motion-reduce:group-hover:translate-y-0 lg:aspect-auto">
-        <VideoThumb video={video} sizes="(min-width: 1024px) 25rem, (min-width: 640px) 50vw, 100vw" />
-        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/30 to-black/5" />
-        <span className="absolute left-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#ffd000] text-[#003f7f] shadow-[0_0_0_5px_rgba(255,208,0,0.22)] transition-transform duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100">
-          <FaPlay className="ml-0.5 h-3.5 w-3.5" aria-hidden />
+      <div data-card-media className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-xl bg-[#003366] sm:w-32 lg:w-[clamp(8rem,13svh,10rem)]">
+        <VideoThumb video={video} sizes="10rem" />
+        <span className={`absolute inset-0 grid place-items-center transition-colors duration-300 ${active ? 'bg-[#001a3d]/55' : 'bg-black/10 group-hover:bg-black/30'}`}>
+          {active ? (
+            // "No ar": barrinhas de equalizador no vídeo em destaque
+            <span aria-hidden="true" className="flex h-4 items-end gap-0.5">
+              <span className="h-full w-1 rounded-full bg-[#ffd000]" />
+              <span className="h-2/3 w-1 rounded-full bg-[#ffd000]" />
+              <span className="h-5/6 w-1 rounded-full bg-[#ffd000]" />
+            </span>
+          ) : (
+            <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-full bg-[#ffd000] text-[#003f7f] transition-[scale] duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100">
+              <FaPlay className="ml-0.5 h-2.5 w-2.5" />
+            </span>
+          )}
         </span>
         {video.duration && (
-          <span className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-0.5 text-[11px] font-bold text-white">
+          <span className="absolute right-1 bottom-1 rounded-md bg-black/75 px-1.5 py-px text-[10px] font-bold text-white tabular-nums">
             <span className="sr-only">Duração:</span> {video.duration}
           </span>
         )}
-        <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-          {video.category && (
-            <span className="text-[11px] font-black uppercase tracking-widest text-[#ffd000]">{video.category}</span>
-          )}
-          <h3 className="mt-1 line-clamp-2 text-base font-black leading-snug tracking-tight text-white transition-colors duration-300 group-hover:text-[#ffd000]">
-            {video.title}
-          </h3>
-        </div>
-      </article>
-    </Link>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[10px] font-black tracking-[0.14em] text-[#ffd000] uppercase">{active ? 'Em destaque' : video.category || 'TV Lojista'}</p>
+        <h3 className="mt-0.5 text-sm leading-snug font-bold text-white">
+          {/* Botão "esticado": o ::after cobre o cartão inteiro */}
+          <button
+            type="button"
+            aria-pressed={active}
+            // Foca no clique (o arraste do carrossel impede o foco no mousedown)
+            onClick={(e) => {
+              e.currentTarget.focus({ preventScroll: true });
+              onSelect(video);
+            }}
+            className="block w-full cursor-pointer text-left after:absolute after:inset-0 after:z-10 after:rounded-2xl after:content-[''] focus-visible:shadow-none! focus-visible:outline-none!"
+          >
+            <span className="sr-only">Mostrar em destaque: </span>
+            <span className="line-clamp-2">{video.title}</span>
+          </button>
+        </h3>
+        {date && <p className="mt-1 text-[11px] font-medium text-white/90 tabular-nums">{date}</p>}
+      </div>
+    </article>
+  );
+}
+
+function ChipSkeleton() {
+  const pulse = 'animate-pulse bg-white/10 motion-reduce:animate-none';
+  return (
+    <div className="flex h-full items-center gap-3 rounded-2xl p-2 ring-1 ring-white/10">
+      <div className={`aspect-video w-28 shrink-0 rounded-xl sm:w-32 lg:w-[clamp(8rem,13svh,10rem)] ${pulse}`} />
+      <div className="flex-1 space-y-2">
+        <div className={`h-2.5 w-16 rounded-full ${pulse}`} />
+        <div className={`h-3.5 w-11/12 rounded-full ${pulse}`} />
+        <div className={`h-3.5 w-2/3 rounded-full ${pulse}`} />
+      </div>
+    </div>
   );
 }
 
 const TVLojista = () => {
   const [videos, setVideos] = React.useState<Video[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [activeId, setActiveId] = React.useState<number | null>(null);
+  const [previous, setPrevious] = React.useState<Video | null>(null);
+  const root = React.useRef<HTMLElement>(null);
+  const swapped = React.useRef(false);
+
+  useReveal(root, [isLoading, videos.length]);
+  useCardsMotion(root, [isLoading, videos.length]);
+
+  const featured = videos.find((v) => v.id === activeId) ?? videos[0];
+
+  useGSAP(
+    () => {
+      const el = root.current;
+      if (!el) return;
+      const mm = gsap.matchMedia();
+      mm.add({ motion: MOTION_OK, small: '(max-width: 767px)' }, (ctx) => {
+        if (!ctx.conditions?.motion) return;
+        const q = gsap.utils.selector(el);
+        // fim: seção inteira na tela, com o topo logo abaixo da barra compacta do header
+        const bar = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bar-compact')) || 0;
+
+        // "Modo cinema": o destaque entra menor e chega à escala 1 enquanto a faixa escurece ("luzes baixando"),
+        // acompanhando a rolagem para frente e para trás
+        const cinema = q('[data-cinema]')[0]?.firstElementChild;
+        if (cinema) {
+          gsap
+            .timeline({
+              defaults: { ease: 'none' },
+              scrollTrigger: { trigger: el, start: 'top bottom', end: () => `top ${bar()}`, scrub: true, invalidateOnRefresh: true },
+            })
+            .fromTo(cinema, { scale: ctx.conditions.small ? 0.92 : 0.86 }, { scale: 1 }, 0)
+            .fromTo(q('[data-dim]'), { opacity: 0 }, { opacity: 1 }, 0);
+        }
+
+        // Pulso discreto no play, só enquanto a seção está na tela
+        const pulses = q('[data-pulse]');
+        if (pulses.length) {
+          gsap.fromTo(
+            pulses,
+            { scale: 1, opacity: 0.7 },
+            {
+              scale: 1.8,
+              opacity: 0,
+              duration: 1.6,
+              ease: EASE.soft,
+              repeat: -1,
+              repeatDelay: 0.8,
+              scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', toggleActions: 'play pause resume pause' },
+            },
+          );
+        }
+      });
+      return () => mm.revert();
+    },
+    { scope: root, dependencies: [isLoading, videos.length], revertOnUpdate: true },
+  );
+
+  // Troca do destaque escolhida na lista: a imagem nova é revelada da direita sobre a anterior (com leve zoom) e o
+  // texto sobe em cascata. Na carga inicial não roda (a entrada é a do modo cinema).
+  useGSAP(
+    () => {
+      if (!swapped.current) return;
+      swapped.current = false;
+      const q = gsap.utils.selector(root);
+      const mm = gsap.matchMedia();
+      mm.add(MOTION_OK, () => {
+        gsap
+          .timeline()
+          .fromTo(q('[data-feature-media]'), { clipPath: 'inset(0% 0% 0% 100%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.9, ease: EASE.expo, clearProps: 'clipPath' }, 0)
+          .fromTo(q('[data-feature-media] img'), { scale: 1.08 }, { scale: 1, duration: 1.2, ease: EASE.expo, clearProps: 'transform' }, 0)
+          .fromTo(q('[data-feature-text] > *'), { y: 18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: EASE.enter, stagger: 0.06, clearProps: 'transform,opacity' }, 0.12);
+      });
+      return () => mm.revert();
+    },
+    // revertOnUpdate: uma troca no meio da anterior desfaz a anterior antes (sem duas animações no mesmo elemento)
+    { scope: root, dependencies: [featured?.id], revertOnUpdate: true },
+  );
 
   React.useEffect(() => {
     const fetchVideos = async () => {
       try {
-        const response = await fetch('/api/videos?limit=3');
+        const response = await fetch('/api/videos?limit=8');
         setVideos(response.ok ? await response.json() : []);
       } catch (error) {
         console.error('Erro ao carregar vídeos:', error);
@@ -196,86 +307,86 @@ const TVLojista = () => {
   // Sem vídeos, a seção some em vez de mostrar um bloco vazio
   if (!isLoading && videos.length === 0) return null;
 
-  const [featured, ...others] = videos;
+  const solo = !isLoading && videos.length === 1;
+
+  const select = (video: Video) => {
+    if (!featured || video.id === featured.id) return;
+    swapped.current = true;
+    setPrevious(featured);
+    setActiveId(video.id);
+  };
 
   return (
-    <section aria-labelledby="tv-lojista-titulo" className="relative overflow-hidden bg-[#003f7f] py-16 sm:py-20 lg:py-24">
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-linear-to-br from-[#003f7f] via-[#0052a3] to-[#003366]" />
-        <div className="absolute right-0 top-0 h-[500px] w-[500px] -translate-y-1/2 translate-x-1/4 rounded-full bg-[#ffd000]/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-[400px] w-[400px] -translate-x-1/4 translate-y-1/2 rounded-full bg-[#00a859]/10 blur-3xl" />
+    // Bloco azul da marca (borda reta entre as seções), uma tela útil (--screen-fit) com o conteúdo centrado; celular
+    // deitado cresce naturalmente. --tv-h: altura máxima do destaque = o que sobra da tela depois dos respiros, do
+    // cabeçalho, da lista e dos controles (sem lista, sobra mais).
+    <section
+      ref={root}
+      aria-labelledby="tv-lojista-titulo"
+      aria-busy={isLoading || undefined}
+      className={`relative flex flex-col justify-center overflow-hidden bg-[#003f7f] py-(--scene-blend) [@media(min-height:560px)]:min-h-(--screen-fit) ${
+        solo
+          ? '[--tv-h:max(10rem,calc(var(--screen-fit)-2*var(--scene-blend)-12.5rem))] md:[--tv-h:max(14rem,calc(var(--screen-fit)-2*var(--scene-blend)-15rem))] lg:[--tv-h:max(14rem,calc(var(--screen-fit)-2*var(--scene-blend)-10rem))]'
+          : '[--tv-h:max(10rem,calc(var(--screen-fit)-2*var(--scene-blend)-16rem))] md:[--tv-h:max(12rem,calc(var(--screen-fit)-2*var(--scene-blend)-17.5rem))] lg:[--tv-h:max(12rem,calc(var(--screen-fit)-2*var(--scene-blend)-18.25rem))]'
+      }`}
+    >
+      {/* Brilhos da faixa: gradientes radiais em vez de filter: blur (área grande sob o header de vidro) */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(34rem_30rem_at_92%_0%,rgba(255,208,0,0.12),transparent_70%),radial-gradient(30rem_26rem_at_0%_100%,rgba(0,168,89,0.12),transparent_70%),linear-gradient(135deg,#003f7f,#0052a3_50%,#003366)]" />
+        {/* Escurece com o modo cinema (opacidade animada pela rolagem) */}
+        <div data-dim className="absolute inset-0 bg-linear-to-b from-[#001a3d]/35 via-[#001a3d]/55 to-[#001a3d]/35 opacity-0" />
       </div>
 
-      <div className="container relative z-10 mx-auto px-4">
-        <div className="mb-10 flex flex-col gap-6 sm:mb-14 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-2xl">
-            <span className="mb-5 inline-flex items-center gap-2 rounded-full bg-[#ffd000] px-4 py-2 text-xs font-black uppercase tracking-widest text-[#003f7f] shadow-[0_10px_25px_-10px_rgba(255,208,0,0.6)]">
-              <FaVideo className="h-3.5 w-3.5" aria-hidden />
-              Canal CDL Ipirá
-            </span>
-            <h2 id="tv-lojista-titulo" className="text-4xl font-black leading-[1.05] tracking-tight text-white text-balance sm:text-5xl md:text-6xl">
-              TV Lojista
-            </h2>
-            <div className="mt-5 h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] ring-1 ring-white/25" />
-            <p className="mt-5 max-w-xl text-base leading-relaxed text-white/80 text-pretty sm:text-lg">
-              Acompanhe entrevistas, dicas e conteúdos exclusivos para impulsionar o seu negócio.
-            </p>
-          </div>
-
-          <Link
-            href="/imprensa/tv-lojista"
-            className="group inline-flex w-fit shrink-0 items-center gap-3 rounded-full bg-[#ffd000] px-6 py-3.5 text-sm font-black text-[#003f7f] shadow-[0_15px_35px_-12px_rgba(255,208,0,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#ffed4e] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70 motion-reduce:hover:translate-y-0 sm:text-base"
-          >
-            Ver todos os vídeos
-            <FaArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0" aria-hidden />
-          </Link>
-        </div>
-
-        {isLoading ? (
-          <div role="status" className="grid gap-6 lg:grid-cols-3 lg:gap-8">
-            <span className="sr-only">Carregando vídeos…</span>
-            <div aria-hidden className="aspect-video animate-pulse rounded-3xl bg-white/10 ring-1 ring-white/10 motion-reduce:animate-none lg:col-span-2" />
-            <div aria-hidden className="hidden animate-pulse rounded-3xl bg-white/10 ring-1 ring-white/10 motion-reduce:animate-none lg:block" />
-          </div>
-        ) : others.length === 0 ? (
-          <SingleVideo video={featured} />
-        ) : (
-          // Destaque + dois blocos empilhados que somam a altura dele; com 2 vídeos, o segundo bloco leva ao canal
-          <div className="grid gap-6 lg:grid-cols-3 lg:gap-8">
-            <div className="lg:col-span-2">
-              <FeaturedVideo video={featured} />
-            </div>
-            <ul className="grid gap-6 sm:grid-cols-2 lg:h-0 lg:min-h-full lg:grid-cols-1 lg:grid-rows-2">
-              {others.map((video) => (
-                <li key={video.id}>
-                  <VideoTile video={video} />
-                </li>
-              ))}
-              {others.length === 1 && (
-                <li>
-                  <Link
-                    href="/imprensa/tv-lojista"
-                    className="group flex h-full min-h-44 flex-col justify-between gap-5 rounded-2xl bg-white/5 p-5 ring-1 ring-white/15 transition-all duration-300 hover:bg-white/10 hover:ring-[#ffd000]/40 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ffd000] sm:p-6 lg:min-h-0 lg:gap-3"
-                  >
-                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ffd000] text-[#003f7f]">
-                      <FaVideo className="h-4 w-4" aria-hidden />
-                    </span>
-                    <span>
-                      <span className="block text-lg font-black tracking-tight text-white">Mais conteúdos no canal</span>
-                      <span className="mt-1 block text-sm leading-relaxed text-white/70 lg:hidden xl:block">
-                        Entrevistas, dicas e capacitações para o seu negócio.
-                      </span>
-                    </span>
-                    <span className="inline-flex items-center gap-2 text-sm font-bold text-[#ffd000]">
-                      Ver todos os vídeos
-                      <FaArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0" aria-hidden />
-                    </span>
-                  </Link>
-                </li>
+      <div className="relative container mx-auto w-full px-4">
+        <SectionCarousel
+          label="Vídeos da TV Lojista"
+          itemName="vídeo"
+          tone="dark"
+          action={{ href: '/imprensa/tv-lojista', label: 'Ver todos' }}
+          prevLabel="Vídeos anteriores"
+          nextLabel="Próximos vídeos"
+          loading={isLoading}
+          skeleton={<ChipSkeleton />}
+          perView={STRIP_PER_VIEW}
+          header={({ controls, action }) => (
+            // Cabeçalho próprio: o destaque fica entre o título e a lista. Controles: no md+ na coluna à direita do
+            // título (embaixo da ação); no celular numa linha "Mais vídeos" logo acima da lista.
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-6">
+              <div className="col-start-1 row-start-1 min-w-0">
+                <SectionHeading
+                  id="tv-lojista-titulo"
+                  tone="dark"
+                  eyebrow={
+                    <>
+                      <FaVideo aria-hidden="true" />
+                      Vídeos para o comércio
+                    </>
+                  }
+                  eyebrowClass="bg-[#ffd000] text-[#003f7f]"
+                  title="TV Lojista"
+                  // Os vídeos são de terceiros: "da CDL" e "parceiros" só voltam com vídeo próprio e convênio confirmado
+                  text="Dicas em vídeo para o lojista, selecionadas pela CDL Ipirá."
+                />
+              </div>
+              {action && <div className="relative z-10 col-start-2 row-start-1 self-start justify-self-end">{action}</div>}
+              <div className="col-span-2 row-start-2">
+                {featured ? <FeaturedVideo video={featured} previous={previous} solo={solo} /> : <FeaturedSkeleton />}
+              </div>
+              {controls && (
+                // Celulares estreitos (< 380px): só os controles, senão o rótulo e o contador quebram linha
+                <div className="col-span-2 row-start-3 mt-3 flex items-center justify-end gap-4 min-[380px]:justify-between md:col-span-1 md:col-start-2 md:row-start-1 md:mt-0 md:self-end">
+                  <p aria-hidden="true" className="hidden text-[11px] font-bold tracking-[0.14em] whitespace-nowrap text-white/85 uppercase min-[380px]:block md:hidden">
+                    Mais vídeos
+                  </p>
+                  {controls}
+                </div>
               )}
-            </ul>
-          </div>
-        )}
+            </div>
+          )}
+        >
+          {/* Um vídeo só: o destaque basta (sem lista) */}
+          {!solo && videos.map((video) => <VideoChip key={video.id} video={video} active={video.id === featured?.id} onSelect={select} />)}
+        </SectionCarousel>
       </div>
     </section>
   );

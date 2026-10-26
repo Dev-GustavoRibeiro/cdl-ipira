@@ -7,7 +7,7 @@ const CTASection = () => (
   <CtaBand
     title="Faça Parte Desta"
     highlight="História de Sucesso"
-    description="Junte-se a mais de 100 empresários que confiam na CDL Ipirá para impulsionar seus negócios."
+    description="Junte-se às empresas que já fazem parte da CDL Ipirá."
     className="pt-4 pb-16 sm:pb-20 lg:pb-24"
   />
 );

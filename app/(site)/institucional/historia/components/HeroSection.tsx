@@ -16,8 +16,7 @@ const HeroSection = () => {
           Uma História de <HeroHighlight dark>Sucesso</HeroHighlight>
         </>
       }
-      description="Mais de três décadas dedicadas ao fortalecimento do comércio de Ipirá e ao sucesso de cada associado."
-      overlapBottom
+      description="Uma entidade dedicada ao fortalecimento do comércio de Ipirá e ao apoio a cada empresa associada."
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
         <Link href="/institucional/diretoria" className={btnYellow}>

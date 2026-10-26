@@ -1,12 +1,16 @@
-import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo';
+
+const PATH = '/pesquisa';
 
 // A página é client component; o metadata da rota fica neste layout de servidor
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Pesquisa',
-  description: 'Pesquise notícias, eventos, vagas, vídeos e páginas do site da CDL Ipirá.',
+  description:
+    'Pesquise notícias, eventos, campanhas, vagas de emprego, vídeos e páginas no site da CDL Ipirá, a Câmara de Dirigentes Lojistas de Ipirá-BA.',
+  path: PATH,
   // Resultados de busca interna não devem ser indexados
-  robots: { index: false, follow: true },
-};
+  noindex: true,
+});
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;

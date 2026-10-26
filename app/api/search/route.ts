@@ -70,7 +70,7 @@ const staticPages = [
   {
     type: 'page',
     title: 'Orientação Jurídica',
-    description: 'Assessoria jurídica gratuita para associados CDL em questões trabalhistas e empresariais.',
+    description: 'Orientação jurídica gratuita para associados em dia.',
     url: '/beneficios/orientacao-juridica',
     keywords: ['jurídica', 'advogado', 'orientação', 'trabalhista', 'empresarial', 'assessoria']
   },
@@ -119,7 +119,7 @@ const staticPages = [
   {
     type: 'page',
     title: 'Revista CDL',
-    description: 'Leia as edições da Revista CDL Ipirá com conteúdo exclusivo para lojistas.',
+    description: 'Edições da Revista CDL Ipirá.',
     url: '/imprensa/revista-cdl',
     keywords: ['revista', 'publicação', 'edição', 'leitura', 'matérias']
   },
@@ -133,7 +133,7 @@ const staticPages = [
   {
     type: 'page',
     title: 'Filie-se à CDL',
-    description: 'Associe-se à CDL Ipirá e aproveite todos os benefícios exclusivos para lojistas.',
+    description: 'Associe-se à CDL Ipirá e conheça os serviços para empresas associadas.',
     url: 'https://app.higestor.com.br/inscricao/empresa/cdl-ipira',
     keywords: ['filiação', 'associação', 'cadastro', 'membro', 'associado', 'inscrição']
   }
@@ -207,12 +207,13 @@ export async function GET(request: NextRequest) {
   const filterTerm = searchTerm.replace(/[,()"'%*\\]/g, ' ').trim();
   
   try {
-    // Buscar em paralelo em todas as fontes
+    // Buscar em paralelo em todas as fontes, só com as colunas que a busca usa (sem o texto inteiro das notícias:
+    // a busca nelas olha título e resumo)
     const [newsResult, eventsResult, jobsResult, videosResult, campaignsResult] = await Promise.all([
       // Buscar notícias
       supabase
         .from('news')
-        .select('id, title, content, excerpt, image, date, category, author')
+        .select('id, title, excerpt, image, date, category')
         .eq('is_published', true)
         .order('date', { ascending: false })
         .limit(50),
@@ -270,8 +271,7 @@ export async function GET(request: NextRequest) {
       for (const news of newsResult.data) {
         const relevance = calculateRelevance({
           title: news.title,
-          description: news.excerpt,
-          content: news.content
+          description: news.excerpt
         }, searchTerm);
         
         if (relevance > 0) {
@@ -279,7 +279,7 @@ export async function GET(request: NextRequest) {
             type: 'noticia',
             id: news.id,
             title: news.title,
-            description: news.excerpt || news.content?.substring(0, 200) || '',
+            description: news.excerpt || '',
             url: `/imprensa/noticias/${news.id}`,
             image: news.image,
             date: news.date,

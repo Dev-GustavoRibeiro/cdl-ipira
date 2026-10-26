@@ -99,7 +99,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao salvar currículo.' }, { status: 500 });
     }
 
-    await auditServer.create('resumes', data.id.toString(), payload.candidate_name, { job_id: payload.job_id }, request);
+    // Sem o nome do candidato no log: se ele pedir a exclusão, o nome não pode ficar na auditoria
+    await auditServer.create('resumes', data.id.toString(), `Currículo #${data.id}`, { job_id: payload.job_id }, request);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('Erro ao criar currículo:', error);
@@ -120,12 +121,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID do currículo é obrigatório.' }, { status: 400 });
     }
 
-    const { data: existing } = await supabaseAdmin
-      .from('resumes')
-      .select('candidate_name')
-      .eq('id', id)
-      .single();
-
     const { error } = await supabaseAdmin
       .from('resumes')
       .delete()
@@ -136,7 +131,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao excluir currículo.' }, { status: 500 });
     }
 
-    await auditServer.delete('resumes', id.toString(), existing?.candidate_name || 'Currículo', {}, request);
+    await auditServer.delete('resumes', id.toString(), `Currículo #${id}`, {}, request);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Erro ao excluir currículo:', error);

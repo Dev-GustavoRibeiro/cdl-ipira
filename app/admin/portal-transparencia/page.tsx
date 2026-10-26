@@ -1,776 +1,529 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { FaPlus, FaEdit, FaTrash, FaDownload, FaSearch, FaSpinner, FaSave, FaEye, FaEyeSlash, FaFilePdf, FaFileWord, FaFileExcel, FaFile, FaUpload, FaLink, FaCloudUploadAlt, FaTimes } from 'react-icons/fa';
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import type { IconType } from 'react-icons';
+import {
+  FaCloudUploadAlt, FaEdit, FaExclamationTriangle, FaExternalLinkAlt, FaEye, FaEyeSlash, FaFile, FaFileAlt, FaFileExcel,
+  FaFilePdf, FaFileWord, FaLink, FaPlus, FaRedo, FaSearch, FaTimes, FaTrash,
+} from 'react-icons/fa';
+import { toast } from 'sonner';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { toast } from 'sonner';
 import { fetchWithCSRF } from '@/lib/csrf-client';
 import { formatDateBR, todayISO } from '@/lib/date';
+import {
+  AdminCard, AdminPageHeader, Button, Checkbox, DataTable, EmptyState, FilterPills, FormField, IconButton, Input, SearchInput,
+  Select, StatusBadge, Textarea, buttonClass, cx, focusRing, type DataTableColumn,
+} from '../_components';
 
 interface Documento {
   id: number;
   title: string;
-  description?: string;
+  description?: string | null;
   type: string;
-  category?: string;
+  category?: string | null;
   date: string;
   file_url: string;
   is_active: boolean;
 }
 
-const categorias = [
+interface FormState {
+  id?: number;
+  title: string;
+  description: string;
+  type: string;
+  category: string;
+  date: string;
+  file_url: string;
+  is_active: boolean;
+}
+
+const CATEGORIAS = [
   'Prestação de Contas',
   'Relatórios Anuais',
   'Demonstrativos Financeiros',
   'Estatuto e Regimento',
   'Atas de Reunião',
-  'Outros'
+  'Outros',
 ];
 
-const tiposArquivo = [
-  { value: 'PDF', label: 'PDF', icon: FaFilePdf, color: 'text-red-500', extensions: ['.pdf'] },
-  { value: 'DOC', label: 'Word', icon: FaFileWord, color: 'text-blue-500', extensions: ['.doc', '.docx'] },
-  { value: 'XLS', label: 'Excel', icon: FaFileExcel, color: 'text-green-500', extensions: ['.xls', '.xlsx'] },
-  { value: 'Outro', label: 'Outro', icon: FaFile, color: 'text-gray-500', extensions: [] },
-];
+// Mesmos ícones e cores do site (DocumentsSection)
+const TIPOS: Record<string, { label: string; icon: IconType; tile: string; extensions: string[] }> = {
+  PDF: { label: 'PDF', icon: FaFilePdf, tile: 'bg-[#003f7f]/[0.07] text-[#003f7f]', extensions: ['pdf'] },
+  DOC: { label: 'Word', icon: FaFileWord, tile: 'bg-[#0066cc]/10 text-[#0066cc]', extensions: ['doc', 'docx'] },
+  XLS: { label: 'Excel', icon: FaFileExcel, tile: 'bg-[#00a859]/10 text-[#00703c]', extensions: ['xls', 'xlsx'] },
+  Outro: { label: 'Outro', icon: FaFile, tile: 'bg-gray-100 text-gray-500', extensions: [] },
+};
+
+const tipoOf = (type: string) => TIPOS[type] ?? TIPOS.Outro;
+const detectType = (filename: string) => {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  return Object.keys(TIPOS).find((t) => TIPOS[t].extensions.includes(ext)) ?? 'Outro';
+};
+
+const NO_CATEGORY = '__none__';
+const MAX_MB = 50;
+
+/** fetch + JSON; erro com a mensagem da API */
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await (init ? fetchWithCSRF(url, init) : fetch(url));
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.details?.join(' ') || data?.error || 'Não foi possível concluir a operação.');
+  return data as T;
+}
+
+const jsonInit = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Não foi possível concluir a operação.');
+const isLink = (value: string) => /^https?:\/\/\S+$/i.test(value) || (value.startsWith('/') && !value.startsWith('//'));
+const formatSize = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`);
+
+const toPayload = (d: Documento | FormState) => ({
+  title: d.title,
+  description: d.description ?? '',
+  type: d.type || 'PDF',
+  category: d.category ?? '',
+  date: d.date?.slice(0, 10),
+  file_url: d.file_url,
+  is_active: d.is_active,
+});
 
 export default function AdminPortalTransparenciaPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [documentos, setDocumentos] = useState<Documento[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentDocumento, setCurrentDocumento] = useState<Partial<Documento>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [version, setVersion] = useState(0);
+  const [list, setList] = useState<{ v: number; rows: Documento[]; error?: string }>({ v: -1, rows: [] });
+  const [category, setCategory] = useState('all');
+  const [search, setSearch] = useState('');
+
+  const [form, setForm] = useState<FormState | null>(null);
+  const [fileMode, setFileMode] = useState<'upload' | 'link'>('upload');
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-
-  // Estados para upload de arquivo
-  const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Dialog states para alertas personalizados
-  const [deleteDialog, setDeleteDialog] = useState<{isOpen: boolean, id: number | null, title: string}>({
-    isOpen: false,
-    id: null,
-    title: ''
-  });
+  const [toDelete, setToDelete] = useState<Documento | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [successDialog, setSuccessDialog] = useState<{isOpen: boolean, message: string, type: 'success' | 'edit' | 'delete'}>({
-    isOpen: false,
-    message: '',
-    type: 'success'
-  });
-
-  const fetchDocumentos = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/admin/transparency-documents');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao carregar documentos');
-      setDocumentos(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar documentos:', error);
-      toast.error('Erro ao carregar documentos');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const fileInputId = useId();
 
   useEffect(() => {
-    fetchDocumentos();
-  }, []);
+    let active = true;
+    api<Documento[]>('/api/admin/transparency-documents').then(
+      (rows) => active && setList({ v: version, rows: rows || [] }),
+      (error) => active && setList((prev) => ({ v: version, rows: prev.rows, error: errorMessage(error) }))
+    );
+    return () => {
+      active = false;
+    };
+  }, [version]);
 
-  // Detectar tipo de arquivo pela extensão
-  const detectFileType = (filename: string): string => {
-    const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
-    for (const tipo of tiposArquivo) {
-      if (tipo.extensions.includes(ext)) {
-        return tipo.value;
-      }
-    }
-    return 'Outro';
+  const reload = () => setVersion((v) => v + 1);
+  const isLoading = list.v === -1;
+  const rows = list.rows;
+
+  const categoryOptions = useMemo(() => {
+    const count = (c: string) => rows.filter((r) => (c === NO_CATEGORY ? !r.category : r.category === c)).length;
+    const extra = [...new Set(rows.map((r) => r.category).filter((c): c is string => !!c && !CATEGORIAS.includes(c)))];
+    const opts = [...CATEGORIAS, ...extra].map((c) => ({ value: c, label: c, count: count(c) })).filter((o) => o.count > 0);
+    const none = count(NO_CATEGORY);
+    return [{ value: 'all', label: 'Todas', count: rows.length }, ...opts, ...(none ? [{ value: NO_CATEGORY, label: 'Sem categoria', count: none }] : [])];
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter(
+      (r) =>
+        (category === 'all' || (category === NO_CATEGORY ? !r.category : r.category === category)) &&
+        (!q || [r.title, r.description, r.category].some((v) => v?.toLowerCase().includes(q)))
+    );
+  }, [rows, category, search]);
+
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => (f ? { ...f, [key]: value } : f));
+
+  const openForm = (doc?: Documento) => {
+    setForm(
+      doc
+        ? {
+            id: doc.id,
+            title: doc.title,
+            description: doc.description ?? '',
+            type: doc.type || 'PDF',
+            category: doc.category ?? '',
+            date: doc.date?.slice(0, 10) ?? todayISO(),
+            file_url: doc.file_url,
+            is_active: doc.is_active,
+          }
+        : { title: '', description: '', type: 'PDF', category: '', date: todayISO(), file_url: '', is_active: true }
+    );
+    setFileMode('upload');
+    setFile(null);
+    setFileError(null);
   };
 
-  // Handler para seleção de arquivo
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Verificar tamanho (max 50MB)
-      if (file.size > 50 * 1024 * 1024) {
-        toast.error('Arquivo muito grande. Máximo permitido: 50MB');
-        return;
-      }
-      
-      setSelectedFile(file);
-      
-      // Auto-detectar tipo
-      const detectedType = detectFileType(file.name);
-      setCurrentDocumento(prev => ({ ...prev, type: detectedType }));
-      
-      // Sugerir título se estiver vazio
-      if (!currentDocumento.title) {
-        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-        setCurrentDocumento(prev => ({ ...prev, title: nameWithoutExt }));
-      }
+  const pickFile = (picked: File | undefined) => {
+    if (!picked) return;
+    if (picked.size > MAX_MB * 1024 * 1024) {
+      setFileError(`Arquivo muito grande. Máximo: ${MAX_MB} MB.`);
+      return;
     }
-  };
-
-  // Upload do arquivo para o Supabase Storage
-  const uploadFile = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('bucket', 'transparency-documents');
-    formData.append('folder', 'documents');
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const response = await fetchWithCSRF('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-
-      if (!response.ok || !data.url) {
-        throw new Error(data.error || 'Erro no upload');
-      }
-
-      setUploadProgress(100);
-      return data.url;
-    } finally {
-      setIsUploading(false);
-    }
+    setFile(picked);
+    setFileError(null);
+    setForm((f) => (f ? { ...f, type: detectType(picked.name), title: f.title || picked.name.replace(/\.[^/.]+$/, '') } : f));
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form) return;
+
+    // Arquivo: novo upload, link informado ou o arquivo atual (edição)
+    if (fileMode === 'upload' && !file && !form.file_url) {
+      setFileError('Escolha o arquivo do documento.');
+      return;
+    }
+    if (fileMode === 'link' && !isLink(form.file_url.trim())) {
+      setFileError('Informe um link começando com https:// (ou um caminho do site, como /documentos/ata.pdf).');
+      return;
+    }
+
     setIsSaving(true);
-
     try {
-      let fileUrl = currentDocumento.file_url;
-
-      // Se tem arquivo selecionado, fazer upload
-      if (uploadMode === 'file' && selectedFile) {
-        fileUrl = await uploadFile(selectedFile);
+      let fileUrl = form.file_url.trim();
+      if (fileMode === 'upload' && file) {
+        const body = new FormData();
+        body.append('file', file);
+        body.append('bucket', 'transparency-documents');
+        body.append('folder', 'documents');
+        const uploaded = await api<{ url?: string }>('/api/upload', { method: 'POST', body });
+        if (!uploaded.url) throw new Error('O envio do arquivo não retornou o endereço.');
+        fileUrl = uploaded.url;
       }
-
-      if (!fileUrl) {
-        toast.error('Por favor, selecione um arquivo ou informe uma URL');
-        setIsSaving(false);
-        return;
-      }
-
-      const docData = {
-        title: currentDocumento.title,
-        description: currentDocumento.description || null,
-        type: currentDocumento.type || 'PDF',
-        category: currentDocumento.category || null,
-        date: currentDocumento.date,
-        file_url: fileUrl,
-        is_active: currentDocumento.is_active !== false,
-      };
-
-      let response: Response;
-      if (isEditing && currentDocumento.id) {
-        response = await fetchWithCSRF('/api/admin/transparency-documents', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: currentDocumento.id, ...docData }),
-        });
-      } else {
-        response = await fetchWithCSRF('/api/admin/transparency-documents', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(docData),
-        });
-      }
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao salvar documento');
-      
-      const wasEditing = isEditing;
-      await fetchDocumentos();
-      closeModal();
-      
-      setSuccessDialog({
-        isOpen: true,
-        message: wasEditing 
-          ? 'O documento foi atualizado com sucesso!' 
-          : 'O novo documento foi cadastrado com sucesso!',
-        type: wasEditing ? 'edit' : 'success'
-      });
+      const payload = toPayload({ ...form, file_url: fileUrl });
+      await api('/api/admin/transparency-documents', jsonInit(form.id ? 'PUT' : 'POST', form.id ? { id: form.id, ...payload } : payload));
+      toast.success(form.id ? 'Documento atualizado.' : 'Documento cadastrado.');
+      setForm(null);
+      reload();
     } catch (error) {
-      console.error('Erro ao salvar documento:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao salvar documento.');
+      toast.error(errorMessage(error));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const openDeleteDialog = (doc: Documento) => {
-    setDeleteDialog({
-      isOpen: true,
-      id: doc.id,
-      title: doc.title
-    });
+  const toggleActive = async (doc: Documento) => {
+    setTogglingId(doc.id);
+    try {
+      await api('/api/admin/transparency-documents', jsonInit('PUT', { id: doc.id, ...toPayload({ ...doc, is_active: !doc.is_active }) }));
+      setList((l) => ({ ...l, rows: l.rows.map((r) => (r.id === doc.id ? { ...r, is_active: !doc.is_active } : r)) }));
+      toast.success(doc.is_active ? 'Documento ocultado do site.' : 'Documento visível no site.');
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const handleConfirmDelete = async () => {
-    if (!deleteDialog.id) return;
-    
+    if (!toDelete) return;
     setIsDeleting(true);
     try {
-      const response = await fetchWithCSRF(`/api/admin/transparency-documents?id=${deleteDialog.id}`, {
-        method: 'DELETE',
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao excluir documento');
-
-      setDocumentos(current => current.filter(d => d.id !== deleteDialog.id));
-      setDeleteDialog({ isOpen: false, id: null, title: '' });
-      
-      setSuccessDialog({
-        isOpen: true,
-        message: 'O documento foi excluído permanentemente do sistema.',
-        type: 'delete'
-      });
+      await api(`/api/admin/transparency-documents?id=${toDelete.id}`, { method: 'DELETE' });
+      setList((l) => ({ ...l, rows: l.rows.filter((r) => r.id !== toDelete.id) }));
+      toast.success('Documento excluído.');
+      setToDelete(null);
     } catch (error) {
-      console.error('Erro ao excluir documento:', error);
-      setDeleteDialog({ isOpen: false, id: null, title: '' });
-      toast.error('Erro ao excluir documento');
+      toast.error(errorMessage(error));
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleToggleActive = async (doc: Documento) => {
-    try {
-      const response = await fetchWithCSRF('/api/admin/transparency-documents', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: doc.id,
-          title: doc.title,
-          description: doc.description,
-          type: doc.type,
-          category: doc.category,
-          date: doc.date,
-          file_url: doc.file_url,
-          is_active: !doc.is_active,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao atualizar status');
-      
-      toast.success(doc.is_active ? 'Documento ocultado' : 'Documento ativado');
-      fetchDocumentos();
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status');
-    }
-  };
+  const columns: DataTableColumn<Documento>[] = [
+    {
+      key: 'doc',
+      header: 'Documento',
+      primary: true,
+      cell: (d) => {
+        const { icon: Icon, tile, label } = tipoOf(d.type);
+        return (
+          <div className="flex min-w-0 items-start gap-3">
+            <span className={cx('flex size-10 shrink-0 items-center justify-center rounded-xl', tile)}>
+              <Icon aria-hidden="true" className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900">{d.title}</p>
+              {d.description && <p className="mt-0.5 line-clamp-2 max-w-prose text-sm font-normal text-gray-500">{d.description}</p>}
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-normal text-gray-500 tabular-nums">
+                {d.category ? (
+                  <span className="rounded-full bg-[#003f7f]/[0.06] px-2 py-0.5 font-semibold text-[#003f7f] ring-1 ring-[#003f7f]/10 ring-inset">{d.category}</span>
+                ) : (
+                  <span>Sem categoria</span>
+                )}
+                <span>{label}</span>
+                <span>{formatDateBR(d.date) || '—'}</span>
+              </p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (d) => (d.is_active ? <StatusBadge variant="success">Visível</StatusBadge> : <StatusBadge variant="neutral">Oculto</StatusBadge>),
+    },
+  ];
 
-  const openModal = (doc?: Documento) => {
-    if (doc) {
-      setCurrentDocumento(doc);
-      setIsEditing(true);
-      setUploadMode('url'); // Em edição, mostra a URL existente
-    } else {
-      setCurrentDocumento({ 
-        date: todayISO(),
-        type: 'PDF',
-        is_active: true
-      });
-      setIsEditing(false);
-      setUploadMode('file'); // Em novo, começa com upload de arquivo
-    }
-    setSelectedFile(null);
-    setIsModalOpen(true);
-  };
+  const rowActions = (d: Documento) => (
+    <>
+      <a
+        href={d.file_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Abrir arquivo"
+        className={cx(
+          'relative inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-[#003f7f] pointer-fine:size-9',
+          focusRing
+        )}
+      >
+        <FaExternalLinkAlt aria-hidden="true" className="h-3.5 w-3.5" />
+        <span className="sr-only">Abrir {d.title} (nova aba)</span>
+      </a>
+      <IconButton
+        icon={d.is_active ? FaEyeSlash : FaEye}
+        label={d.is_active ? `Ocultar ${d.title} do site` : `Mostrar ${d.title} no site`}
+        onClick={() => toggleActive(d)}
+        disabled={togglingId === d.id}
+      />
+      <IconButton icon={FaEdit} label={`Editar ${d.title}`} onClick={() => openForm(d)} />
+      <IconButton icon={FaTrash} variant="danger" label={`Excluir ${d.title}`} onClick={() => setToDelete(d)} />
+    </>
+  );
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setCurrentDocumento({});
-    setIsEditing(false);
-    setSelectedFile(null);
-    setUploadMode('file');
-    setUploadProgress(0);
-  };
+  const hasFilters = category !== 'all' || search.trim() !== '';
 
-  const getFileIcon = (type: string) => {
-    const tipoConfig = tiposArquivo.find(t => t.value === type) || tiposArquivo[3];
-    const Icon = tipoConfig.icon;
-    return <Icon className={`w-5 h-5 ${tipoConfig.color}`} />;
-  };
+  const empty = list.error && rows.length === 0 ? (
+    <EmptyState
+      icon={FaExclamationTriangle}
+      title="Não foi possível carregar os documentos"
+      description={list.error}
+      action={<Button icon={FaRedo} onClick={reload}>Tentar novamente</Button>}
+    />
+  ) : hasFilters ? (
+    <EmptyState
+      icon={FaSearch}
+      title="Nenhum documento encontrado"
+      description="Tente outro termo de busca ou outra categoria."
+      action={
+        <Button variant="secondary" onClick={() => { setCategory('all'); setSearch(''); }}>
+          Limpar filtros
+        </Button>
+      }
+    />
+  ) : (
+    <EmptyState
+      icon={FaFileAlt}
+      title="Nenhum documento publicado"
+      description="Publique prestações de contas, atas e relatórios para os associados consultarem no site."
+      action={<Button icon={FaPlus} onClick={() => openForm()}>Novo documento</Button>}
+    />
+  );
 
-  const filteredDocumentos = documentos.filter(doc => {
-    const matchesSearch = doc.title?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || doc.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  // Formatar tamanho do arquivo
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
+  const currentTipo = form ? tipoOf(form.type) : TIPOS.Outro;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] mb-2">
-            Portal Transparência
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
-            Gerencie os documentos do Portal de Transparência
-          </p>
-        </div>
-        <button
-          onClick={() => openModal()}
-          className="inline-flex items-center gap-2 bg-[#003f7f] text-white px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 shadow-lg"
-        >
-          <FaPlus />
-          Novo Documento
-        </button>
-      </div>
-
-      {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-gray-500 text-xs font-bold uppercase mb-1">Total de Documentos</div>
-          <div className="text-2xl font-black text-gray-900">{documentos.length}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-[#00a859] text-xs font-bold uppercase mb-1">Documentos Ativos</div>
-          <div className="text-2xl font-black text-gray-900">{documentos.filter(d => d.is_active).length}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border-2 border-transparent">
-          <div className="text-[#b39200] text-xs font-bold uppercase mb-1">Ocultos</div>
-          <div className="text-2xl font-black text-gray-900">{documentos.filter(d => !d.is_active).length}</div>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
-            <input
-              type="text"
-              aria-label="Buscar documentos"
-              placeholder="Buscar documentos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-            />
-          </div>
-          <select
-            aria-label="Filtrar por categoria"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent bg-white"
-          >
-            <option value="all">Todas as categorias</option>
-            {categorias.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Tabela */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#003f7f] text-white">
-              <tr>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Documento</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold hidden md:table-cell">Categoria</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Data</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Status</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8">
-                    <div className="flex justify-center items-center gap-2 text-[#003f7f]">
-                      <FaSpinner className="animate-spin" />
-                      <span>Carregando documentos...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredDocumentos.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-gray-500">
-                    Nenhum documento encontrado.
-                  </td>
-                </tr>
-              ) : (
-                filteredDocumentos.map((doc) => (
-                  <tr key={doc.id} className={`hover:bg-gray-50 ${!doc.is_active ? 'opacity-60' : ''}`}>
-                    <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                          {getFileIcon(doc.type)}
-                        </div>
-                        <div>
-                          <div className="text-sm sm:text-base font-semibold text-gray-900">
-                            {doc.title}
-                          </div>
-                          {doc.description && (
-                            <div className="text-xs text-gray-500 line-clamp-1">
-                              {doc.description}
-                            </div>
-                          )}
-                          <span className="inline-block md:hidden bg-gray-100 px-2 py-0.5 rounded text-xs mt-1">
-                            {doc.category || 'Sem categoria'}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 sm:py-4 hidden md:table-cell">
-                      <span className="inline-block bg-[#003f7f]/10 text-[#003f7f] px-3 py-1 rounded-full text-xs font-bold">
-                        {doc.category || 'Sem categoria'}
-                      </span>
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
-                      {formatDateBR(doc.date)}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      <button 
-                        onClick={() => handleToggleActive(doc)}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:scale-105 shadow-sm ${
-                          doc.is_active
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                        title={doc.is_active ? "Clique para ocultar" : "Clique para ativar"}
-                      >
-                        {doc.is_active ? (
-                          <>
-                            <FaEye className="w-3 h-3" /> Visível
-                          </>
-                        ) : (
-                          <>
-                            <FaEyeSlash className="w-3 h-3" /> Oculto
-                          </>
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      <div className="flex items-center gap-2">
-                        <a 
-                          href={doc.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors" 
-                          title="Download"
-                          aria-label={`Baixar ${doc.title}`}
-                        >
-                          <FaDownload className="w-4 h-4" />
-                        </a>
-                        <button
-                          onClick={() => openModal(doc)}
-                          className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
-                          title="Editar"
-                          aria-label={`Editar ${doc.title}`}
-                        >
-                          <FaEdit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openDeleteDialog(doc)}
-                          className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
-                          title="Excluir"
-                          aria-label={`Excluir ${doc.title}`}
-                        >
-                          <FaTrash className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal de Edição/Criação */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        title={isEditing ? 'Editar Documento' : 'Novo Documento'}
-      >
-        <form onSubmit={handleSave} className="space-y-5">
-          <div>
-            <label htmlFor="doc-title" className="block text-sm font-bold text-gray-700 mb-2">Título do Documento *</label>
-            <input
-              type="text"
-              required
-              id="doc-title"
-              value={currentDocumento.title || ''}
-              onChange={(e) => setCurrentDocumento({ ...currentDocumento, title: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              placeholder="Ex: Prestação de Contas 2024"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="doc-description" className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
-            <textarea
-              id="doc-description"
-              value={currentDocumento.description || ''}
-              onChange={(e) => setCurrentDocumento({ ...currentDocumento, description: e.target.value })}
-              rows={2}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent resize-none"
-              placeholder="Breve descrição do documento (opcional)"
-            />
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="doc-category" className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
-              <select
-                id="doc-category"
-                value={currentDocumento.category || ''}
-                onChange={(e) => setCurrentDocumento({ ...currentDocumento, category: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              >
-                <option value="">Selecione...</option>
-                {categorias.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="doc-type" className="block text-sm font-bold text-gray-700 mb-2">Tipo de Arquivo</label>
-              <select
-                id="doc-type"
-                value={currentDocumento.type || 'PDF'}
-                onChange={(e) => setCurrentDocumento({ ...currentDocumento, type: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              >
-                {tiposArquivo.map(tipo => (
-                  <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="doc-date" className="block text-sm font-bold text-gray-700 mb-2">Data *</label>
-              <input
-                type="date"
-                required
-                id="doc-date"
-                value={currentDocumento.date ? currentDocumento.date.split('T')[0] : ''}
-                onChange={(e) => setCurrentDocumento({ ...currentDocumento, date: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          {/* Seleção de modo de upload */}
-          <div>
-            <label htmlFor={uploadMode === 'file' ? 'doc-file' : 'doc-file-url'} className="block text-sm font-bold text-gray-700 mb-3">Arquivo *</label>
-            
-            {/* Tabs para alternar entre upload e URL */}
-            <div className="flex gap-2 mb-4">
-              <button
-                type="button"
-                onClick={() => setUploadMode('file')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
-                  uploadMode === 'file'
-                    ? 'bg-[#003f7f] text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <FaUpload className="w-4 h-4" />
-                Upload do Computador
-              </button>
-              <button
-                type="button"
-                onClick={() => setUploadMode('url')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
-                  uploadMode === 'url'
-                    ? 'bg-[#003f7f] text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <FaLink className="w-4 h-4" />
-                Informar URL
-              </button>
-            </div>
-
-            {uploadMode === 'file' ? (
-              <div>
-                {/* Input hidden para o arquivo */}
-                <input
-                  id="doc-file"
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                
-                {/* Área de drop/seleção */}
-                {!selectedFile ? (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#003f7f] hover:bg-[#003f7f]/5 transition-all"
-                  >
-                    <FaCloudUploadAlt className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <span className="block text-gray-600 font-medium mb-1">
-                      Clique para selecionar um arquivo
-                    </span>
-                    <span className="block text-xs text-gray-500">
-                      PDF, Word, Excel ou Imagens (máx. 50MB)
-                    </span>
-                  </button>
-                ) : (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                        {getFileIcon(currentDocumento.type || 'Outro')}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{selectedFile.name}</p>
-                        <p className="text-sm text-gray-500">{formatFileSize(selectedFile.size)}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedFile(null);
-                          if (fileInputRef.current) fileInputRef.current.value = '';
-                        }}
-                        className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                        aria-label="Remover arquivo selecionado"
-                      >
-                        <FaTimes className="w-4 h-4" />
-                      </button>
-                    </div>
-                    
-                    {/* Barra de progresso */}
-                    {isUploading && (
-                      <div className="mt-4">
-                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-[#00a859] transition-all duration-300"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1 text-center">
-                          Enviando... {uploadProgress}%
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-3 w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
-                >
-                  {selectedFile ? 'Trocar arquivo' : 'Selecionar arquivo'}
-                </button>
-              </div>
-            ) : (
-              <div>
-                <input
-                  id="doc-file-url"
-                  type="url"
-                  value={currentDocumento.file_url || ''}
-                  onChange={(e) => setCurrentDocumento({ ...currentDocumento, file_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Cole o link direto para o arquivo (Google Drive, Dropbox, etc.)
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={currentDocumento.is_active !== false}
-              onChange={(e) => setCurrentDocumento({ ...currentDocumento, is_active: e.target.checked })}
-              className="w-5 h-5 text-[#00a859] border-gray-300 rounded focus:ring-[#00a859]"
-            />
-            <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
-              Documento visível no site
-            </label>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="submit"
-              disabled={isSaving || isUploading || (uploadMode === 'file' && !selectedFile && !isEditing) || (uploadMode === 'url' && !currentDocumento.file_url)}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving || isUploading ? (
-                <>
-                  <FaSpinner className="animate-spin" />
-                  {isUploading ? 'Enviando arquivo...' : 'Salvando...'}
-                </>
-              ) : (
-                <>
-                  <FaSave />
-                  Salvar
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={closeModal}
-              disabled={isSaving || isUploading}
-              className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-all duration-300 disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Dialog de Confirmação de Exclusão */}
-      <ConfirmDialog
-        isOpen={deleteDialog.isOpen}
-        onClose={() => setDeleteDialog({ isOpen: false, id: null, title: '' })}
-        onConfirm={handleConfirmDelete}
-        title="Excluir Documento"
-        message={`Tem certeza que deseja excluir o documento "${deleteDialog.title}"? Esta ação não pode ser desfeita.`}
-        type="delete"
-        confirmText="Sim, Excluir"
-        cancelText="Cancelar"
-        isLoading={isDeleting}
+    <div className="space-y-6 sm:space-y-8">
+      <AdminPageHeader
+        title="Portal da Transparência"
+        description="Documentos públicos da CDL Ipirá: prestação de contas, relatórios, estatuto e atas."
+        actions={
+          <>
+            <a href="/institucional/portal-transparencia" target="_blank" rel="noopener noreferrer" className={buttonClass('secondary')}>
+              <FaExternalLinkAlt aria-hidden="true" className="h-3.5 w-3.5" />
+              Ver no site
+              <span className="sr-only">(abre em nova aba)</span>
+            </a>
+            <Button icon={FaPlus} onClick={() => openForm()}>
+              Novo documento
+            </Button>
+          </>
+        }
       />
 
-      {/* Dialog de Sucesso */}
+      <AdminCard flush>
+        <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:p-5">
+          <SearchInput label="Buscar documentos" placeholder="Buscar documento…" value={search} onChange={setSearch} className="lg:max-w-md" />
+          {rows.length > 0 && <FilterPills label="Filtrar por categoria" value={category} onChange={setCategory} options={categoryOptions} className="lg:flex-wrap" />}
+        </div>
+        <DataTable caption="Documentos do Portal da Transparência" rows={filtered} getRowId={(d) => d.id} columns={columns} rowActions={rowActions} loading={isLoading} empty={empty} />
+      </AdminCard>
+
+      <Modal isOpen={!!form} onClose={() => !isSaving && setForm(null)} title={form?.id ? 'Editar documento' : 'Novo documento'}>
+        {form && (
+          <form onSubmit={handleSave} className="space-y-5">
+            <FormField label="Título" required>
+              <Input value={form.title} onChange={(e) => setField('title', e.target.value)} required maxLength={200} placeholder="Ex.: Prestação de Contas 2025" />
+            </FormField>
+            <FormField label="Descrição" hint="Opcional. Aparece abaixo do título no site.">
+              <Textarea value={form.description} onChange={(e) => setField('description', e.target.value)} rows={2} maxLength={500} />
+            </FormField>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <FormField label="Categoria">
+                <Select value={form.category} onChange={(e) => setField('category', e.target.value)}>
+                  <option value="">Sem categoria</option>
+                  {[...CATEGORIAS, ...(form.category && !CATEGORIAS.includes(form.category) ? [form.category] : [])].map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Tipo de arquivo">
+                <Select value={form.type} onChange={(e) => setField('type', e.target.value)}>
+                  {Object.entries(TIPOS).map(([value, t]) => (
+                    <option key={value} value={value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Data do documento" required>
+                <Input type="date" value={form.date} onChange={(e) => setField('date', e.target.value)} required />
+              </FormField>
+            </div>
+
+            {/* Arquivo: enviar ou link */}
+            <fieldset className="min-w-0">
+              <legend className="mb-1.5 text-sm font-semibold text-gray-700">
+                Arquivo<span aria-hidden="true" className="ml-0.5 text-red-600">*</span>
+              </legend>
+              <div role="group" aria-label="Origem do arquivo" className="mb-3 inline-flex rounded-xl bg-gray-100 p-1">
+                {(
+                  [
+                    ['upload', 'Enviar arquivo', FaCloudUploadAlt],
+                    ['link', 'Usar um link', FaLink],
+                  ] as const
+                ).map(([mode, label, Icon]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={fileMode === mode}
+                    onClick={() => {
+                      setFileMode(mode);
+                      setFileError(null);
+                    }}
+                    className={cx(
+                      'inline-flex min-h-11 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold transition-colors pointer-fine:min-h-9',
+                      fileMode === mode ? 'bg-white text-[#003f7f] shadow-sm ring-1 ring-gray-200' : 'text-gray-600 hover:text-gray-900',
+                      focusRing
+                    )}
+                  >
+                    <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {fileMode === 'upload' ? (
+                <div className="space-y-3">
+                  {(file || form.file_url) && (
+                    <div className="flex items-center gap-3 rounded-2xl bg-gray-50 p-3 ring-1 ring-gray-200">
+                      <span className={cx('flex size-11 shrink-0 items-center justify-center rounded-xl', currentTipo.tile)}>
+                        <currentTipo.icon aria-hidden="true" className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">{file ? file.name : 'Arquivo atual'}</p>
+                        <p className="truncate text-xs text-gray-500">
+                          {file ? `${formatSize(file.size)} · será enviado ao salvar` : form.file_url.split('/').pop()}
+                        </p>
+                      </div>
+                      {file ? (
+                        <IconButton icon={FaTimes} label="Remover arquivo escolhido" onClick={() => setFile(null)} />
+                      ) : (
+                        <a href={form.file_url} target="_blank" rel="noopener noreferrer" className={buttonClass('ghost', 'sm')}>
+                          Abrir
+                          <span className="sr-only">arquivo atual (nova aba)</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  <label
+                    htmlFor={fileInputId}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      pickFile(e.dataTransfer.files?.[0]);
+                    }}
+                    className={cx(
+                      'flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed px-4 py-6 text-center transition-colors',
+                      'has-[input:focus-visible]:border-[#0066cc] has-[input:focus-visible]:ring-4 has-[input:focus-visible]:ring-[#0066cc]/15',
+                      fileError ? 'border-red-400 bg-red-50/40' : 'border-gray-300 bg-gray-50/60 hover:border-[#003f7f]/40 hover:bg-[#003f7f]/[0.03]'
+                    )}
+                  >
+                    <FaCloudUploadAlt aria-hidden="true" className="h-6 w-6 text-[#003f7f]" />
+                    <span className="text-sm font-semibold text-gray-800">
+                      <span className="text-[#0052a3]">{file || form.file_url ? 'Trocar arquivo' : 'Clique para escolher'}</span> ou arraste aqui
+                    </span>
+                    <span className="text-xs text-gray-500">PDF, Word, Excel ou imagem · até {MAX_MB} MB</span>
+                    <input
+                      id={fileInputId}
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                      className="sr-only"
+                      aria-invalid={fileError ? true : undefined}
+                      onChange={(e) => {
+                        pickFile(e.target.files?.[0]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <Input
+                  type="url"
+                  aria-label="Link do arquivo"
+                  value={form.file_url}
+                  onChange={(e) => {
+                    setField('file_url', e.target.value);
+                    setFileError(null);
+                  }}
+                  invalid={!!fileError}
+                  placeholder="https://…"
+                />
+              )}
+              {fileError ? (
+                <p role="alert" className="mt-1.5 text-sm font-medium text-red-700">
+                  {fileError}
+                </p>
+              ) : (
+                fileMode === 'link' && <p className="mt-1.5 text-xs text-gray-500">Link direto para o arquivo (Google Drive, Dropbox…) com acesso público.</p>
+              )}
+            </fieldset>
+
+            <Checkbox label="Documento visível no site" checked={form.is_active} onChange={(e) => setField('is_active', e.target.checked)} />
+
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={() => setForm(null)} disabled={isSaving}>
+                Cancelar
+              </Button>
+              <Button type="submit" loading={isSaving}>
+                {isSaving ? (file ? 'Enviando arquivo…' : 'Salvando…') : form.id ? 'Salvar alterações' : 'Publicar documento'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
       <ConfirmDialog
-        isOpen={successDialog.isOpen}
-        onClose={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
-        title={
-          successDialog.type === 'delete' ? 'Documento Excluído' :
-          successDialog.type === 'edit' ? 'Documento Atualizado' :
-          'Documento Cadastrado'
-        }
-        message={successDialog.message}
-        type={successDialog.type === 'delete' ? 'success' : successDialog.type}
-        confirmText="OK"
-        showCancel={false}
-        onConfirm={() => setSuccessDialog({ isOpen: false, message: '', type: 'success' })}
+        isOpen={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir documento"
+        message={`Excluir "${toDelete?.title ?? ''}" do Portal da Transparência? Esta ação não pode ser desfeita.`}
+        type="delete"
+        confirmText="Sim, excluir"
+        isLoading={isDeleting}
       />
     </div>
   );

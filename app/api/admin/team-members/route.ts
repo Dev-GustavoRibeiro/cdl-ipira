@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auditServer } from '@/lib/audit-server';
-import { sanitizeString } from '@/lib/security';
+import { isSafeLink, sanitizeString } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getAdminUser } from '@/lib/supabase-server';
 
@@ -31,6 +31,10 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
 
   if (!Number.isInteger(payload.display_order) || payload.display_order < 0) {
     return 'Ordem inválida.';
+  }
+
+  if (payload.photo_url && !isSafeLink(payload.photo_url, 1000)) {
+    return 'A foto deve ser um endereço http(s):// ou um caminho do site.';
   }
 
   return null;
@@ -128,6 +132,46 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('Erro ao atualizar membro:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor.' }, { status: 500 });
+  }
+}
+
+// PATCH - reordenação: { items: [{ id, display_order }] } (só a ordem muda)
+export async function PATCH(request: NextRequest) {
+  if (!(await getAdminUser())) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const items: unknown = body?.items;
+    const valid =
+      Array.isArray(items) &&
+      items.length > 0 &&
+      items.length <= 200 &&
+      items.every(
+        (it) => Number.isInteger(it?.id) && it.id > 0 && Number.isInteger(it?.display_order) && it.display_order >= 0 && it.display_order <= 9999
+      );
+
+    if (!valid) {
+      return NextResponse.json({ error: 'Ordem inválida.' }, { status: 400 });
+    }
+
+    const results = await Promise.all(
+      (items as { id: number; display_order: number }[]).map(({ id, display_order }) =>
+        supabaseAdmin.from('team_members').update({ display_order }).eq('id', id)
+      )
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      console.error('Erro ao reordenar membros:', failed.error);
+      return NextResponse.json({ error: 'Erro ao salvar a nova ordem.' }, { status: 500 });
+    }
+
+    await auditServer.update('team_members', 'ordem', 'Ordem da diretoria', { itens: (items as unknown[]).length }, request);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao reordenar membros:', error);
     return NextResponse.json({ error: 'Erro interno do servidor.' }, { status: 500 });
   }
 }

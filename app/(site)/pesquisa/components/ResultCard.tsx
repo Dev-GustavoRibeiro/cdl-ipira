@@ -95,7 +95,7 @@ const ResultCard = ({ result, query }: ResultCardProps) => {
         </h3>
 
         {result.description && (
-          <p className="mt-1.5 line-clamp-2 max-w-[75ch] text-sm leading-relaxed text-gray-600">
+          <p className="mt-1.5 line-clamp-2 max-w-[65ch] text-sm leading-relaxed text-gray-600">
             <Highlight text={result.description} query={query} />
           </p>
         )}

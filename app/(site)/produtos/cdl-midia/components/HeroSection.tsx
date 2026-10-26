@@ -2,8 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { FaArrowRight, FaBullhorn, FaFacebook, FaInstagram, FaPhone, FaYoutube } from 'react-icons/fa';
+import { FaArrowRight, FaBullhorn, FaFacebook, FaInstagram, FaPhoneAlt, FaYoutube } from 'react-icons/fa';
 import { HeroPanel, ProductHero, btnGlass, btnYellow } from '../../_components/ProductUI';
+import { CONTACT } from '@/app/components/navigation/navItems';
 import { initiatives } from './InitiativesSection';
 
 const HeroSection = () => {
@@ -14,18 +15,18 @@ const HeroSection = () => {
       icon={FaBullhorn}
       title="CDL"
       highlight="Mídia"
-      lead="Sua empresa sempre na vitrine!"
-      description="A CDL Ipirá está presente no Facebook, Instagram e YouTube, oferecendo canais exclusivos que dão voz e protagonismo à sua empresa."
+      lead="Sua empresa na vitrine das redes da CDL."
+      description="A CDL Ipirá divulga empresas associadas nos seus perfis no Facebook, Instagram e YouTube."
       actions={
         <>
           <Link href="/imprensa/contato" className={btnYellow}>
             Quero Participar
             <FaArrowRight aria-hidden="true" className="h-3.5 w-3.5 transition-[translate] duration-200 group-hover:translate-x-1 motion-reduce:transition-none" />
           </Link>
-          <a href="tel:+557532541599" className={btnGlass}>
-            <FaPhone aria-hidden="true" className="h-3.5 w-3.5" />
+          <a href={CONTACT.phone.href} className={btnGlass}>
+            <FaPhoneAlt aria-hidden="true" className="h-3.5 w-3.5" />
             <span className="sr-only">Ligar para a Central de Atendimento:</span>
-            (75) 3254-1599
+            {CONTACT.phone.label}
           </a>
         </>
       }
@@ -36,8 +37,8 @@ const HeroSection = () => {
       ]}
       aside={
         <HeroPanel
-          title="Iniciativas que geram visibilidade"
-          description="Projetos exclusivos que dão voz e protagonismo aos associados."
+          title="Formatos de divulgação"
+          description="Conteúdos publicados nos perfis da CDL, conforme a programação."
           items={initiatives.map((initiative) => ({
             icon: initiative.icon,
             title: initiative.title,

@@ -8,7 +8,7 @@ const benefits = [
   {
     icon: FaBullhorn,
     title: 'Visibilidade',
-    description: 'Sua empresa sempre em destaque nas redes sociais da CDL'
+    description: 'Divulgação nas redes da CDL, conforme a programação de conteúdo'
   },
   {
     icon: FaChartLine,
@@ -22,8 +22,8 @@ const benefits = [
   },
   {
     icon: FaVideo,
-    title: 'Conteúdo Exclusivo',
-    description: 'Vídeos de boas-vindas, podcasts e histórias inspiradoras'
+    title: 'Formatos Variados',
+    description: 'Posts, vídeos, entrevistas e histórias de empresas'
   }
 ];
 

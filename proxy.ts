@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import {
   verifyCSRFToken,
   generateCSRFToken,
@@ -23,6 +24,28 @@ function isMutationMethod(method: string): boolean {
 
 function matchesPath(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+// Leituras públicas de conteúdo (notícias, eventos, busca...): cache curto na CDN da Vercel contra rajadas.
+// Nenhuma leitura pública depende de quem pede; uma que dependa precisa ficar fora deste cache.
+const PUBLIC_API_CACHE = 'public, s-maxage=60, stale-while-revalidate=300';
+
+/**
+ * Envio público (formulários e login) só como JSON e de uma página do próprio site. Barra o <form> de outro site
+ * (text/plain vira JSON válido no request.json()) e o fetch de outra origem, que usaria o navegador dos visitantes
+ * dele para fugir do limite por IP. Navegadores sempre mandam Origin em POST.
+ */
+function isSameSiteJson(request: NextRequest): boolean {
+  const contentType = request.headers.get('content-type') ?? '';
+  const fetchSite = request.headers.get('sec-fetch-site');
+  const origin = request.headers.get('origin');
+  if (!/^application\/json\s*(;|$)/i.test(contentType) || !origin) return false;
+  if (fetchSite && fetchSite !== 'same-origin') return false;
+  try {
+    return new URL(origin).host === request.nextUrl.host;
+  } catch {
+    return false;
+  }
 }
 
 // ==================== PROXY PRINCIPAL (Next.js 16+) ====================
@@ -56,24 +79,35 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  const isMutation = isMutationMethod(request.method);
+  const isPanelWrite =
+    isMutation && pathname !== LOGIN_API && CSRF_PROTECTED_PATHS.some((path) => matchesPath(pathname, path));
+
   // ==================== CSRF ====================
 
-  if (
-    isMutationMethod(request.method) &&
-    pathname !== LOGIN_API &&
-    CSRF_PROTECTED_PATHS.some((path) => matchesPath(pathname, path))
-  ) {
-    if (!(await verifyCSRFToken(request))) {
-      console.warn(`[SECURITY] CSRF inválido: IP=${ip}, path=${pathname}`);
-      return addSecurityHeaders(NextResponse.json({ error: 'Token CSRF inválido' }, { status: 403 }));
-    }
+  if (isPanelWrite && !(await verifyCSRFToken(request))) {
+    console.warn(`[SECURITY] CSRF inválido: IP=${ip}, path=${pathname}`);
+    return addSecurityHeaders(NextResponse.json({ error: 'Token CSRF inválido' }, { status: 403 }));
+  }
+
+  // ==================== ENVIOS PÚBLICOS (formulários e login) ====================
+
+  if (isMutation && !isPanelWrite && pathname.startsWith('/api/') && !isSameSiteJson(request)) {
+    console.warn(`[SECURITY] Envio recusado (origem ou formato): IP=${ip}, path=${pathname}`);
+    return addSecurityHeaders(NextResponse.json({ error: 'Requisição recusada.' }, { status: 403 }));
   }
 
   const isAdminApi = matchesPath(pathname, '/api/admin');
   const isAdminPage = matchesPath(pathname, '/admin');
+  const isUpload = matchesPath(pathname, '/api/upload');
 
-  if (!isAdminApi && !isAdminPage) {
-    return addSecurityHeaders(NextResponse.next());
+  if (!isAdminApi && !isAdminPage && !isUpload) {
+    const response = addSecurityHeaders(NextResponse.next());
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      response.headers.set('Cache-Control', PUBLIC_API_CACHE);
+      response.headers.delete('Pragma');
+    }
+    return response;
   }
 
   // ==================== AUTENTICAÇÃO (Supabase Auth) ====================
@@ -105,6 +139,19 @@ export async function proxy(request: NextRequest) {
     admin = null;
   }
 
+  // Escritas do painel e do upload perguntam ao servidor do Supabase se a sessão ainda vale: getClaims só confere a
+  // assinatura, então logout em outro aparelho, sessão revogada ou papel retirado só pesariam quando o token expirasse
+  // (até 1h). Leituras seguem só com getClaims.
+  if (admin && isPanelWrite) {
+    const { data: fresh, error } = await supabase.auth.getUser();
+    if (toAdminUser(fresh.user)?.id !== admin.id) {
+      // Sessão encerrada: limpa os cookies (senão o painel continuaria "logado" só para leitura).
+      // Falha de rede só recusa esta escrita.
+      if (!isAuthRetryableFetchError(error)) await supabase.auth.signOut({ scope: 'local' });
+      admin = null;
+    }
+  }
+
   // Respostas próprias (redirect/401) precisam levar os cookies renovados
   const withSession = (res: NextResponse) => {
     response.cookies.getAll().forEach((cookie) => res.cookies.set(cookie));
@@ -127,9 +174,9 @@ export async function proxy(request: NextRequest) {
 
   if (!admin) {
     console.warn(`[SECURITY] Acesso admin sem sessão válida: IP=${ip}, path=${pathname}`);
-    return isAdminApi
-      ? withSession(NextResponse.json({ error: 'Não autorizado' }, { status: 401 }))
-      : withSession(NextResponse.redirect(new URL(LOGIN_PAGE, request.url)));
+    return isAdminPage
+      ? withSession(NextResponse.redirect(new URL(LOGIN_PAGE, request.url)))
+      : withSession(NextResponse.json({ error: 'Não autorizado' }, { status: 401 }));
   }
 
   // Garante o token CSRF usado pelas mutações do painel

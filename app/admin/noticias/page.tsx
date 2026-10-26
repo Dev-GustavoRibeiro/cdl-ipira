@@ -1,611 +1,590 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaCloudUploadAlt, FaBullhorn } from 'react-icons/fa';
+import React, { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
+import { FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaBullhorn, FaNewspaper, FaExternalLinkAlt, FaRedo } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/app/components/Modal';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { fetchWithCSRF } from '@/lib/csrf-client';
 import { formatDateBR, todayISO } from '@/lib/date';
+import { isOptimizableImage } from '@/lib/images';
 import type { Campaign } from '@/lib/campaigns';
+import {
+  AdminCard, AdminPageHeader, Button, Checkbox, DataTable, EmptyState, FilterPills, FormField, IconButton,
+  ImageUploadField, Input, SearchInput, Select, StatusBadge, Textarea, cx, focusRing, type DataTableColumn, useOpenOnNovo,
+} from '@/app/admin/_components';
 
 interface Noticia {
   id: number;
   title: string;
+  excerpt: string | null;
+  content: string | null;
   category: string;
   date: string;
-  status: 'published' | 'draft';
-  is_published?: boolean;
-  excerpt?: string;
-  content?: string;
-  image?: string;
-  author?: string;
-  campaign_id?: number | null;
+  image: string | null;
+  author: string | null;
+  is_published: boolean | null;
+  campaign_id: number | null;
+}
+
+type CampaignOption = Pick<Campaign, 'id' | 'title' | 'is_active'>;
+type StatusFilter = 'all' | 'published' | 'draft';
+
+const CATEGORIES = ['Economia', 'Comércio', 'Agronegócio', 'Dicas', 'Eventos', 'Serviços'];
+const PAGE_SIZE = 10;
+
+const emptyForm = () => ({
+  title: '',
+  excerpt: '',
+  content: '',
+  category: '',
+  date: todayISO(),
+  image: '',
+  author: 'CDL Ipirá',
+  is_published: true,
+  campaign_id: '',
+});
+type FormState = ReturnType<typeof emptyForm>;
+type FormErrors = Partial<Record<keyof FormState, string>>;
+
+const isPublished = (n: Pick<Noticia, 'is_published'>) => n.is_published !== false;
+
+/** fetch + JSON com a mensagem de erro da API (em vez de um texto genérico). */
+async function request<T = unknown>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetchWithCSRF(url, init);
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error || `Erro ${response.status} ao falar com o servidor.`);
+  return data as T;
+}
+
+const errorMessage = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
+
+/** Link (relativo) ou http(s) — o mesmo que a API aceita. */
+const isValidLink = (value: string) => !value || /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i.test(value.trim());
+
+function validate(form: FormState): FormErrors {
+  const errors: FormErrors = {};
+  if (!form.title.trim()) errors.title = 'Informe o título.';
+  if (!form.category) errors.category = 'Escolha a categoria.';
+  if (!form.date) errors.date = 'Informe a data.';
+  if (!form.excerpt.trim()) errors.excerpt = 'Escreva um resumo.';
+  if (!form.content.trim()) errors.content = 'Escreva o conteúdo.';
+  if (!isValidLink(form.image)) errors.image = 'Use um endereço que comece com https://';
+  return errors;
+}
+
+function Thumb({ src, alt }: { src: string | null; alt: string }) {
+  return (
+    <span className="relative flex h-12 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#003f7f]/[0.06] text-[#003f7f]/40 ring-1 ring-gray-200">
+      {src ? (
+        <Image src={src} alt={alt} fill sizes="64px" className="object-cover" unoptimized={!isOptimizableImage(src)} />
+      ) : (
+        <FaNewspaper aria-hidden="true" className="h-4 w-4" />
+      )}
+    </span>
+  );
 }
 
 export default function AdminNoticiasPage() {
   const [noticias, setNoticias] = useState<Noticia[]>([]);
-  const [campanhas, setCampanhas] = useState<Pick<Campaign, 'id' | 'title'>[]>([]);
+  const [campanhas, setCampanhas] = useState<CampaignOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Modal states
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [page, setPage] = useState(1);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<FormState>(emptyForm);
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
-    title: '',
-    excerpt: '',
-    content: '',
-    category: '',
-    date: todayISO(),
-    image: '',
-    author: 'CDL Ipirá',
-    is_published: true,
-    campaign_id: '',
-  });
 
-  // Delete modal state
   const [noticiaToDelete, setNoticiaToDelete] = useState<Noticia | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  // Sem setState síncrono: a lista abre como "carregando" e só muda depois da resposta
+  const loadNoticias = useCallback(
+    () =>
+      request<Noticia[]>('/api/admin/noticias')
+        .then((data) => {
+          setNoticias(data);
+          setLoadError(false);
+        })
+        .catch((error) => {
+          setLoadError(true);
+          toast.error(errorMessage(error, 'Erro ao carregar notícias.'));
+        })
+        .finally(() => setIsLoading(false)),
+    []
+  );
 
   useEffect(() => {
-    fetchNoticias();
-    // Campanhas para o select (se falhar, o formulário segue só com "Nenhuma")
-    fetch('/api/admin/campanhas')
-      .then((response) => (response.ok ? response.json() : []))
+    loadNoticias();
+    // Campanhas para o select e os selos (se falhar, o formulário segue só com "Nenhuma")
+    request<CampaignOption[]>('/api/admin/campanhas')
       .then(setCampanhas)
       .catch(() => setCampanhas([]));
-  }, []);
+  }, [loadNoticias]);
 
-  async function fetchNoticias() {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/admin/noticias');
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || 'Erro ao carregar notícias');
-
-      if (data) {
-        const mappedNoticias = data.map((item: Noticia) => ({
-          id: item.id,
-          title: item.title,
-          category: item.category,
-          date: item.date, // Keep original format for editing
-          status: item.is_published ? 'published' : 'draft',
-          is_published: item.is_published,
-          excerpt: item.excerpt,
-          content: item.content,
-          image: item.image,
-          author: item.author,
-          campaign_id: item.campaign_id ?? null
-        }));
-        setNoticias(mappedNoticias as Noticia[]);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar notícias:', error);
-      toast.error('Erro ao carregar notícias');
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function confirmDelete() {
-    if (!noticiaToDelete) return;
-
-    try {
-      const response = await fetchWithCSRF(`/api/admin/noticias?id=${noticiaToDelete.id}`, {
-        method: 'DELETE',
-      });
-      
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao excluir notícia');
-
-      toast.success('Notícia excluída com sucesso');
-      fetchNoticias();
-    } catch (error) {
-      console.error('Erro ao excluir notícia:', error);
-      toast.error('Erro ao excluir notícia');
-    } finally {
-      setNoticiaToDelete(null);
-    }
-  }
-
-  const handleOpenModal = (noticia?: Noticia) => {
-    if (noticia) {
-      setEditingId(noticia.id);
-      setFormData({
-        title: noticia.title,
-        excerpt: noticia.excerpt || '',
-        content: noticia.content || '',
-        category: noticia.category,
-        date: noticia.date,
-        image: noticia.image || '',
-        author: noticia.author || 'CDL Ipirá',
-        is_published: noticia.is_published !== false,
-        campaign_id: noticia.campaign_id ? String(noticia.campaign_id) : '',
-      });
-    } else {
-      setEditingId(null);
-      setFormData({
-        title: '',
-        excerpt: '',
-        content: '',
-        category: '',
-        date: todayISO(),
-        image: '',
-        author: 'CDL Ipirá',
-        is_published: true,
-        campaign_id: '',
-      });
-    }
-    setIsModalOpen(true);
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setFormData((current) => ({ ...current, [key]: value }));
+    setErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) {
+  const openModal = (noticia?: Noticia) => {
+    setEditingId(noticia?.id ?? null);
+    setFormData(
+      noticia
+        ? {
+            title: noticia.title,
+            excerpt: noticia.excerpt || '',
+            content: noticia.content || '',
+            category: noticia.category,
+            date: /^\d{4}-\d{2}-\d{2}/.test(noticia.date || '') ? noticia.date.slice(0, 10) : '',
+            image: noticia.image || '',
+            author: noticia.author || 'CDL Ipirá',
+            is_published: isPublished(noticia),
+            campaign_id: noticia.campaign_id ? String(noticia.campaign_id) : '',
+          }
+        : emptyForm()
+    );
+    setErrors({});
+    setIsModalOpen(true);
+  };
+  // Atalhos do painel (?novo=1) abrem direto o formulário de criação
+  useOpenOnNovo(() => openModal());
+
+  const closeModal = () => {
+    // Não fecha durante o envio: a imagem chegaria depois e cairia no próximo formulário aberto
+    if (isSaving || isUploading) return;
+    setIsModalOpen(false);
+  };
+
+  const handleImageSelect = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setErrors((current) => ({ ...current, image: 'Escolha um arquivo de imagem (PNG, JPG ou WebP).' }));
       return;
     }
-
-    const file = e.target.files[0];
+    if (file.size > 10 * 1024 * 1024) {
+      setErrors((current) => ({ ...current, image: 'A imagem passa de 10 MB. Reduza o tamanho e tente de novo.' }));
+      return;
+    }
     setIsUploading(true);
-
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      uploadFormData.append('bucket', 'news');
-
-      const response = await fetchWithCSRF('/api/upload', {
-        method: 'POST',
-        body: uploadFormData
-      });
-
-      const data = await response.json();
-      if (!response.ok || !data.url) throw new Error(data.error || 'Erro ao enviar imagem');
-      
-      setFormData((current) => ({ ...current, image: data.url }));
-      toast.success('Imagem enviada com sucesso!');
+      const body = new FormData();
+      body.append('file', file);
+      body.append('bucket', 'news');
+      const data = await request<{ url?: string }>('/api/upload', { method: 'POST', body });
+      if (!data.url) throw new Error('O envio não retornou o endereço da imagem.');
+      setField('image', data.url);
+      toast.success('Imagem enviada.');
     } catch (error) {
-      console.error('Erro ao enviar imagem:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao enviar imagem.');
+      toast.error(errorMessage(error, 'Erro ao enviar a imagem.'));
     } finally {
       setIsUploading(false);
     }
   };
 
+  const payloadOf = (form: FormState) => ({
+    title: form.title.trim(),
+    excerpt: form.excerpt.trim(),
+    content: form.content,
+    category: form.category,
+    date: form.date,
+    image: form.image.trim(),
+    author: form.author.trim() || 'CDL Ipirá',
+    is_published: form.is_published,
+    campaign_id: form.campaign_id ? Number(form.campaign_id) : null,
+  });
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const found = validate(formData);
+    setErrors(found);
+    const firstInvalid = Object.keys(found)[0];
+    if (firstInvalid) {
+      document.getElementById(`noticia-${firstInvalid}`)?.focus();
+      return;
+    }
+
     setIsSaving(true);
-
     try {
-      const payload = {
-        title: formData.title,
-        excerpt: formData.excerpt,
-        content: formData.content,
-        category: formData.category,
-        date: formData.date,
-        image: formData.image,
-        author: formData.author,
-        is_published: formData.is_published,
-        campaign_id: formData.campaign_id ? Number(formData.campaign_id) : null,
-      };
-
-      let response;
-
-      if (editingId) {
-        response = await fetchWithCSRF('/api/admin/noticias', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingId, ...payload }),
-        });
-      } else {
-        response = await fetchWithCSRF('/api/admin/noticias', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao salvar notícia');
-
-      toast.success(editingId ? 'Notícia atualizada!' : 'Notícia criada!');
+      await request('/api/admin/noticias', {
+        method: editingId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...(editingId && { id: editingId }), ...payloadOf(formData) }),
+      });
+      toast.success(editingId ? 'Notícia atualizada.' : formData.is_published ? 'Notícia publicada.' : 'Rascunho salvo.');
       setIsModalOpen(false);
-      fetchNoticias();
+      loadNoticias();
     } catch (error) {
-      console.error('Erro ao salvar notícia:', error);
-      toast.error('Erro ao salvar notícia.');
+      toast.error(errorMessage(error, 'Erro ao salvar a notícia.'));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const togglePublished = async (noticia: Noticia) => {
+    const publish = !isPublished(noticia);
+    setTogglingId(noticia.id);
+    try {
+      await request('/api/admin/noticias', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: noticia.id,
+          title: noticia.title,
+          excerpt: noticia.excerpt,
+          content: noticia.content,
+          category: noticia.category,
+          date: noticia.date,
+          image: noticia.image || '',
+          author: noticia.author,
+          is_published: publish,
+          campaign_id: noticia.campaign_id,
+        }),
+      });
+      setNoticias((current) => current.map((n) => (n.id === noticia.id ? { ...n, is_published: publish } : n)));
+      toast.success(publish ? 'Notícia publicada.' : 'Notícia movida para rascunhos.');
+    } catch (error) {
+      toast.error(errorMessage(error, 'Erro ao alterar a publicação.'));
+    } finally {
+      setTogglingId(null);
+    }
   };
 
-  const filteredNoticias = noticias.filter(noticia =>
-    noticia.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    noticia.category.toLowerCase().includes(searchTerm.toLowerCase())
+  const confirmDelete = async () => {
+    if (!noticiaToDelete) return;
+    setIsDeleting(true);
+    try {
+      await request(`/api/admin/noticias?id=${noticiaToDelete.id}`, { method: 'DELETE' });
+      toast.success('Notícia excluída.');
+      setNoticiaToDelete(null);
+      loadNoticias();
+    } catch (error) {
+      toast.error(errorMessage(error, 'Erro ao excluir a notícia.'));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const term = searchTerm.trim().toLowerCase();
+  const matchesSearch = (n: Noticia) => !term || n.title.toLowerCase().includes(term) || n.category?.toLowerCase().includes(term);
+  const searched = noticias.filter(matchesSearch);
+  const filtered = searched.filter((n) =>
+    statusFilter === 'all' ? true : statusFilter === 'published' ? isPublished(n) : !isPublished(n)
   );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const campaignTitle = (id: number | null) => campanhas.find((c) => c.id === id)?.title;
+  const categoryOptions = formData.category && !CATEGORIES.includes(formData.category) ? [...CATEGORIES, formData.category] : CATEGORIES;
+
+  const columns: DataTableColumn<Noticia>[] = [
+    {
+      key: 'title',
+      header: 'Notícia',
+      primary: true,
+      cell: (n) => {
+        const campaign = campaignTitle(n.campaign_id);
+        return (
+          <div className="flex min-w-0 items-center gap-3">
+            <Thumb src={n.image} alt="" />
+            <div className="min-w-0">
+              <p className="line-clamp-3 font-semibold text-gray-900 md:line-clamp-2 md:max-w-md">{n.title}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <StatusBadge variant="info" dot={false}>
+                  {n.category}
+                </StatusBadge>
+                {campaign && (
+                  <StatusBadge variant="warning" dot={false}>
+                    <FaBullhorn aria-hidden="true" className="h-2.5 w-2.5" />
+                    <span className="truncate">{campaign}</span>
+                  </StatusBadge>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      // Data e status juntos: sobra largura para o título entre 768 e 1279 px (sem rolagem na tabela)
+      key: 'status',
+      header: 'Publicação',
+      className: 'whitespace-nowrap tabular-nums',
+      cell: (n) => (
+        <span className="flex flex-col items-end gap-1 md:items-start">
+          {isPublished(n) ? <StatusBadge variant="success">Publicada</StatusBadge> : <StatusBadge variant="neutral">Rascunho</StatusBadge>}
+          <span className="text-sm text-gray-500">{formatDateBR(n.date)}</span>
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] mb-2">
-            Gerenciar Notícias
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
-            Crie, edite e gerencie as notícias do site
-          </p>
-        </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center gap-2 bg-[#003f7f] text-white px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 shadow-lg"
-        >
-          <FaPlus />
-          Nova Notícia
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Notícias"
+        description="Crie, edite e publique as notícias do site."
+        actions={
+          <Button icon={FaPlus} onClick={() => openModal()}>
+            Nova notícia
+          </Button>
+        }
+      />
 
-      {/* Busca */}
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-        <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-          <input
-            type="text"
-            placeholder="Buscar notícias..."
-            aria-label="Buscar notícias"
+      <AdminCard flush>
+        <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+          <SearchInput
+            label="Buscar notícias"
+            placeholder="Buscar por título ou categoria"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+            onChange={(value) => {
+              setSearchTerm(value);
+              setPage(1);
+            }}
+            className="w-full xl:max-w-sm"
+          />
+          <FilterPills<StatusFilter>
+            label="Filtrar por status"
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value);
+              setPage(1);
+            }}
+            options={[
+              { value: 'all', label: 'Todas', count: isLoading ? undefined : searched.length },
+              { value: 'published', label: 'Publicadas', count: isLoading ? undefined : searched.filter(isPublished).length },
+              { value: 'draft', label: 'Rascunhos', count: isLoading ? undefined : searched.filter((n) => !isPublished(n)).length },
+            ]}
           />
         </div>
-      </div>
 
-      {/* Tabela */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#003f7f] text-white">
-              <tr>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Título</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Categoria</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Data</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Status</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8">
-                    <div className="flex justify-center items-center gap-2 text-[#003f7f]">
-                      <FaSpinner className="animate-spin" />
-                      <span>Carregando notícias...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredNoticias.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-gray-500">
-                    Nenhuma notícia encontrada.
-                  </td>
-                </tr>
-              ) : (
-                filteredNoticias.map((noticia) => {
-                  const campanha = campanhas.find((c) => c.id === noticia.campaign_id);
-                  return (
-                    <tr key={noticia.id} className="hover:bg-gray-50">
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <div className="text-sm sm:text-base font-semibold text-gray-900 line-clamp-1">
-                          {noticia.title}
-                        </div>
-                        {campanha && (
-                          <span className="inline-flex items-center gap-1 mt-1 bg-[#ffd000]/20 text-[#003f7f] px-2 py-0.5 rounded-full text-xs font-bold">
-                            <FaBullhorn className="w-3 h-3" aria-hidden="true" />
-                            {campanha.title}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <span className="inline-block bg-[#00a859] text-white px-2 sm:px-3 py-1 rounded-full text-xs font-bold">
-                          {noticia.category}
-                        </span>
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
-                        {formatDateBR(noticia.date)}
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
-                          noticia.status === 'published'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {noticia.status === 'published' ? 'Publicada' : 'Rascunho'}
-                        </span>
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/imprensa/noticias/${noticia.id}`}
-                            target="_blank"
-                            className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
-                            title="Visualizar"
-                            aria-label={`Visualizar ${noticia.title} no site`}
-                          >
-                            <FaEye className="w-4 h-4" />
-                          </Link>
-                          <button
-                            onClick={() => handleOpenModal(noticia)}
-                            className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
-                            title="Editar"
-                            aria-label={`Editar ${noticia.title}`}
-                          >
-                            <FaEdit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setNoticiaToDelete(noticia)}
-                            className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
-                            title="Excluir"
-                            aria-label={`Excluir ${noticia.title}`}
-                          >
-                            <FaTrash className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+        <DataTable
+          caption="Lista de notícias"
+          columns={columns}
+          rows={pageRows}
+          getRowId={(n) => n.id}
+          loading={isLoading}
+          rowActions={(n) => (
+            <>
+              {isPublished(n) && (
+                <a
+                  href={`/imprensa/noticias/${n.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Ver “${n.title}” no site (abre em nova aba)`}
+                  title="Ver no site"
+                  className={cx(
+                    'inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-[#003f7f] pointer-fine:size-9',
+                    focusRing
+                  )}
+                >
+                  <FaExternalLinkAlt aria-hidden="true" className="h-3.5 w-3.5" />
+                </a>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              <IconButton
+                icon={isPublished(n) ? FaEyeSlash : FaEye}
+                label={isPublished(n) ? `Despublicar “${n.title}”` : `Publicar “${n.title}”`}
+                onClick={() => togglePublished(n)}
+                disabled={togglingId === n.id}
+              />
+              <IconButton icon={FaEdit} label={`Editar “${n.title}”`} onClick={() => openModal(n)} />
+              <IconButton icon={FaTrash} variant="danger" label={`Excluir “${n.title}”`} onClick={() => setNoticiaToDelete(n)} />
+            </>
+          )}
+          pagination={{ page: currentPage, totalPages, onPageChange: setPage, total: filtered.length, pageSize: PAGE_SIZE }}
+          empty={
+            loadError ? (
+              <EmptyState
+                icon={FaRedo}
+                title="Não foi possível carregar as notícias"
+                description="Verifique a conexão e tente de novo."
+                action={
+                  <Button
+                    variant="secondary"
+                    icon={FaRedo}
+                    onClick={() => {
+                      setIsLoading(true);
+                      loadNoticias();
+                    }}
+                  >
+                    Tentar novamente
+                  </Button>
+                }
+              />
+            ) : noticias.length === 0 ? (
+              <EmptyState
+                icon={FaNewspaper}
+                title="Nenhuma notícia ainda"
+                description="Publique a primeira notícia para ela aparecer no site."
+                action={
+                  <Button icon={FaPlus} onClick={() => openModal()}>
+                    Nova notícia
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                title="Nenhuma notícia encontrada"
+                description="Tente outro termo de busca ou outro filtro."
+                action={
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setStatusFilter('all');
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
+                }
+              />
+            )
+          }
+        />
+      </AdminCard>
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingId ? 'Editar Notícia' : 'Nova Notícia'}
+        onClose={closeModal}
+        title={editingId ? 'Editar notícia' : 'Nova notícia'}
+        subtitle="Campos com * são obrigatórios."
       >
-        <form onSubmit={handleSave} className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="md:col-span-2">
-              <label htmlFor="noticia-title" className="block text-sm font-bold text-gray-700 mb-2">
-                Título *
-              </label>
-              <input
-                type="text"
-                id="noticia-title"
-                name="title"
+        <form onSubmit={handleSave} noValidate className="space-y-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <FormField label="Título" id="noticia-title" required error={errors.title} className="md:col-span-2">
+              <Input
                 value={formData.title}
-                onChange={handleChange}
+                onChange={(e) => setField('title', e.target.value)}
                 required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                placeholder="Digite o título da notícia"
+                maxLength={500}
+                placeholder="Ex.: CDL Ipirá lança a campanha Natal Premiado"
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label htmlFor="noticia-category" className="block text-sm font-bold text-gray-700 mb-2">
-                Categoria *
-              </label>
-              <select
-                id="noticia-category"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              >
-                <option value="">Selecione...</option>
-                <option value="Economia">Economia</option>
-                <option value="Comércio">Comércio</option>
-                <option value="Agronegócio">Agronegócio</option>
-                <option value="Dicas">Dicas</option>
-                <option value="Eventos">Eventos</option>
-                <option value="Serviços">Serviços</option>
-              </select>
-            </div>
+            <FormField label="Categoria" id="noticia-category" required error={errors.category}>
+              <Select value={formData.category} onChange={(e) => setField('category', e.target.value)} required>
+                <option value="">Selecione…</option>
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
 
-            <div>
-              <label htmlFor="noticia-date" className="block text-sm font-bold text-gray-700 mb-2">
-                Data *
-              </label>
-              <input
-                type="date"
-                id="noticia-date"
-                name="date"
-                value={formData.date}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              />
-            </div>
+            <FormField label="Data" id="noticia-date" required error={errors.date}>
+              <Input type="date" value={formData.date} onChange={(e) => setField('date', e.target.value)} required />
+            </FormField>
 
-            <div className="md:col-span-2">
-              <label htmlFor="noticia-excerpt" className="block text-sm font-bold text-gray-700 mb-2">
-                Resumo *
-              </label>
-              <textarea
-                id="noticia-excerpt"
-                name="excerpt"
+            <FormField
+              label="Resumo"
+              id="noticia-excerpt"
+              required
+              error={errors.excerpt}
+              hint={`Aparece nos cards do site. ${formData.excerpt.length}/1000 caracteres.`}
+              className="md:col-span-2"
+            >
+              <Textarea
                 value={formData.excerpt}
-                onChange={handleChange}
+                onChange={(e) => setField('excerpt', e.target.value)}
                 required
                 rows={3}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent resize-none"
-                placeholder="Digite um resumo da notícia"
+                maxLength={1000}
+                placeholder="Uma ou duas frases que resumem a notícia"
               />
-            </div>
+            </FormField>
 
-            <div className="md:col-span-2">
-              <label htmlFor="noticia-content" className="block text-sm font-bold text-gray-700 mb-2">
-                Conteúdo Completo *
-              </label>
-              <textarea
-                id="noticia-content"
-                name="content"
+            <FormField
+              label="Conteúdo completo"
+              id="noticia-content"
+              required
+              error={errors.content}
+              hint="Aceita HTML simples (parágrafos, negrito, links)."
+              className="md:col-span-2"
+            >
+              <Textarea
                 value={formData.content}
-                onChange={handleChange}
+                onChange={(e) => setField('content', e.target.value)}
                 required
                 rows={10}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent resize-none font-mono text-sm"
-                placeholder="Digite o conteúdo completo da notícia (HTML permitido)"
+                placeholder="Texto completo da notícia"
               />
+            </FormField>
+
+            <div className="space-y-3 md:col-span-2">
+              <ImageUploadField
+                label="Imagem de capa"
+                id="noticia-image-file"
+                value={formData.image && isValidLink(formData.image) ? formData.image : null}
+                onSelect={handleImageSelect}
+                onRemove={() => setField('image', '')}
+                uploading={isUploading}
+                hint="PNG, JPG ou WebP até 10 MB. Proporção 16:9 fica melhor nos cards."
+              />
+              <FormField label="Ou cole o endereço da imagem" id="noticia-image" error={errors.image}>
+                <Input
+                  type="url"
+                  inputMode="url"
+                  value={formData.image}
+                  onChange={(e) => setField('image', e.target.value)}
+                  placeholder="https://…"
+                />
+              </FormField>
             </div>
 
-            <div className="md:col-span-2">
-              <label htmlFor="noticia-image-file" className="block text-sm font-bold text-gray-700 mb-2">
-                Imagem de Capa
-              </label>
-              
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  {/* Opção 1: Upload de Arquivo */}
-                  <div className="flex-1">
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors focus-within:ring-2 focus-within:ring-[#003f7f]">
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        {isUploading ? (
-                          <FaSpinner className="w-8 h-8 text-gray-400 animate-spin mb-2" />
-                        ) : (
-                          <FaCloudUploadAlt className="w-8 h-8 text-gray-400 mb-2" />
-                        )}
-                        <p className="text-sm text-gray-500">
-                          <span className="font-semibold">Clique para enviar</span> ou arraste e solte
-                        </p>
-                        <p className="text-xs text-gray-500">PNG, JPG ou WEBP</p>
-                      </div>
-                      <input
-                        id="noticia-image-file"
-                        type="file"
-                        className="sr-only"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        disabled={isUploading}
-                      />
-                    </label>
-                  </div>
-
-                  {/* Preview da Imagem */}
-                  {formData.image && (
-                    <div className="relative w-32 h-32 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                      <img
-                        src={formData.image}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, image: '' })}
-                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                        title="Remover imagem"
-                        aria-label="Remover imagem"
-                      >
-                        <FaTrash className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Opção 2: URL Direta */}
-                <div className="flex gap-3 items-center">
-                  <label htmlFor="noticia-image-url" className="text-sm text-gray-500">Ou cole a URL:</label>
-                  <input
-                    id="noticia-image-url"
-                    type="url"
-                    name="image"
-                    value={formData.image}
-                    onChange={handleChange}
-                    className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                    placeholder="https://exemplo.com/imagem.jpg"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="noticia-campaign" className="block text-sm font-bold text-gray-700 mb-2">
-                Campanha
-              </label>
-              <select
-                id="noticia-campaign"
-                name="campaign_id"
-                value={formData.campaign_id}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-              >
+            <FormField label="Campanha" id="noticia-campaign" hint="Opcional. A notícia aparece também na página da campanha.">
+              <Select value={formData.campaign_id} onChange={(e) => setField('campaign_id', e.target.value)}>
                 <option value="">Nenhuma</option>
-                {campanhas.map(campanha => (
-                  <option key={campanha.id} value={campanha.id}>{campanha.title}</option>
+                {campanhas.map((campanha) => (
+                  <option key={campanha.id} value={campanha.id}>
+                    {campanha.title}
+                    {campanha.is_active === false ? ' (oculta no site)' : ''}
+                  </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
 
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg self-end">
-              <input
-                type="checkbox"
-                id="noticia-published"
-                checked={formData.is_published}
-                onChange={(e) => setFormData({ ...formData, is_published: e.target.checked })}
-                className="w-5 h-5 text-[#00a859] border-gray-300 rounded"
-              />
-              <label htmlFor="noticia-published" className="text-sm font-medium text-gray-700">
-                Publicada (desmarque para salvar como rascunho)
-              </label>
-            </div>
+            <FormField label="Autor" id="noticia-author">
+              <Input value={formData.author} onChange={(e) => setField('author', e.target.value)} maxLength={100} />
+            </FormField>
+
+            <Checkbox
+              className="rounded-xl bg-gray-50 px-4 ring-1 ring-gray-200 md:col-span-2"
+              label="Publicar no site"
+              description="Desmarque para salvar como rascunho (não aparece no site)."
+              checked={formData.is_published}
+              onChange={(e) => setField('is_published', e.target.checked)}
+            />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="submit"
-              disabled={isSaving || isUploading}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FaSave />
-              {isSaving ? 'Salvando...' : 'Salvar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-all duration-300"
-            >
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={closeModal} disabled={isSaving || isUploading}>
               Cancelar
-            </button>
+            </Button>
+            <Button type="submit" loading={isSaving} disabled={isUploading}>
+              {isSaving ? 'Salvando…' : editingId ? 'Salvar alterações' : formData.is_published ? 'Publicar notícia' : 'Salvar rascunho'}
+            </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal
+      <ConfirmDialog
         isOpen={noticiaToDelete !== null}
-        onClose={() => setNoticiaToDelete(null)}
-        title="Confirmar Exclusão"
-      >
-        <div className="space-y-6">
-          <p className="text-gray-600">
-            Tem certeza que deseja excluir a notícia &quot;{noticiaToDelete?.title}&quot;? Esta ação não pode ser desfeita.
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              onClick={() => setNoticiaToDelete(null)}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={confirmDelete}
-              className="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold transition-colors shadow-lg shadow-red-200"
-            >
-              Excluir
-            </button>
-          </div>
-        </div>
-      </Modal>
+        onClose={() => !isDeleting && setNoticiaToDelete(null)}
+        onConfirm={confirmDelete}
+        type="delete"
+        title="Excluir notícia?"
+        message={`“${noticiaToDelete?.title ?? ''}” será removida do site. Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

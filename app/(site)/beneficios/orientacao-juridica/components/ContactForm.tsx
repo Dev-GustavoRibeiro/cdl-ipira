@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FaArrowRight,
   FaCheck,
@@ -10,6 +10,7 @@ import {
   FaRegCalendarCheck,
   FaUserTie,
 } from 'react-icons/fa';
+import { HONEYPOT_FIELD, stampFormOpenedAt } from '@/lib/form-guard';
 import SectionHeader from './SectionHeader';
 
 interface ContactFormProps {
@@ -20,29 +21,53 @@ interface ContactFormProps {
   onReset?: () => void;
 }
 
-// Mesmo estilo de campo dos modais do site; o erro do campo aparece só depois que o usuário interage (:user-invalid)
+// Mesmo estilo de campo dos modais do site; o vermelho acompanha o aria-invalid que o Field liga.
+// Placeholder em gray-500: o gray-400 ficava em 2,5:1 sobre o fundo do campo (WCAG 1.4.3 pede 4,5:1)
 const fieldClass =
-  'w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-[15px] text-gray-900 placeholder:text-gray-400 transition-[border-color,background-color,box-shadow] duration-200 hover:border-gray-300 focus:border-[#003f7f] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#003f7f]/10 user-invalid:border-red-500 user-invalid:bg-red-50/40 disabled:cursor-not-allowed disabled:opacity-60';
+  'w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-base text-gray-900 placeholder:text-gray-500 sm:text-[15px] transition-[border-color,background-color,box-shadow] duration-200 hover:border-gray-300 focus:border-[#003f7f] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#003f7f]/10 aria-invalid:border-red-500 aria-invalid:bg-red-50/40 disabled:cursor-not-allowed disabled:opacity-60';
+
+type FieldAria = { 'aria-invalid'?: true; 'aria-describedby'?: string };
 
 interface FieldProps {
   id: string;
   label: string;
   error: string;
+  /** Orientação fixa sob o campo (id `${id}-dica`) */
+  hint?: string;
   className?: string;
-  children: React.ReactNode;
+  /** Recebe os atributos que ligam a dica e o erro ao campo (aria-invalid e aria-describedby) */
+  children: (aria: FieldAria) => React.ReactNode;
 }
 
-function Field({ id, label, error, className, children }: FieldProps) {
+const isValid = (e: React.SyntheticEvent) => (e.target as HTMLInputElement).validity.valid;
+
+function Field({ id, label, error, hint, className, children }: FieldProps) {
+  // O erro aparece na tentativa de envio (invalid) ou ao sair de um campo preenchido errado, e some assim que o campo
+  // fica válido. No React esses eventos borbulham (até o invalid), então o contêiner ouve o campo de dentro.
+  const [invalid, setInvalid] = useState(false);
+  const describedBy = [hint && `${id}-dica`, invalid && `${id}-erro`].filter(Boolean).join(' ') || undefined;
   return (
-    <div className={`group/field ${className ?? ''}`}>
+    <div
+      className={className}
+      onInvalid={() => setInvalid(true)}
+      onBlur={(e) => (e.target as HTMLInputElement).value && setInvalid(!isValid(e))}
+      onChange={(e) => invalid && setInvalid(!isValid(e))}
+    >
       <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-gray-800">
         {label} <span aria-hidden="true" className="text-red-600">*</span>
       </label>
-      {children}
-      <p className="mt-1.5 hidden items-center gap-1.5 text-xs font-medium text-red-700 group-has-[:user-invalid]/field:flex">
-        <FaExclamationCircle aria-hidden="true" className="h-3 w-3 shrink-0" />
-        {error}
-      </p>
+      {children({ 'aria-invalid': invalid || undefined, 'aria-describedby': describedBy })}
+      {hint && (
+        <p id={`${id}-dica`} className="mt-1.5 text-xs text-pretty text-gray-500">
+          {hint}
+        </p>
+      )}
+      {invalid && (
+        <p id={`${id}-erro`} className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-red-700">
+          <FaExclamationCircle aria-hidden="true" className="h-3 w-3 shrink-0" />
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -121,86 +146,118 @@ const ContactForm = ({ isFormSubmitting, formStatus, onSubmit, onReset }: Contac
                 )}
               </div>
             ) : (
-              <form onSubmit={onSubmit} aria-busy={isFormSubmitting} className="grid gap-5 sm:grid-cols-2">
+              <form ref={stampFormOpenedAt} onSubmit={onSubmit} aria-busy={isFormSubmitting} className="grid gap-5 sm:grid-cols-2">
+                {/* Campo-armadilha anti-robô (lib/form-guard): invisível, fora do Tab e escondido dos leitores de tela */}
+                <div aria-hidden="true" className="sr-only">
+                  <label htmlFor="juridico-website">Não preencha este campo</label>
+                  <input type="text" id="juridico-website" name={HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" defaultValue="" />
+                </div>
+
                 <Field id="juridico-nome" label="Nome completo" error="Informe seu nome.">
-                  <input
-                    type="text"
-                    id="juridico-nome"
-                    name="nome"
-                    required
-                    maxLength={120}
-                    autoComplete="name"
-                    placeholder="Seu nome"
-                    disabled={isFormSubmitting}
-                    className={fieldClass}
-                  />
+                  {(aria) => (
+                    <input
+                      {...aria}
+                      type="text"
+                      id="juridico-nome"
+                      name="nome"
+                      required
+                      maxLength={120}
+                      autoComplete="name"
+                      placeholder="Seu nome"
+                      disabled={isFormSubmitting}
+                      className={fieldClass}
+                    />
+                  )}
                 </Field>
                 <Field id="juridico-empresa" label="Empresa" error="Informe o nome da empresa.">
-                  <input
-                    type="text"
-                    id="juridico-empresa"
-                    name="empresa"
-                    required
-                    maxLength={150}
-                    autoComplete="organization"
-                    placeholder="Nome da empresa"
-                    disabled={isFormSubmitting}
-                    className={fieldClass}
-                  />
+                  {(aria) => (
+                    <input
+                      {...aria}
+                      type="text"
+                      id="juridico-empresa"
+                      name="empresa"
+                      required
+                      maxLength={150}
+                      autoComplete="organization"
+                      placeholder="Nome da empresa"
+                      disabled={isFormSubmitting}
+                      className={fieldClass}
+                    />
+                  )}
                 </Field>
                 <Field id="juridico-telefone" label="Telefone/WhatsApp" error="Informe um telefone para contato.">
-                  <input
-                    type="tel"
-                    id="juridico-telefone"
-                    name="telefone"
-                    required
-                    maxLength={30}
-                    autoComplete="tel"
-                    inputMode="tel"
-                    placeholder="(75) 99999-9999"
-                    disabled={isFormSubmitting}
-                    className={fieldClass}
-                  />
+                  {(aria) => (
+                    <input
+                      {...aria}
+                      type="tel"
+                      id="juridico-telefone"
+                      name="telefone"
+                      required
+                      maxLength={30}
+                      autoComplete="tel"
+                      inputMode="tel"
+                      placeholder="(75) 99999-9999"
+                      disabled={isFormSubmitting}
+                      className={fieldClass}
+                    />
+                  )}
                 </Field>
                 <Field id="juridico-email" label="E-mail" error="Informe um e-mail válido.">
-                  <input
-                    type="email"
-                    id="juridico-email"
-                    name="email"
-                    required
-                    autoComplete="email"
-                    placeholder="seu@email.com"
-                    disabled={isFormSubmitting}
-                    className={fieldClass}
-                  />
+                  {(aria) => (
+                    <input
+                      {...aria}
+                      type="email"
+                      id="juridico-email"
+                      name="email"
+                      required
+                      autoComplete="email"
+                      placeholder="seu@email.com"
+                      disabled={isFormSubmitting}
+                      className={fieldClass}
+                    />
+                  )}
                 </Field>
                 <Field id="juridico-assunto" label="Assunto da consulta" error="Informe o assunto." className="sm:col-span-2">
-                  <input
-                    type="text"
-                    id="juridico-assunto"
-                    name="assunto"
-                    required
-                    maxLength={200}
-                    placeholder="Ex.: questão trabalhista, análise de contrato"
-                    disabled={isFormSubmitting}
-                    className={fieldClass}
-                  />
+                  {(aria) => (
+                    <input
+                      {...aria}
+                      type="text"
+                      id="juridico-assunto"
+                      name="assunto"
+                      required
+                      maxLength={200}
+                      placeholder="Ex.: questão trabalhista, análise de contrato"
+                      disabled={isFormSubmitting}
+                      className={fieldClass}
+                    />
+                  )}
                 </Field>
-                <Field id="juridico-descricao" label="Descrição da situação" error="Descreva sua situação ou dúvida." className="sm:col-span-2">
-                  <textarea
-                    id="juridico-descricao"
-                    name="descricao"
-                    required
-                    maxLength={3000}
-                    rows={5}
-                    placeholder="Descreva sua situação ou dúvida jurídica..."
-                    disabled={isFormSubmitting}
-                    className={`${fieldClass} resize-y min-h-32`}
-                  />
+                {/* O campo tende a receber dados sensíveis ou de terceiros: avisa antes de escrever (LGPD, art. 6º, III) */}
+                <Field
+                  id="juridico-descricao"
+                  label="Descrição da situação"
+                  error="Descreva sua situação ou dúvida."
+                  hint="Conte só o essencial. Não inclua dados de saúde nem documentos; se precisarmos de mais informações, pediremos no atendimento."
+                  className="sm:col-span-2"
+                >
+                  {(aria) => (
+                    <textarea
+                      {...aria}
+                      id="juridico-descricao"
+                      name="descricao"
+                        required
+                      maxLength={3000}
+                      rows={5}
+                      placeholder="Descreva sua situação ou dúvida jurídica..."
+                      disabled={isFormSubmitting}
+                      className={`${fieldClass} resize-y min-h-32`}
+                    />
+                  )}
                 </Field>
 
                 {formStatus === 'error' && (
-                  <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 sm:col-span-2 animate-scale-in">
+                  // Foco no erro: o botão fica desativado durante o envio e o foco do teclado cairia no topo da página
+                  <div ref={focusOnMount} tabIndex={-1} role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 outline-none sm:col-span-2 animate-scale-in">
                     <FaExclamationCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                     <div>
                       <p className="font-bold text-red-800">Erro ao enviar solicitação</p>
@@ -229,6 +286,15 @@ const ContactForm = ({ isFormSubmitting, formStatus, onSubmit, onReset }: Contac
                   </button>
                   <p className="mt-3 text-center text-xs text-gray-500">
                     <span aria-hidden="true" className="text-red-600">*</span> Campos obrigatórios
+                  </p>
+                  {/* Aviso LGPD perto do envio: só informa o uso (não é um aceite);
+                      nova aba para não perder o que já foi digitado */}
+                  <p className="mt-1 text-center text-xs text-pretty text-gray-500">
+                    Seus dados serão usados para analisar e responder ao seu pedido, conforme a{' '}
+                    <a href="/politica-de-privacidade" target="_blank" rel="noopener" className="font-semibold text-[#003f7f] underline underline-offset-2 hover:text-[#0066cc]">
+                      Política de Privacidade<span className="sr-only"> (abre em nova aba)</span>
+                    </a>
+                    .
                   </p>
                 </div>
               </form>

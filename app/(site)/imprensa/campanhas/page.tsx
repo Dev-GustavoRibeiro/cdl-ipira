@@ -1,21 +1,22 @@
 import React from 'react';
-import type { Metadata } from 'next';
+import JsonLd from '@/app/components/seo/JsonLd';
+import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
 import { CampanhasContent } from './components';
 
-const description =
-  'Conheça as campanhas da CDL Ipirá que movimentam o comércio local: novidades, próximos eventos e tudo o que já realizamos.';
+const PATH = '/imprensa/campanhas';
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Campanhas',
-  description,
-  openGraph: {
-    title: 'Campanhas - CDL Ipirá',
-    description,
-    url: '/imprensa/campanhas',
-    type: 'website',
-  },
-};
+  description:
+    'Campanhas da CDL Ipirá que movimentam o comércio de Ipirá-BA: promoções, sorteios e ações para lojistas e consumidores. Veja as atuais e as próximas.',
+  path: PATH,
+});
 
 export default function CampanhasPage() {
-  return <CampanhasContent />;
+  return (
+    <>
+      <CampanhasContent />
+      <JsonLd data={[breadcrumbJsonLd(['Campanhas', PATH])]} />
+    </>
+  );
 }

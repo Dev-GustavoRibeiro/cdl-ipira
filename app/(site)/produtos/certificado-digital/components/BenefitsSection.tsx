@@ -7,8 +7,8 @@ import { SectionHeader, cardLift, cardSurface } from '../../_components/ProductU
 const benefits = [
   {
     icon: FaShieldAlt,
-    title: 'Segurança Total',
-    description: 'Proteção garantida com criptografia de alto nível e validade jurídica'
+    title: 'Segurança',
+    description: 'Criptografia e validade jurídica dos certificados ICP-Brasil (MP 2.200-2/2001)'
   },
   {
     icon: FaFileSignature,
@@ -18,12 +18,12 @@ const benefits = [
   {
     icon: FaLock,
     title: 'Autenticidade',
-    description: 'Garante a identidade do signatário e a integridade dos documentos'
+    description: 'Permite comprovar a autoria e a integridade dos documentos assinados'
   },
   {
     icon: FaVideo,
     title: 'Atendimento Online',
-    description: 'Emissão por videoconferência, sem sair de casa ou do escritório'
+    description: 'Atendimento por videoconferência, conforme as regras da ICP-Brasil'
   }
 ];
 

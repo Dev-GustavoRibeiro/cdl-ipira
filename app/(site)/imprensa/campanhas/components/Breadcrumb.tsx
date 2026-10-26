@@ -10,7 +10,7 @@ interface BreadcrumbProps {
 
 const Breadcrumb = ({ title }: BreadcrumbProps) => {
   return (
-    <div className="bg-[#003f7f] text-white py-2.5 sm:py-3">
+    <div className="bg-[#003f7f] text-white py-3.5 sm:py-3">
       <div className="container mx-auto px-4">
         <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm min-w-0" aria-label="Breadcrumb">
           <Link

@@ -11,16 +11,22 @@ const supabaseHost = (() => {
   }
 })() || '*.supabase.co';
 
+// VLibras (tradutor de Libras do governo federal): só é baixado quando a pessoa liga a opção no painel de
+// acessibilidade. vlibras.gov.br redireciona o script e o player para o jsDelivr do projeto oficial (o caminho limita
+// o jsDelivr a esse projeto: a telemetria que o plugin tenta importar de lá fica bloqueada); a tradução usa *.vlibras.gov.br.
+const vlibras = 'https://vlibras.gov.br https://cdn.jsdelivr.net/gh/spbgovbr-vlibras/';
+
 // Content Security Policy
+// Sem Google Fonts: o next/font serve as fontes do próprio site (o mapa e o YouTube carregam as deles dentro do iframe)
 // Em desenvolvimento, é mais permissivo (HMR via websocket e eval do React Refresh)
 const ContentSecurityPolicy = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ''} https://challenges.cloudflare.com;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ''} https://challenges.cloudflare.com ${vlibras};
+    style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https:;
-    font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:;
-    frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://challenges.cloudflare.com;
-    connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://challenges.cloudflare.com ${isDev ? 'ws: wss:' : ''};
+    font-src 'self' https://cdn.jsdelivr.net https://vlibras.gov.br data:;
+    frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://challenges.cloudflare.com ${vlibras};
+    connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://challenges.cloudflare.com ${vlibras} https://*.vlibras.gov.br ${isDev ? 'ws: wss:' : ''};
     media-src 'self' https://${supabaseHost} blob:;
     worker-src 'self' blob:;
     object-src 'none';
@@ -109,10 +115,8 @@ const nextConfig: NextConfig = {
         key: 'Strict-Transport-Security',
         value: 'max-age=63072000; includeSubDomains; preload'
       },
-      {
-        key: 'Cross-Origin-Embedder-Policy',
-        value: 'credentialless'
-      },
+      // Sem Cross-Origin-Embedder-Policy: com o COOP abaixo ele isolava a página (crossOriginIsolated) e o navegador
+      // bloqueava iframes de terceiros (VLibras, YouTube, mapa). Nada no site precisa de isolamento (SharedArrayBuffer).
       {
         key: 'Cross-Origin-Opener-Policy',
         value: 'same-origin'

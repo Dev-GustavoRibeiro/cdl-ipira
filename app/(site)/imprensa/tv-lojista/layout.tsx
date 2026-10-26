@@ -1,12 +1,21 @@
-import type { Metadata } from 'next';
+import JsonLd from '@/app/components/seo/JsonLd';
+import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
+
+const PATH = '/imprensa/tv-lojista';
 
 // A página é client component; o metadata da rota fica neste layout de servidor
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'TV Lojista',
-  description: 'Vídeos, entrevistas, dicas e coberturas de eventos da CDL Ipirá para impulsionar o seu negócio.',
-  alternates: { canonical: '/imprensa/tv-lojista' },
-};
+  description:
+    'TV Lojista da CDL Ipirá: vídeos com dicas para o comércio de Ipirá-BA, selecionados pela CDL.',
+  path: PATH,
+});
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      {children}
+      <JsonLd data={[breadcrumbJsonLd(['TV Lojista', PATH])]} />
+    </>
+  );
 }

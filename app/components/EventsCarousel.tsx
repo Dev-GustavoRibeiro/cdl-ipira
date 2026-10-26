@@ -3,34 +3,33 @@
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import type { Swiper as SwiperClass } from 'swiper';
-import { A11y, Autoplay } from 'swiper/modules';
-import { FaArrowRight, FaBullhorn, FaCalendarAlt, FaChevronLeft, FaChevronRight, FaMapMarkerAlt, FaUsers } from 'react-icons/fa';
+import { FaArrowRight, FaBullhorn, FaCalendarAlt, FaMapMarkerAlt, FaRegClock } from 'react-icons/fa';
 import EventModal from './EventModal';
-import { formatDateBR, isTodayOrFuture, parseDateOnly, todayISO } from '@/lib/date';
+import SectionCarousel, { MOUSE_FOCUS, SectionHeading, mediaFitClass, useCardsMotion } from './carousel/SectionCarousel';
+import { useReveal } from './motion/useReveal';
+import { ScrollTrigger } from '@/lib/motion';
+import { isTodayOrFuture, parseDateOnly, todayISO } from '@/lib/date';
 import { isOptimizableImage } from '@/lib/images';
-import 'swiper/css';
-import 'swiper/css/a11y';
 
-interface Event {
+interface EventItem {
   id: number;
   title: string;
   description: string;
-  date: string; // DD/MM/YYYY (exibida no modal)
-  time: string;
+  date: string; // YYYY-MM-DD (o modal formata)
+  time: string; // HH:MM ('' = não informado)
   location: string;
   category: string;
-  participants: string; // String for display in card ('' = não informado)
-  attendees?: number; // Number for modal
+  attendees?: number;
   image?: string;
   gradient: string;
-  month: string; // Derived for display
-  day: string;   // Derived for display
-  year: string;  // Derived for display
-  fullDate: string; // Derived for display
-  status: 'upcoming' | 'ongoing' | 'past';
+  day: string;
+  month: string;
+  weekday: string;
+  isToday: boolean;
+  registration_enabled: boolean;
 }
+
+type ApiEvent = { id: number; title: string; description?: string | null; date?: string | null; time?: string | null; location?: string | null; category?: string | null; attendees?: number | null; image?: string | null; registration_enabled?: boolean | null };
 
 // Cores da marca para eventos sem imagem (também usadas no topo do modal)
 const GRADIENTS = [
@@ -40,201 +39,164 @@ const GRADIENTS = [
   'from-[#ffd000] to-[#ffed4e]',
 ];
 
-// Acima disso vira carrossel; até aqui, grade estática (sem setas nem bolinhas)
-const GRID_MAX = 3;
+const short = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString('pt-BR', opts).replace('.', '');
 
-// Grade de 3 itens: no tablet (2 colunas) o terceiro card fica centralizado em vez de sobrar à esquerda
-const GRID_3 = 'sm:grid-cols-2 lg:grid-cols-3 sm:max-lg:[&>:last-child]:col-span-2 sm:max-lg:[&>:last-child]:mx-auto sm:max-lg:[&>:last-child]:w-[calc(50%-0.75rem)]';
-
-const SHADOW = 'shadow-[0_12px_32px_-18px_rgba(0,63,127,0.35)]';
-const SHADOW_HOVER = 'hover:shadow-[0_24px_50px_-20px_rgba(0,63,127,0.45)]';
-
-const primaryButtonClass = `group inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-[#003f7f] to-[#0066cc] px-7 py-3.5 text-sm font-bold text-white shadow-[0_12px_30px_-12px_rgba(0,63,127,0.7)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-12px_rgba(0,63,127,0.8)] active:scale-[0.98] motion-reduce:hover:translate-y-0`;
-
-const secondaryButtonClass = `group inline-flex items-center justify-center gap-2 rounded-full border-2 border-[#003f7f]/15 bg-white px-7 py-3 text-sm font-bold text-[#003f7f] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#003f7f] active:scale-[0.98] motion-reduce:hover:translate-y-0`;
-
-const navButtonClass = `grid h-12 w-12 place-items-center rounded-full bg-white text-[#003f7f] ring-1 ring-gray-200 shadow-[0_8px_20px_-10px_rgba(0,63,127,0.45)] transition-all duration-200 hover:bg-[#003f7f] hover:text-white hover:ring-[#003f7f] active:scale-95`;
-
-// Slides fora da área visível (no destino da transição) ficam inertes: fora do Tab e do leitor de tela.
-// Conta pelas posições do Swiper com 1px de folga, porque a classe "fully-visible" falha com larguras fracionadas.
-function syncInert(s: SwiperClass) {
-  const active = document.activeElement;
-  const start = s.snapGrid[s.snapIndex] ?? 0;
-  s.slides.forEach((el, i) => {
-    const left = s.slidesGrid[i] - start;
-    el.inert = left < -1 || left + s.slidesSizesGrid[i] > s.width + 1;
-  });
-  // Se o foco estava num card que saiu de vista, leva para o primeiro card visível
-  if (active instanceof HTMLElement && active.closest('.swiper-slide')?.hasAttribute('inert')) {
-    s.slides.find((el) => !el.inert)?.querySelector('button')?.focus({ preventScroll: true });
-  }
-}
-
-function SectionHeader({ compact, actions }: { compact?: boolean; actions?: React.ReactNode }) {
+function EventCard({ event, featured, sizes, onOpen }: { event: EventItem; featured?: boolean; sizes: string; onOpen: (event: EventItem) => void }) {
   return (
-    <div className={`flex flex-col gap-6 md:flex-row md:items-end md:justify-between ${compact ? 'mb-8 md:mb-10' : 'mb-10 md:mb-14'}`}>
-      <div className="max-w-2xl">
-        <span className="inline-flex items-center gap-2 rounded-full bg-[#003f7f] px-4 py-1.5 text-xs font-bold tracking-[0.14em] text-white uppercase shadow-sm">
-          <FaCalendarAlt aria-hidden="true" className="text-[#ffd000]" />
-          Agenda CDL Ipirá
-        </span>
-        <h2 id="eventos-titulo" className="mt-4 text-4xl leading-[1.05] font-black tracking-tight text-balance text-[#003f7f] sm:text-5xl lg:text-6xl">
-          Eventos em Destaque
-        </h2>
-        <div className="mt-5 h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" />
-        <p className="mt-5 text-base text-balance text-gray-600 md:text-lg">
-          Participe dos eventos que fortalecem o comércio e a comunidade de Ipirá.
-        </p>
-      </div>
-      {actions}
-    </div>
-  );
-}
-
-function EventsSkeleton() {
-  return (
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8" aria-hidden="true">
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          className={`overflow-hidden rounded-3xl bg-white ring-1 ring-gray-100 ${SHADOW} ${i === 1 ? 'hidden sm:block' : ''} ${i === 2 ? 'hidden lg:block' : ''}`}
-        >
-          <div className="aspect-16/10 animate-pulse bg-gray-200 motion-reduce:animate-none" />
-          <div className="space-y-3 p-6">
-            <div className="h-5 w-4/5 animate-pulse rounded-full bg-gray-200 motion-reduce:animate-none" />
-            <div className="h-3.5 w-1/2 animate-pulse rounded-full bg-gray-100 motion-reduce:animate-none" />
-            <div className="h-3.5 w-2/3 animate-pulse rounded-full bg-gray-100 motion-reduce:animate-none" />
-            <div className="mt-6 h-11 w-full animate-pulse rounded-full bg-gray-100 motion-reduce:animate-none" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EventCard({ event, featured, sizes, onOpen }: { event: Event; featured?: boolean; sizes: string; onOpen: (event: Event) => void }) {
-  return (
+    // transition só de translate/sombra: transform e opacity ficam livres para a entrada (GSAP)
     <article
-      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-3xl text-left bg-white ring-1 ring-gray-100 ${SHADOW} ${SHADOW_HOVER} transition-all duration-300 hover:-translate-y-1.5 active:scale-[0.98] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#003f7f] has-focus-visible:ring-2 has-focus-visible:ring-[#ffd000] motion-reduce:hover:translate-y-0 ${featured ? 'md:flex-row' : ''}`}
+      data-card
+      className={`group relative flex h-full flex-col rounded-[1.75rem] bg-white p-2 ring-1 ring-[#003f7f]/8 shadow-[0_14px_34px_-22px_rgba(0,63,127,0.5)] transition-[translate,box-shadow] duration-500 ease-out hover:-translate-y-1 hover:shadow-[0_20px_40px_-22px_rgba(0,63,127,0.55)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#003f7f] motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${featured ? 'md:flex-row' : ''}`}
     >
-      {/* Imagem do Evento */}
-      <div className={`relative aspect-16/10 shrink-0 overflow-hidden bg-linear-to-br ${event.gradient} ${featured ? 'md:aspect-auto md:min-h-96 md:w-1/2' : ''}`}>
+      <div
+        data-card-media
+        className={`relative w-full shrink-0 overflow-hidden rounded-[1.3rem] bg-linear-to-br ${event.gradient} ${mediaFitClass} max-md:[@media(max-height:700px)]:max-h-[clamp(7.5rem,21svh,17rem)] ${featured ? 'md:aspect-auto md:max-h-none md:min-h-[clamp(15rem,44svh,24rem)] md:w-[56%]' : ''}`}
+      >
         {event.image ? (
-          <Image
-            src={event.image}
-            alt={event.title}
-            fill
-            sizes={sizes}
-            unoptimized={!isOptimizableImage(event.image)}
-            className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 motion-reduce:group-hover:scale-100"
-          />
+          // Camada própria para o parallax (a imagem mantém o zoom do hover com transição CSS)
+          <div data-card-parallax className="absolute inset-0">
+            <Image
+              src={event.image}
+              alt=""
+              fill
+              sizes={sizes}
+              unoptimized={!isOptimizableImage(event.image)}
+              className="object-cover transition-transform duration-900 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            />
+          </div>
         ) : (
-          <FaCalendarAlt aria-hidden="true" className="absolute inset-0 m-auto text-6xl text-white/30" />
+          // Sem foto: pontilhado claro + o dia em tipografia grande (mesma ideia da capa do modal)
+          <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.28)_1px,transparent_1.6px)] bg-size-[16px_16px]">
+            <span className="absolute -right-[0.06em] -bottom-[0.2em] text-[clamp(7rem,18svh,11rem)] leading-none font-black tracking-tighter text-white/25 tabular-nums">{event.day}</span>
+          </div>
         )}
-        <div className="absolute inset-0 bg-linear-to-b from-black/30 via-transparent to-black/20" />
+        {/* Véu só no topo: legibilidade dos selos sem escurecer a foto */}
+        <div className="absolute inset-x-0 top-0 h-1/2 bg-linear-to-b from-black/30 to-transparent" />
 
-        {/* Categoria Badge - amarelo com texto azul */}
-        <span className="absolute top-5 left-5 rounded-full bg-[#ffd000] px-4 py-1.5 text-xs font-black text-[#003f7f] shadow-lg">
-          {event.category}
+        {/* Sem backdrop-blur: sobre a foto em parallax faz o Safari repintar/piscar ao rolar */}
+        <span className="absolute top-2.5 left-2.5 inline-flex max-w-[calc(100%-6.5rem)] items-center gap-1.5 rounded-full bg-white/92 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-[#003f7f] uppercase shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)] md:top-3 md:left-3">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#00a859]" />
+          <span className="truncate">{event.category}</span>
         </span>
-
-        {event.status === 'ongoing' && (
-          <span className="absolute bottom-5 left-5 inline-flex items-center gap-2 rounded-full bg-[#00a859] px-3.5 py-1.5 text-xs font-bold text-white shadow-lg">
-            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+        {event.isToday && (
+          <span className="absolute top-2.5 right-2.5 rounded-full bg-[#ffd000] px-3 py-1 text-[11px] font-black tracking-[0.08em] text-[#003f7f] uppercase shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)] md:top-3 md:right-3">
             É hoje
           </span>
         )}
-
-        {/* Calendário */}
-        <div className="absolute top-5 right-5 overflow-hidden rounded-2xl bg-white text-center shadow-2xl transition-transform duration-500 group-hover:-rotate-3 motion-reduce:group-hover:rotate-0">
-          <div className="bg-[#003f7f] px-4 py-1.5 text-xs font-bold tracking-wider text-white uppercase">{event.month}</div>
-          <div className="px-4 pt-2 pb-2.5">
-            <div className="text-3xl leading-none font-black text-[#003f7f]">{event.day}</div>
-            <div className="mt-1 text-[11px] font-semibold text-gray-500">{event.year}</div>
-          </div>
-        </div>
       </div>
 
-      {/* Conteúdo do Card */}
-      <div className={`flex grow flex-col p-6 md:p-7 ${featured ? 'md:justify-center md:p-10 lg:p-12' : ''}`}>
-        <h3 className={`leading-snug font-black tracking-tight text-gray-900 transition-colors group-hover:text-[#003f7f] ${featured ? 'text-2xl md:text-3xl' : 'text-xl'}`}>
-          {/* Botão "esticado": o ::after cobre o card inteiro, então qualquer clique abre o modal */}
-          <button
-            type="button"
-            onClick={() => onOpen(event)}
-            aria-haspopup="dialog"
-            className="text-left after:absolute after:inset-0 after:z-10 after:content-[''] focus-visible:shadow-none! focus-visible:outline-none!"
+      <div className={`flex grow flex-col px-3 pt-3 pb-1.5 md:pt-3.5 ${featured ? 'md:justify-center md:px-8 md:py-6 lg:px-10' : ''}`}>
+        <div className={`flex items-start gap-3.5 ${featured ? 'md:gap-5' : ''}`}>
+          {/* Data grande em bloco (mês · dia · dia da semana): é o que se procura primeiro numa agenda */}
+          <time
+            data-card-pop
+            dateTime={event.date}
+            className={`flex w-[3.75rem] shrink-0 flex-col items-center rounded-2xl bg-[#003f7f] pt-1.5 pb-2 text-center text-white shadow-[0_10px_22px_-12px_rgba(0,63,127,0.8)] ${featured ? 'md:w-20 md:pt-2 md:pb-2.5' : ''}`}
           >
-            <span className="line-clamp-2">{event.title}</span>
-          </button>
-        </h3>
+            <span className="text-[11px] leading-tight font-bold tracking-[0.14em] text-[#ffd000] uppercase">{event.month}</span>
+            <span className={`text-[1.75rem] leading-none font-black tracking-tight tabular-nums ${featured ? 'md:text-[2.5rem]' : ''}`}>{event.day}</span>
+            <span className="mt-0.5 text-[10px] font-semibold tracking-[0.1em] text-white/75 uppercase">{event.weekday}</span>
+          </time>
 
-        <ul className="mt-4 space-y-2.5 text-sm text-gray-600">
-          <li className="flex items-center gap-2.5">
-            <FaCalendarAlt aria-hidden="true" className="shrink-0 text-[#00a859]" />
-            <span className="font-semibold text-gray-800">
-              {event.fullDate}
-              {event.time && <span className="font-normal text-gray-500"> · {event.time.slice(0, 5)}</span>}
-            </span>
-          </li>
-          <li className="flex items-center gap-2.5">
-            <FaMapMarkerAlt aria-hidden="true" className="shrink-0 text-[#00a859]" />
-            <span className="line-clamp-1">{event.location}</span>
-          </li>
-          {event.participants && (
-            <li className="flex items-center gap-2.5">
-              <FaUsers aria-hidden="true" className="shrink-0 text-[#00a859]" />
-              <span className="line-clamp-1">{event.participants}</span>
-            </li>
-          )}
-        </ul>
+          <div className="min-w-0 grow">
+            <h3 className={`leading-snug font-bold tracking-tight text-pretty text-gray-900 transition-colors duration-300 group-hover:text-[#003f7f] ${featured ? 'text-lg md:text-2xl lg:text-3xl' : 'text-[1.0625rem] md:text-lg'}`}>
+              {/* Botão "esticado": o ::after cobre o card inteiro, então qualquer clique abre o modal */}
+              <button
+                type="button"
+                // Foca no clique (o arraste do carrossel impede o foco no mousedown) para o modal devolver o foco ao cartão;
+                // sem anel no clique, e só se o foco não estiver nele (teclado)
+                onClick={(e) => {
+                  if (document.activeElement !== e.currentTarget) e.currentTarget.focus(MOUSE_FOCUS);
+                  onOpen(event);
+                }}
+                aria-haspopup="dialog"
+                className="cursor-pointer text-left after:absolute after:inset-0 after:z-10 after:rounded-[1.75rem] after:content-[''] focus-visible:shadow-none! focus-visible:outline-none!"
+              >
+                {/* Lado a lado (md+) o título reserva 2 linhas: horário/local ficam na mesma altura em todos os cartões.
+                    Destaque: coluna de texto estreita no tablet/notebook com título grande, então até 3 linhas. */}
+                <span className={featured ? 'line-clamp-2 md:line-clamp-3' : 'line-clamp-2 md:min-h-[2lh]'}>{event.title}</span>
+              </button>
+            </h3>
+            {/* Horário e local numa linha; o local encurta com reticências */}
+            <p className="mt-1.5 flex min-w-0 items-center gap-3 text-[13px] font-medium text-gray-600">
+              {event.time && (
+                <span className="inline-flex shrink-0 items-center gap-1.5 tabular-nums">
+                  <FaRegClock aria-hidden="true" className="text-[#00a859]" />
+                  {event.time}
+                </span>
+              )}
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <FaMapMarkerAlt aria-hidden="true" className="shrink-0 text-[#00a859]" />
+                <span className="truncate">{event.location}</span>
+              </span>
+            </p>
+          </div>
+        </div>
 
-        {event.description && (
-          <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-gray-600">{event.description}</p>
+        {/* Destaque único: a descrição cabe ao lado da foto no desktop */}
+        {featured && event.description && (
+          <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-gray-600 md:mt-5 md:line-clamp-3 md:text-[15px] max-md:[@media(max-height:700px)]:hidden">{event.description}</p>
         )}
 
-        <div className={`mt-auto pt-6 ${featured ? 'md:mt-0 md:pt-8' : ''}`}>
-          <span
-            aria-hidden="true"
-            className={`items-center justify-center gap-2 rounded-full border-2 border-[#003f7f] px-6 py-3 text-sm font-bold text-[#003f7f] transition-colors duration-300 group-hover:bg-[#003f7f] group-hover:text-white ${featured ? 'flex md:inline-flex' : 'flex'}`}
-          >
-            Saiba mais
-            <FaArrowRight className="text-xs transition-transform duration-300 group-hover:translate-x-1" />
+        <div className={`mt-auto flex items-center justify-between gap-3 pt-3 [@media(max-height:700px)]:pt-2 ${featured ? 'md:pt-6' : ''}`}>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#00a859]/10 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap text-[#00703a]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#00a859]" />
+            {/* Sorteio, feira…: o evento não pede inscrição */}
+            {event.registration_enabled ? 'Inscrições abertas' : 'Entrada livre'}
+          </span>
+          <span aria-hidden="true" className="inline-flex items-center gap-2 text-sm font-bold text-[#003f7f]">
+            {/* Cartão estreito (celular): só a seta, para o rodapé não quebrar em duas linhas */}
+            <span className="max-sm:hidden">Ver evento</span>
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[#003f7f]/8 transition-[background-color,color,translate] duration-300 group-hover:translate-x-0.5 group-hover:bg-[#003f7f] group-hover:text-white motion-reduce:transition-none">
+              <FaArrowRight className="text-[11px]" />
+            </span>
           </span>
         </div>
       </div>
-
-      {/* Barra colorida inferior */}
-      <div className={`absolute inset-x-0 bottom-0 h-1.5 bg-linear-to-r ${event.gradient}`} />
     </article>
   );
 }
 
 // Sem eventos futuros: faixa compacta com caminhos úteis, em vez de um bloco vazio
 function NoUpcomingEvents() {
+  const month = short(new Date(), { month: 'short' });
   return (
-    <div className={`rounded-3xl bg-white p-6 ring-1 ring-gray-100 sm:p-8 md:p-10 ${SHADOW}`}>
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
-          <div className="relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-[#003f7f] to-[#0066cc] text-2xl text-white shadow-[0_12px_24px_-10px_rgba(0,63,127,0.6)]">
-            <FaCalendarAlt aria-hidden="true" />
-            <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-[#ffd000] ring-4 ring-white" />
+    <div data-card className="relative overflow-hidden rounded-[1.75rem] bg-[#f4f8fc] p-5 ring-1 ring-[#003f7f]/8 sm:p-7 lg:px-10 lg:py-8">
+      <div className="flex flex-col gap-5 md:flex-row md:items-center md:gap-8">
+        <div className="flex items-center gap-4 sm:gap-6">
+          {/* Calendário "folheando": página do mês atual sobre outra inclinada, com os três pontos da marca no lugar do dia */}
+          <div data-card-pop aria-hidden="true" className="relative w-16 shrink-0 sm:w-20">
+            <div className="absolute inset-0 translate-x-1.5 -translate-y-1 rotate-[8deg] rounded-2xl bg-[#ffd000]" />
+            <div className="relative overflow-hidden rounded-2xl bg-white text-center shadow-[0_14px_28px_-14px_rgba(0,63,127,0.6)] ring-1 ring-[#003f7f]/10">
+              <div className="bg-[#003f7f] py-1 text-[11px] font-bold tracking-[0.14em] text-[#ffd000] uppercase">{month}</div>
+              <div className="flex h-11 items-center justify-center gap-1.5 sm:h-14">
+                <span className="h-2 w-2 rounded-full bg-[#003f7f]" />
+                <span className="h-2 w-2 rounded-full bg-[#00a859]" />
+                <span className="h-2 w-2 rounded-full bg-[#ffd000]" />
+              </div>
+            </div>
           </div>
-          <div>
-            <h3 className="text-2xl font-black tracking-tight text-[#003f7f] md:text-3xl">Novos eventos em breve</h3>
-            <p className="mt-2 max-w-xl text-pretty text-gray-600">
+          <div className="min-w-0">
+            <h3 className="text-xl font-black tracking-tight text-balance text-[#003f7f] sm:text-2xl lg:text-[1.75rem]">Novos eventos em breve</h3>
+            <p className="mt-1 max-w-xl text-sm text-pretty text-gray-600 sm:mt-1.5 sm:text-[15px]">
               Estamos preparando a próxima agenda. Enquanto isso, relembre os eventos realizados e acompanhe nossas campanhas.
             </p>
           </div>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row lg:ml-auto lg:shrink-0">
-          <Link href="/imprensa/eventos" className={primaryButtonClass}>
+        <div className="flex flex-col gap-2.5 sm:flex-row md:ml-auto md:shrink-0 md:flex-col lg:flex-row">
+          <Link
+            href="/imprensa/eventos"
+            className="group inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#003f7f] px-6 text-sm font-bold text-white shadow-[0_12px_26px_-14px_rgba(0,63,127,0.8)] transition-[background-color,translate] duration-200 hover:-translate-y-0.5 hover:bg-[#0052a3] active:translate-y-0 motion-reduce:hover:translate-y-0"
+          >
             Ver eventos realizados
-            <FaArrowRight aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-x-1" />
+            <FaArrowRight aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
-          <Link href="/imprensa/campanhas" className={secondaryButtonClass}>
-            <FaBullhorn aria-hidden="true" className="text-[#00a859]" />
-            Conheça nossas campanhas
+          <Link
+            href="/imprensa/campanhas"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-[#003f7f] ring-1 ring-[#003f7f]/15 transition-[background-color,color,box-shadow] duration-200 hover:bg-[#003f7f] hover:text-white hover:ring-[#003f7f]"
+          >
+            <FaBullhorn aria-hidden="true" className="text-xs" />
+            Nossas campanhas
           </Link>
         </div>
       </div>
@@ -243,55 +205,51 @@ function NoUpcomingEvents() {
 }
 
 const EventsCarousel = () => {
-  const [events, setEvents] = React.useState<Event[]>([]);
+  const [events, setEvents] = React.useState<EventItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [selectedEvent, setSelectedEvent] = React.useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = React.useState<EventItem | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [swiper, setSwiper] = React.useState<SwiperClass | null>(null);
-  const [snap, setSnap] = React.useState({ index: 0, count: 1 });
+  const sectionRef = React.useRef<HTMLElement>(null);
+
+  // Cabeçalho e cartões entram ao rolar; reprocessa quando os eventos chegam
+  useReveal(sectionRef, [isLoading, events.length]);
+  useCardsMotion(sectionRef, [isLoading, events.length]);
 
   React.useEffect(() => {
     const fetchEvents = async () => {
       try {
         const response = await fetch('/api/eventos');
-        if (response.ok) {
-          const data = await response.json();
+        if (!response.ok) return setEvents([]);
+        const data: ApiEvent[] = await response.json();
+        // A coluna status não é mantida no banco: a home mostra só eventos de hoje em diante, do mais próximo ao mais longe
+        const today = todayISO();
+        const upcoming = data
+          .filter((item) => isTodayOrFuture(item.date, today) && parseDateOnly(item.date))
+          .sort((a, b) => `${a.date}${a.time ?? ''}`.localeCompare(`${b.date}${b.time ?? ''}`));
 
-          // A coluna status não é mantida no banco: a home mostra só eventos de hoje em diante
-          const today = todayISO();
-          const upcoming = data.filter((item: { date?: string | null }) => isTodayOrFuture(item.date, today) && parseDateOnly(item.date));
-
-          const mappedEvents = upcoming.map((item: { id: number; title: string; description?: string | null; date: string; time?: string | null; location?: string | null; category?: string | null; participants?: string | null; attendees?: number | null; image?: string | null }, index: number): Event => {
-            const dateObj = parseDateOnly(item.date) as Date;
-            const day = dateObj.getDate().toString().padStart(2, '0');
-            const monthShort = dateObj.toLocaleString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase();
-            const year = dateObj.getFullYear().toString();
-            const fullDate = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
+        setEvents(
+          upcoming.map((item, index) => {
+            const date = parseDateOnly(item.date) as Date;
+            const iso = (item.date as string).slice(0, 10);
             return {
               id: item.id,
               title: item.title,
               description: item.description || '',
-              date: formatDateBR(item.date),
-              time: item.time || '',
+              date: iso,
+              time: item.time?.slice(0, 5) || '',
               location: item.location || 'CDL Ipirá',
               category: item.category || 'Evento',
-              participants: item.participants || '',
               attendees: item.attendees || undefined,
               image: item.image || undefined,
               gradient: GRADIENTS[index % GRADIENTS.length],
-              month: monthShort,
-              day: day,
-              year: year,
-              fullDate: fullDate,
-              status: item.date.slice(0, 10) === today ? 'ongoing' : 'upcoming'
+              day: String(date.getDate()).padStart(2, '0'),
+              month: short(date, { month: 'short' }),
+              weekday: short(date, { weekday: 'short' }),
+              isToday: iso === today,
+              registration_enabled: item.registration_enabled !== false,
             };
-          });
-
-          setEvents(mappedEvents);
-        } else {
-          setEvents([]);
-        }
+          }),
+        );
       } catch (error) {
         console.error('Erro ao carregar eventos:', error);
         setEvents([]);
@@ -302,158 +260,73 @@ const EventsCarousel = () => {
     fetchEvents();
   }, []);
 
-  // Com o modal aberto o carrossel não anda (senão o card de origem sai de vista e o foco não volta para ele)
-  const openModal = (event: Event) => {
-    swiper?.autoplay?.stop();
-    setSelectedEvent(event);
-    setIsModalOpen(true);
-  };
-
   const isEmpty = !isLoading && events.length === 0;
-  const isCarousel = events.length > GRID_MAX;
-  // Só existe no cliente (a lista vem do fetch), então pode ler a preferência direto
-  const reduceMotion = isCarousel && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const sync = (s: SwiperClass) => {
-    setSnap({ index: s.snapIndex, count: s.snapGrid.length });
-    syncInert(s);
-  };
-
-  const viewAll = (
-    <Link href="/imprensa/eventos" className={primaryButtonClass}>
-      Ver agenda completa
-      <FaArrowRight aria-hidden="true" className="text-xs transition-transform duration-300 group-hover:translate-x-1" />
-    </Link>
-  );
-
-  let content: React.ReactNode;
-  if (isLoading) {
-    content = <EventsSkeleton />;
-  } else if (isEmpty) {
-    content = <NoUpcomingEvents />;
-  } else if (!isCarousel) {
-    const sizes = events.length === 3 ? '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw' : '(min-width: 768px) 50vw, 100vw';
-    content = (
-      <div className={`grid gap-6 lg:gap-8 ${events.length === 2 ? 'md:grid-cols-2' : events.length === 3 ? GRID_3 : ''}`}>
-        {events.map((event) => (
-          <EventCard key={event.id} event={event} featured={events.length === 1} sizes={sizes} onOpen={openModal} />
-        ))}
-      </div>
-    );
-  } else {
-    content = (
-      <>
-        <Swiper
-          modules={[A11y, Autoplay]}
-          onSwiper={setSwiper}
-          onAfterInit={sync}
-          onSnapIndexChange={sync}
-          onSnapGridLengthChange={sync}
-          rewind
-          speed={reduceMotion ? 0 : 600}
-          slidesPerView={1.15}
-          spaceBetween={16}
-          breakpoints={{
-            768: { slidesPerView: 2, spaceBetween: 24 },
-            1024: { slidesPerView: 3, spaceBetween: 32 },
-          }}
-          autoplay={reduceMotion ? false : { delay: 5000, disableOnInteraction: false, pauseOnMouseEnter: true }}
-          a11y={{
-            containerRoleDescriptionMessage: 'carrossel',
-            itemRoleDescriptionMessage: 'evento',
-            slideLabelMessage: '{{index}} de {{slidesLength}}',
-            // Só os slides visíveis recebem foco (os demais ficam inert), então não precisa rolar ao focar
-            scrollOnFocus: false,
-          }}
-          className="-mx-4! -mt-3! -mb-12! w-auto! px-4! pt-3! pb-12!"
-        >
-          {events.map((event) => (
-            <SwiperSlide key={event.id} className="h-auto! px-0!">
-              <EventCard event={event} sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 85vw" onOpen={openModal} />
-            </SwiperSlide>
-          ))}
-        </Swiper>
-
-        {snap.count > 1 && (
-          <div className="mt-5 flex justify-center">
-            {Array.from({ length: snap.count }, (_, i) => (
-              // Área de toque de 24px+ ao redor do ponto visível
-              <button
-                key={i}
-                type="button"
-                onClick={() => swiper?.slideTo(i)}
-                aria-label={`Ir para a posição ${i + 1} de ${snap.count}`}
-                aria-current={i === snap.index ? 'true' : undefined}
-                className="group/dot grid h-10 place-items-center rounded-full px-[7px]"
-              >
-                <span className={`block h-2.5 rounded-full transition-all duration-300 motion-reduce:transition-none ${i === snap.index ? 'w-8 bg-[#003f7f]' : 'w-2.5 bg-gray-300 group-hover/dot:bg-gray-400'}`} />
-              </button>
-            ))}
-          </div>
-        )}
-      </>
-    );
-  }
+  // A altura da seção muda quando os dados chegam (o estado vazio encolhe; janela baixa não tem altura mínima) depois que
+  // os gatilhos de rolagem das seções de baixo já foram medidos: sem remedir, a entrada da TV/galeria disparava
+  // centenas de px tarde (conteúdo na tela ainda invisível)
+  React.useEffect(() => {
+    if (!isLoading) ScrollTrigger.refresh();
+  }, [isLoading]);
+  // Até 2 eventos os cartões ficam mais largos no desktop (a vista nunca passa do total)
+  const sizes = events.length <= 2 ? '(min-width: 768px) 50vw, 88vw' : '(min-width: 1536px) 25vw, (min-width: 1024px) 33vw, (min-width: 768px) 46vw, (min-width: 640px) 62vw, 88vw';
 
   return (
     <section
+      ref={sectionRef}
       aria-labelledby="eventos-titulo"
       aria-busy={isLoading || undefined}
-      className={`relative overflow-hidden bg-white ${isEmpty ? 'py-14 md:py-20' : 'py-16 md:py-24'}`}
+      // Bloco branco da home (borda reta entre as seções): com eventos ocupa a área útil da tela com o conteúdo
+      // centrado; vazio fica compacto (só o aviso). Janela muito baixa (celular deitado): altura natural.
+      className={`relative flex flex-col justify-center overflow-hidden bg-white py-(--scene-blend) ${isEmpty ? '' : '[@media(min-height:560px)]:min-h-(--screen-fit)'}`}
     >
-      {/* Elementos decorativos de fundo */}
-      <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-[#003f7f]/5 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-[#ffd000]/10 blur-3xl" />
+      {/* Brilho discreto: gradiente radial em vez de filter: blur (área grande sob o header de vidro piscava ao rolar) */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(30rem_24rem_at_92%_12%,rgba(255,208,0,0.08),transparent_70%),radial-gradient(26rem_26rem_at_2%_90%,rgba(0,63,127,0.04),transparent_70%)]" />
 
-      {/* Teclado: setas navegam; foco dentro pausa o autoplay (hover é tratado pelo Swiper).
-          Fica fora do modal, que é um portal e também propagaria os eventos. */}
-      <div
-        className="relative container mx-auto px-4"
-        onKeyDown={(e) => {
-          if (!swiper) return;
-          if (e.key === 'ArrowLeft') swiper.slidePrev();
-          if (e.key === 'ArrowRight') swiper.slideNext();
-        }}
-        onFocus={() => swiper?.autoplay?.running && swiper.autoplay.stop()}
-        onBlur={(e) => {
-          if (swiper && !reduceMotion && !isModalOpen && !e.currentTarget.contains(e.relatedTarget)) swiper.autoplay?.start();
-        }}
-      >
-        <SectionHeader
-          compact={isEmpty}
-          actions={
-            events.length > 0 && (
-              <div className="hidden shrink-0 items-center gap-3 md:flex">
-                {isCarousel && (
-                  <>
-                    <button type="button" onClick={() => swiper?.slidePrev()} aria-label="Eventos anteriores" className={navButtonClass}>
-                      <FaChevronLeft aria-hidden="true" />
-                    </button>
-                    <button type="button" onClick={() => swiper?.slideNext()} aria-label="Próximos eventos" className={navButtonClass}>
-                      <FaChevronRight aria-hidden="true" />
-                    </button>
-                  </>
-                )}
-                {viewAll}
-              </div>
-            )
+      <div className="relative container mx-auto w-full px-4">
+        <SectionCarousel
+          label="Próximos eventos"
+          itemName="evento"
+          header={
+            <SectionHeading
+              id="eventos-titulo"
+              eyebrow={
+                <>
+                  <FaCalendarAlt aria-hidden="true" />
+                  Agenda CDL Ipirá
+                </>
+              }
+              eyebrowClass="bg-[#ffd000] text-[#003f7f]"
+              title="Eventos em Destaque"
+              text="Participe dos eventos que fortalecem o comércio e a comunidade de Ipirá."
+            />
           }
-        />
-
-        {content}
-
-        {events.length > 0 && <div className="mt-10 md:hidden [&>a]:w-full">{viewAll}</div>}
+          // Sem eventos futuros o aviso do estado vazio já leva à agenda
+          action={isEmpty ? undefined : { href: '/imprensa/eventos', label: 'Ver agenda' }}
+          prevLabel="Eventos anteriores"
+          nextLabel="Próximos eventos"
+          loading={isLoading}
+          empty={<NoUpcomingEvents />}
+          autoplay={7000}
+          // Com o modal aberto o carrossel não anda (senão o card de origem sai de vista e o foco não volta para ele)
+          paused={isModalOpen}
+        >
+          {events.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              featured={events.length === 1}
+              sizes={sizes}
+              onOpen={(e) => {
+                setSelectedEvent(e);
+                setIsModalOpen(true);
+              }}
+            />
+          ))}
+        </SectionCarousel>
       </div>
 
-      <EventModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          // Volta a rodar; se o foco retornar ao card, o onFocus acima pausa de novo
-          if (!reduceMotion) swiper?.autoplay?.start();
-        }}
-        event={selectedEvent}
-      />
+      <EventModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} event={selectedEvent} />
     </section>
   );
 };

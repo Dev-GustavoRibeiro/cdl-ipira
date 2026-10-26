@@ -14,6 +14,27 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Serviços': 'from-indigo-600 to-indigo-800',
 };
 
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Título',
+  excerpt: 'Resumo',
+  category: 'Categoria',
+  date: 'Data',
+  image: 'Imagem de capa',
+  author: 'Autor',
+};
+
+/** "Campo 'excerpt' excede..." -> "Resumo excede..." (mensagem que o painel mostra no aviso) */
+function friendlyErrors(errors: string[]): string {
+  return errors.map((e) => e.replace(/Campo '(\w+)'/, (_, key: string) => FIELD_LABELS[key] || key)).join(' ');
+}
+
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseId(value: unknown): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 /** campaign_id do corpo: id > 0, null (sem campanha) ou undefined (campo ausente, não altera). false = inválido. */
 function parseCampaignId(value: unknown): number | null | undefined | false {
   if (value === undefined) return undefined;
@@ -74,7 +95,11 @@ export async function POST(request: NextRequest) {
     sanitized.content = body.content;
     
     if (!valid) {
-      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+      return NextResponse.json({ error: friendlyErrors(errors), details: errors }, { status: 400 });
+    }
+
+    if (!DATE_REGEX.test(String(sanitized.date))) {
+      return NextResponse.json({ error: 'Data inválida.' }, { status: 400 });
     }
 
     const campaignId = parseCampaignId(body.campaign_id);
@@ -134,7 +159,8 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     
-    const { id, ...updateData } = body;
+    const { id: rawId, ...updateData } = body;
+    const id = parseId(rawId);
     
     if (!id) {
       return NextResponse.json({ error: 'ID da notícia é obrigatório' }, { status: 400 });
@@ -159,7 +185,11 @@ export async function PUT(request: NextRequest) {
     sanitized.content = updateData.content;
     
     if (!valid) {
-      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+      return NextResponse.json({ error: friendlyErrors(errors), details: errors }, { status: 400 });
+    }
+
+    if (!DATE_REGEX.test(String(sanitized.date))) {
+      return NextResponse.json({ error: 'Data inválida.' }, { status: 400 });
     }
 
     const campaignId = parseCampaignId(updateData.campaign_id);
@@ -216,7 +246,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = parseId(searchParams.get('id'));
     
     if (!id) {
       return NextResponse.json({ error: 'ID da notícia é obrigatório' }, { status: 400 });
@@ -242,7 +272,7 @@ export async function DELETE(request: NextRequest) {
     // Registrar auditoria
     await auditServer.delete(
       'news',
-      id,
+      id.toString(),
       noticia?.title || 'Notícia desconhecida',
       {},
       request

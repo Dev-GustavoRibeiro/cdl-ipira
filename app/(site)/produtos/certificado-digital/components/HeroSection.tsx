@@ -2,8 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { FaArrowRight, FaBuilding, FaCertificate, FaGavel, FaLock, FaPhone, FaShieldAlt, FaUserMd, FaVideo } from 'react-icons/fa';
+import { FaArrowRight, FaBuilding, FaCertificate, FaGavel, FaLock, FaPhoneAlt, FaShieldAlt, FaUserMd, FaVideo } from 'react-icons/fa';
 import { HeroPanel, ProductHero, btnGlass, btnYellow } from '../../_components/ProductUI';
+import { CONTACT } from '@/app/components/navigation/navItems';
 
 const HeroSection = () => {
   return (
@@ -21,17 +22,17 @@ const HeroSection = () => {
             Solicitar Certificado
             <FaArrowRight aria-hidden="true" className="h-3.5 w-3.5 transition-[translate] duration-200 group-hover:translate-x-1 motion-reduce:transition-none" />
           </Link>
-          <a href="tel:+557532541599" className={btnGlass}>
-            <FaPhone aria-hidden="true" className="h-3.5 w-3.5" />
+          <a href={CONTACT.phone.href} className={btnGlass}>
+            <FaPhoneAlt aria-hidden="true" className="h-3.5 w-3.5" />
             <span className="sr-only">Ligar para a Central de Atendimento:</span>
-            (75) 3254-1599
+            {CONTACT.phone.label}
           </a>
         </>
       }
       chips={[
         { icon: FaShieldAlt, label: 'Validade jurídica' },
-        { icon: FaLock, label: 'Criptografia de alto nível' },
-        { icon: FaVideo, label: 'Emissão por videoconferência' },
+        { icon: FaLock, label: 'Padrão ICP-Brasil' },
+        { icon: FaVideo, label: 'Atendimento por videoconferência' },
       ]}
       aside={
         <HeroPanel
@@ -39,7 +40,7 @@ const HeroSection = () => {
           description="Na CDL Ipirá, você encontra certificados digitais da ICP-Brasil, com opções pensadas para diferentes perfis e necessidades:"
           items={[
             { icon: FaBuilding, title: 'Pessoa Física e Jurídica', text: 'Certificado ICP-Brasil para uso geral', accent: 'sky', href: '#certificado-1' },
-            { icon: FaGavel, title: 'e-Jurídico', text: 'Exclusivo para advogados', accent: 'green', href: '#certificado-2' },
+            { icon: FaGavel, title: 'e-Jurídico', text: 'Para advogados', accent: 'green', href: '#certificado-2' },
             { icon: FaUserMd, title: 'e-Saúde', text: 'Ideal para médicos, enfermeiros e profissionais da saúde', accent: 'yellow', href: '#certificado-3' },
           ]}
         />

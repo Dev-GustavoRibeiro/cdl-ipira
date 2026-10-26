@@ -18,10 +18,10 @@ const ServicesSection = ({ services }: ServicesSectionProps) => {
           eyebrow="O que oferecemos"
           icon={FaBriefcase}
           title="Serviços Oferecidos"
-          subtitle="Apoio jurídico para as principais questões do comércio, do contrato à resolução de conflitos."
+          subtitle="Orientação para as dúvidas jurídicas do dia a dia da empresa. O alcance de cada atendimento é combinado com a equipe da CDL."
         />
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4 md:mt-14">
+        <div className="mx-auto mt-12 grid max-w-4xl gap-5 sm:grid-cols-2 sm:gap-6 md:mt-14">
           {services.map((service, index) => (
             <article
               key={service.id}
@@ -38,9 +38,8 @@ const ServicesSection = ({ services }: ServicesSectionProps) => {
                 <span className={`grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)] sm:h-16 sm:w-16 ${service.color}`}>
                   {service.icon}
                 </span>
-                <span aria-hidden="true" className="text-sm font-black tabular-nums text-gray-300">
-                  {String(index + 1).padStart(2, '0')}
-                </span>
+                {/* Número decorativo no ::before: não é texto para leitor de tela nem para a checagem de contraste */}
+                <span aria-hidden="true" data-n={String(index + 1).padStart(2, '0')} className="text-sm font-black tabular-nums text-gray-300 before:content-[attr(data-n)]" />
               </div>
               <h3 className="mt-6 text-xl font-black leading-snug tracking-tight text-[#003f7f]">
                 {service.title}

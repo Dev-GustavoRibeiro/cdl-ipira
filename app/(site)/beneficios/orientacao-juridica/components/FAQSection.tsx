@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { FaPlus, FaQuestionCircle, FaWhatsapp } from 'react-icons/fa';
+import { CONTACT } from '@/app/components/navigation/navItems';
 import { FAQ } from './types';
 import SectionHeader from './SectionHeader';
 
@@ -34,10 +35,10 @@ const FAQSection = ({ faqs, selectedFaq, onFaqToggle }: FAQSectionProps) => {
               <p className="font-bold text-[#003f7f]">Não encontrou sua dúvida?</p>
               <p className="mt-1 text-sm text-gray-600">Fale com a nossa equipe pelo WhatsApp.</p>
               <a
-                href="https://wa.me/557532541599"
+                href={CONTACT.whatsapp.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#003f7f] underline-offset-4 hover:underline"
+                className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-[#003f7f] underline-offset-4 hover:underline"
               >
                 <FaWhatsapp aria-hidden="true" className="h-4 w-4 text-[#00a859]" />
                 Conversar no WhatsApp

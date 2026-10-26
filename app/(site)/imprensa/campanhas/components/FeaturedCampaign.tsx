@@ -22,12 +22,12 @@ const FeaturedCampaign = ({ campaign }: FeaturedCampaignProps) => {
         <SectionTitle title="Campanha em destaque" />
 
         <article className="group grid grid-cols-1 lg:grid-cols-2 bg-white rounded-3xl overflow-hidden ring-1 ring-gray-100 shadow-[0_24px_60px_-28px_rgba(0,63,127,0.45)] max-w-6xl mx-auto animate-scale-in">
-          {/* Capa */}
-          <div className="relative h-64 sm:h-80 lg:h-full lg:min-h-96 bg-linear-to-br from-[#003f7f] to-[#0066cc] overflow-hidden">
+          {/* Capa: no celular acompanha a altura da tela, para o botão caber acima da barra inferior (360x640) */}
+          <div className="relative h-[clamp(10rem,30svh,16rem)] sm:h-80 lg:h-full lg:min-h-96 bg-linear-to-br from-[#003f7f] to-[#0066cc] overflow-hidden">
             {campaign.cover_image ? (
               <Image
                 src={campaign.cover_image}
-                alt={campaign.title}
+                alt=""
                 fill
                 priority
                 unoptimized={!isOptimizableImage(campaign.cover_image)}
@@ -47,7 +47,7 @@ const FeaturedCampaign = ({ campaign }: FeaturedCampaignProps) => {
           </div>
 
           {/* Conteúdo */}
-          <div className="p-6 sm:p-8 md:p-10 flex flex-col justify-center">
+          <div className="p-5 sm:p-8 md:p-10 flex flex-col justify-center">
             <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 font-semibold mb-3">
               <FaCalendarAlt className="w-4 h-4 text-[#00a859] shrink-0" aria-hidden="true" />
               <span>{formatPeriod(campaign)}</span>
@@ -56,7 +56,7 @@ const FeaturedCampaign = ({ campaign }: FeaturedCampaignProps) => {
               {campaign.title}
             </h3>
             {campaign.summary && (
-              <p className="text-gray-600 text-sm sm:text-base leading-relaxed mb-6">
+              <p className="text-gray-600 text-base leading-relaxed mb-6">
                 {campaign.summary}
               </p>
             )}

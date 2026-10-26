@@ -20,6 +20,8 @@ const AlbumsGrid = ({ albums, isLoading, onOpenModal, onResetFilters }: AlbumsGr
   return (
     <section className="py-10 sm:py-12 md:py-16">
       <div className="container mx-auto px-4">
+        {/* Título da lista para leitores de tela: os cartões (h3) vêm logo depois do h1 */}
+        <h2 className="sr-only">Lista de álbuns</h2>
         {isLoading ? (
           <CardsSkeleton label="Carregando álbuns" />
         ) : albums.length === 0 ? (
@@ -52,10 +54,13 @@ const AlbumsGrid = ({ albums, isLoading, onOpenModal, onResetFilters }: AlbumsGr
                     {album.cover_url ? (
                       <Image
                         src={album.cover_url}
-                        alt={album.title}
+                        alt=""
                         fill
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 384px"
                         unoptimized={!isOptimizableImage(album.cover_url)}
+                        // 1ª linha da grade: candidata a LCP, carrega sem esperar o lazy
+                        loading={index < 3 ? 'eager' : undefined}
+                        fetchPriority={index === 0 ? 'high' : undefined}
                         className="object-cover transition-transform duration-700 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                       />
                     ) : (
@@ -91,7 +96,7 @@ const AlbumsGrid = ({ albums, isLoading, onOpenModal, onResetFilters }: AlbumsGr
                       )}
                     </ul>
                     <div className="mt-auto pt-4 border-t border-gray-100">
-                      <span className="inline-flex items-center gap-1.5 text-[#00a859] font-bold text-sm transition-[gap] duration-300 group-hover:gap-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-[#00703c] font-bold text-sm transition-[gap] duration-300 group-hover:gap-2.5">
                         Ver {photoLabel}
                         <FaArrowRight className="w-3 h-3" aria-hidden="true" />
                       </span>

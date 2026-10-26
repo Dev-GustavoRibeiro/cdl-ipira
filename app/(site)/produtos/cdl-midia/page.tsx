@@ -7,21 +7,20 @@ import {
   PlatformsSection,
   InitiativesSection,
   BenefitsSection,
-  ContentTypesSection,
   CTASection
 } from './components';
 
 const CDLMidiaPage = () => {
   return (
-    <div className="min-h-screen bg-white">
+    <>
       <HeroSection />
       <IntroSection />
       <PlatformsSection />
       <InitiativesSection />
       <BenefitsSection />
-      <ContentTypesSection />
+      {/* Formatos de conteúdo agora ficam em InitiativesSection (ContentTypesSection fica guardado) */}
       <CTASection />
-    </div>
+    </>
   );
 };
 

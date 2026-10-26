@@ -23,6 +23,14 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
     return 'Título, arquivo e data são obrigatórios.';
   }
 
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) {
+    return 'Data inválida.';
+  }
+
+  if (payload.title.length > 255 || (payload.edition?.length ?? 0) > 50 || (payload.description?.length ?? 0) > 2000) {
+    return 'Texto longo demais: título até 255, edição até 50 e descrição até 2000 caracteres.';
+  }
+
   if (!isSafeLink(payload.file_url, 1000) || (payload.cover_url && !isSafeLink(payload.cover_url, 1000))) {
     return 'O arquivo e a capa devem ser endereços http(s):// ou caminhos do site.';
   }

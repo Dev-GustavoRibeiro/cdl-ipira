@@ -24,11 +24,12 @@ export const RATE_LIMIT_CONFIG = {
     maxRequests: 100,    // 100 requests por minuto
     blockDurationMs: 5 * 60 * 1000, // 5 minutos de bloqueio
   },
-  // Endpoints de autenticação (mais restritivos)
+  // Login: aqui só um freio contra rajadas (conta TODAS as requisições, inclusive logins certos). O bloqueio
+  // por senha errada fica na rota /api/admin/auth (5 falhas por IP → 15 min), além do limite do próprio Supabase.
   auth: {
     windowMs: 15 * 60 * 1000, // 15 minutos
-    maxRequests: 5,           // 5 tentativas por 15 minutos
-    blockDurationMs: 30 * 60 * 1000, // 30 minutos de bloqueio
+    maxRequests: 20,          // 20 requisições por 15 minutos
+    blockDurationMs: 15 * 60 * 1000, // 15 minutos de bloqueio
   },
   // Endpoints de upload (moderado)
   upload: {
@@ -306,17 +307,10 @@ const ALLOWED_IMAGE_TYPES = [
   'image/gif',
 ] as const;
 
-const ALLOWED_DOCUMENT_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-] as const;
-
 // Magic bytes para validar tipos de arquivo
 const FILE_SIGNATURES: Record<string, number[][]> = {
   'image/jpeg': [[0xFF, 0xD8, 0xFF]],
+  'image/jpg': [[0xFF, 0xD8, 0xFF]],
   'image/png': [[0x89, 0x50, 0x4E, 0x47]],
   'image/gif': [[0x47, 0x49, 0x46, 0x38]],
   'image/webp': [[0x52, 0x49, 0x46, 0x46]],
@@ -378,12 +372,16 @@ export async function validateFile(
     return { valid: false, error: 'Extensão de arquivo não permitida' };
   }
 
-  // Verificar magic bytes (assinatura do arquivo)
-  if (validateMagicBytes && FILE_SIGNATURES[file.type]) {
+  // Verificar magic bytes (assinatura do arquivo). Tipo sem assinatura conhecida é recusado: antes a checagem
+  // era pulada e um HTML enviado como 'image/jpg' entrava no storage público
+  if (validateMagicBytes) {
+    const signatures = FILE_SIGNATURES[file.type];
+    if (!signatures) {
+      return { valid: false, error: `Tipo de arquivo não permitido: ${file.type}` };
+    }
     const buffer = await file.slice(0, 8).arrayBuffer();
     const bytes = new Uint8Array(buffer);
-    const signatures = FILE_SIGNATURES[file.type];
-    
+
     const isValidSignature = signatures.some(sig => 
       sig.every((byte, index) => bytes[index] === byte)
     );

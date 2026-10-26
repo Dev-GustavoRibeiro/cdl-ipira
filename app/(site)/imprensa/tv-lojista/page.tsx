@@ -47,7 +47,8 @@ export default function TVLojistaPage() {
             const formattedData = data.map((v: { id: number; title: string; description: string; thumbnail?: string; youtube_id?: string; video_url?: string; date: string; category: string; duration?: string }) => ({
                 ...v,
                 thumbnail: v.thumbnail || (v.youtube_id ? getYoutubeThumbnail(v.youtube_id) : '/cdl-ipira-sede.jpg'),
-                videoUrl: v.youtube_id ? `https://www.youtube.com/embed/${v.youtube_id}` : v.video_url
+                // Domínio sem cookies do YouTube; o player só abre por clique, então já começa tocando (rel=0: sugestões só do canal)
+                videoUrl: v.youtube_id ? `https://www.youtube-nocookie.com/embed/${v.youtube_id}?autoplay=1&rel=0` : v.video_url
             }));
             setVideos(formattedData);
         } else {
@@ -71,6 +72,9 @@ export default function TVLojistaPage() {
     setReloadKey((key) => key + 1);
   };
 
+  // Só as categorias que têm vídeo (filtro que leva a lista vazia frustra)
+  const categories = ['Todas', ...[...new Set(videos.map((video) => video.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+
   const filteredVideos = selectedCategory === 'Todas' 
     ? videos 
     : videos.filter(video => video.category === selectedCategory);
@@ -85,6 +89,19 @@ export default function TVLojistaPage() {
     }, 100);
   };
 
+  // O player sai de cima da lista: o foco volta ao cartão que abriu o vídeo (ou ao 1º da lista, se ele não estiver na
+  // página/filtro atual) e a página rola até ele, em vez de parar num ponto qualquer
+  const handleClose = () => {
+    const id = selectedVideo?.id;
+    setSelectedVideo(null);
+    requestAnimationFrame(() => {
+      const card =
+        document.querySelector<HTMLElement>(`[data-video-card="${id}"]`) ?? document.querySelector<HTMLElement>('[data-video-card]');
+      card?.focus({ preventScroll: true });
+      card?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
+    });
+  };
+
   return (
     <>
       <Breadcrumb />
@@ -92,10 +109,11 @@ export default function TVLojistaPage() {
       {selectedVideo && (
         <VideoPlayer
           video={selectedVideo}
-          onClose={() => setSelectedVideo(null)}
+          onClose={handleClose}
         />
       )}
       <CategoriesFilter
+        categories={categories}
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
         hasSelectedVideo={!!selectedVideo}

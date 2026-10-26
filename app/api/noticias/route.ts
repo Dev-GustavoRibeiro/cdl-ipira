@@ -8,7 +8,8 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('news')
-      .select('*')
+      // Campanha ligada para o atalho no modal da home (o RLS devolve null para campanha desativada)
+      .select('*, campaigns(slug, title)')
       .eq('is_published', true)
       .order('date', { ascending: false });
 

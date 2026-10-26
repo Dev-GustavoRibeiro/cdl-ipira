@@ -12,14 +12,14 @@ import {
 
 const CertificadoDigitalPage = () => {
   return (
-    <div className="min-h-screen bg-white">
+    <>
       <HeroSection />
       <IntroSection />
       <CertificateTypesSection />
       <BenefitsSection />
       <EmissionProcessSection />
       <CTASection />
-    </div>
+    </>
   );
 };
 

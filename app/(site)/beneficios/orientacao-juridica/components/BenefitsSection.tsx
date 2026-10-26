@@ -1,30 +1,30 @@
 import React from 'react';
-import { FaCheckCircle, FaUsers, FaClock, FaShieldAlt, FaStar } from 'react-icons/fa';
+import { FaCheckCircle, FaUsers, FaCalendarCheck, FaShieldAlt, FaStar } from 'react-icons/fa';
 import SectionHeader from './SectionHeader';
 
 const benefits = [
   {
     icon: FaCheckCircle,
     title: 'Gratuito para Associados',
-    text: 'Serviço totalmente gratuito para associados em dia com suas obrigações.',
+    text: 'Sem custo para associados em dia com suas obrigações.',
     tile: 'bg-[#00a859]/10 text-[#00a859] ring-[#00a859]/15',
   },
   {
     icon: FaUsers,
-    title: 'Profissionais Qualificados',
-    text: 'Equipe de advogados especializados em direito comercial e empresarial.',
+    title: 'Orientação por Advogado(a)',
+    text: 'As dúvidas são respondidas por profissional inscrito na OAB, indicado pela CDL Ipirá.',
     tile: 'bg-[#003f7f]/10 text-[#003f7f] ring-[#003f7f]/15',
   },
   {
-    icon: FaClock,
-    title: 'Atendimento Rápido',
-    text: 'Respostas ágeis para suas dúvidas jurídicas, sem burocracia.',
+    icon: FaCalendarCheck,
+    title: 'Atendimento Agendado',
+    text: 'A equipe da CDL entra em contato para combinar o horário do atendimento.',
     tile: 'bg-[#ffd000]/25 text-[#003f7f] ring-[#ffd000]/40',
   },
   {
     icon: FaShieldAlt,
-    title: 'Proteção do Seu Negócio',
-    text: 'Orientações para proteger seus direitos e evitar problemas jurídicos.',
+    title: 'Prevenção',
+    text: 'Entenda seus direitos e obrigações antes de tomar uma decisão.',
     tile: 'bg-[#0066cc]/10 text-[#0066cc] ring-[#0066cc]/15',
   },
 ];
@@ -40,8 +40,8 @@ const BenefitsSection = () => {
             align="left"
             eyebrow="Vantagens"
             icon={FaStar}
-            title="Por que escolher nossa Orientação Jurídica?"
-            subtitle="Um benefício pensado para quem empreende em Ipirá: suporte profissional, sem custo e sem burocracia."
+            title="Como funciona o benefício"
+            subtitle="Um benefício para quem empreende em Ipirá: orientação jurídica sem custo para associados em dia."
           />
 
           <ul className="grid gap-4 sm:grid-cols-2 sm:gap-5">

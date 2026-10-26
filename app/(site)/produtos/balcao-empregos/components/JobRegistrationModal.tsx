@@ -1,26 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { FaTimes, FaWhatsapp, FaBriefcase, FaExclamationCircle, FaExclamationTriangle } from 'react-icons/fa';
-import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
+import React, { useEffect, useId, useRef, useState } from 'react';
+import { FaBriefcase, FaExclamationCircle, FaExclamationTriangle, FaWhatsapp } from 'react-icons/fa';
+import { ModalBody, ModalChip, ModalShell, ModalTitle, modalButton } from '@/app/components/Modal';
+import { CONTACT } from '@/app/components/navigation/navItems';
 
 interface JobRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-/* Casca padrão dos modais do site (mesmas classes em NewsModal, EventModal, JobModal e RegistrationModal) */
-const OVERLAY = 'fixed inset-0 z-100 flex items-end justify-center sm:items-center sm:p-6';
-const BACKDROP = 'absolute inset-0 bg-[#001a3d]/70 backdrop-blur-sm transition-opacity duration-300 starting:opacity-0 motion-reduce:transition-none';
-const PANEL = 'relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-24px_60px_-24px_rgba(0,26,61,0.55)] outline-none transition-[opacity,translate,scale] duration-300 ease-out starting:translate-y-full sm:max-h-[90dvh] sm:rounded-3xl sm:shadow-[0_40px_100px_-30px_rgba(0,26,61,0.7)] sm:starting:translate-y-4 sm:starting:scale-[0.97] sm:starting:opacity-0 motion-reduce:transition-none';
-const CLOSE = 'absolute top-3 right-3 z-30 grid h-10 w-10 place-items-center rounded-full bg-white/90 text-[#003f7f] shadow-[0_8px_20px_-8px_rgba(0,26,61,0.6)] ring-1 ring-black/5 backdrop-blur-md transition-[scale,background-color] duration-200 hover:scale-105 hover:bg-white active:scale-95 motion-reduce:hover:scale-100 sm:top-4 sm:right-4';
-const FOOTER = 'flex shrink-0 items-center gap-3 border-t border-gray-100 bg-white px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-8';
-const BTN_PRIMARY = 'inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-[#003f7f] to-[#0066cc] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_30px_-12px_rgba(0,63,127,0.7)] transition-[translate,scale,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-12px_rgba(0,63,127,0.8)] active:scale-[0.98] motion-reduce:hover:translate-y-0';
-const BTN_SECONDARY = 'inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-[#003f7f] ring-1 ring-gray-200 transition-[background-color,scale] duration-200 hover:bg-gray-50 active:scale-[0.98]';
-
+// Placeholder em gray-500: o gray-400 ficava abaixo de 4,5:1 sobre o branco (WCAG 1.4.3)
 const inputClass = (invalid: boolean) =>
-  `w-full rounded-xl border bg-white px-4 py-3 text-[15px] text-gray-900 placeholder:text-gray-400 transition-[border-color,box-shadow] duration-200 focus:ring-4 focus:outline-none ${
+  `w-full rounded-xl border bg-white px-4 py-3 text-base text-gray-900 placeholder:text-gray-500 sm:text-[15px] transition-[border-color,box-shadow] duration-200 focus:ring-4 focus:outline-none ${
     invalid ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : 'border-gray-200 hover:border-gray-300 focus:border-[#003f7f] focus:ring-[#003f7f]/15'
   }`;
 
@@ -55,15 +47,24 @@ function validateField(name: FieldName, raw: string): string | undefined {
   return undefined;
 }
 
+// Depois de abrir o WhatsApp o modal fecha sozinho (a barra do aviso de sucesso mostra o tempo)
+const AUTO_CLOSE_MS = 3000;
+
 const JobRegistrationModal = ({ isOpen, onClose }: JobRegistrationModalProps) => {
-  const isClient = useIsClient();
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const id = useId();
+  const titleId = `${id}-title`;
+  const formId = `${id}-form`;
+  const [success, setSuccess] = useState(false);
+  // Tentativas barradas pelo bloqueador de pop-up (cada uma traz o aviso de volta para a vista)
+  const [blocked, setBlocked] = useState(0);
+  const alertRef = useRef<HTMLDivElement>(null);
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
+  // Com algo digitado, clique fora e puxar a folha não fecham (Esc, X e Cancelar continuam fechando)
+  const [dirty, setDirty] = useState(false);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
-    setSubmitStatus('idle');
 
     const formData = new FormData(form);
     const get = (name: FieldName) => String(formData.get(name) ?? '');
@@ -90,158 +91,193 @@ const JobRegistrationModal = ({ isOpen, onClose }: JobRegistrationModalProps) =>
       `👤 *Contato:* ${get('contato')}\n` +
       `📧 *Email:* ${get('email')}`;
 
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=557532541599&text=${encodeURIComponent(message)}`;
+    // Número da mesma fonte do rodapé e do contato (wa.me aceita o texto pronto em ?text=)
+    const whatsappUrl = `${CONTACT.whatsapp.href}?text=${encodeURIComponent(message)}`;
 
     // Abre a janela ainda dentro do clique (bloqueadores de pop-up barram window.open fora do gesto do usuário)
     const whatsappWindow = window.open(whatsappUrl, '_blank');
     if (!whatsappWindow) {
-      setSubmitStatus('error');
+      setBlocked((count) => count + 1);
       return;
     }
     whatsappWindow.opener = null;
-
-    setSubmitStatus('success');
-    form.reset();
+    setSuccess(true);
+    setBlocked(0);
+    setDirty(false);
   };
 
+  // O conteúdo continua na tela durante a saída (ModalShell); o estado zera para a próxima abertura
   const handleClose = () => {
     onClose();
-    setSubmitStatus('idle');
+    setSuccess(false);
+    setBlocked(0);
     setErrors({});
+    setDirty(false);
   };
 
-  // Depois de abrir o WhatsApp, fecha sozinho em 3s (o timer é cancelado se o usuário fechar antes)
+  // O timer é cancelado se o usuário fechar antes
   useEffect(() => {
-    if (submitStatus !== 'success') return;
+    if (!success) return;
     const timer = setTimeout(() => {
       onClose();
-      setSubmitStatus('idle');
-    }, 3000);
+      setSuccess(false);
+    }, AUTO_CLOSE_MS);
     return () => clearTimeout(timer);
-  }, [submitStatus, onClose]);
+  }, [success, onClose]);
 
-  const dialogRef = useModalBehavior<HTMLDivElement>(isOpen, handleClose);
+  // O aviso fica perto do botão de envio; no celular nasce abaixo da dobra, então vem para a vista
+  useEffect(() => {
+    if (!blocked) return;
+    alertRef.current?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, [blocked]);
 
-  if (!isClient || !isOpen) return null;
-
-  return createPortal(
-    <div className={OVERLAY}>
-      <div aria-hidden="true" onClick={handleClose} className={BACKDROP} />
-
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="job-registration-title"
-        tabIndex={-1}
-        className={`${PANEL} sm:max-w-2xl`}
-      >
-        <button type="button" onClick={handleClose} aria-label="Fechar" className={CLOSE}>
-          <FaTimes className="h-4 w-4" aria-hidden="true" />
-        </button>
-
-        {submitStatus === 'success' ? (
-          <div role="status" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-12 pb-[max(2.5rem,env(safe-area-inset-bottom))] text-center sm:px-10 sm:pt-14 sm:pb-12">
-            <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#00a859]/10 text-[#00a859] ring-8 ring-[#00a859]/5 transition-[scale,opacity] duration-500 ease-out starting:scale-50 starting:opacity-0 motion-reduce:transition-none">
-              <FaWhatsapp className="h-9 w-9" aria-hidden="true" />
-            </span>
-            <h2 id="job-registration-title" className="mt-6 text-2xl font-black tracking-tight text-balance text-[#003f7f] sm:text-3xl">
-              Redirecionando para o WhatsApp...
-            </h2>
-            <div className="mx-auto mt-4 h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" aria-hidden="true" />
-            <p className="mx-auto mt-5 max-w-[42ch] text-gray-600">Finalize o cadastro enviando a mensagem com os dados da vaga para a nossa equipe.</p>
-            {/* O formulário some: o foco vai para cá para não cair fora do diálogo */}
-            <button type="button" onClick={handleClose} autoFocus className={`${BTN_SECONDARY} mt-8 w-full sm:w-auto sm:min-w-48`}>
-              Fechar
-            </button>
-          </div>
-        ) : (
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={handleClose}
+      labelledBy={titleId}
+      size="md"
+      dismissible={!dirty}
+      footer={
+        !success && (
           <>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <div className="px-5 pt-7 sm:px-8 sm:pt-8">
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#ffd000] px-4 py-1.5 text-xs font-bold tracking-[0.14em] text-[#003f7f] uppercase shadow-sm">
-                  <FaBriefcase aria-hidden="true" />
-                  Balcão de Empregos
-                </span>
-                <h2 id="job-registration-title" className="mt-4 text-3xl leading-[1.1] font-black tracking-tight text-balance text-[#003f7f] sm:text-4xl">
-                  Cadastre sua Vaga
-                </h2>
-                <div className="mt-4 h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" aria-hidden="true" />
-                <p className="mt-4 max-w-[60ch] text-sm leading-relaxed text-gray-600 sm:text-base">
-                  Preencha os dados abaixo para enviar as informações da sua vaga diretamente para nossa equipe via WhatsApp.
-                </p>
-              </div>
-
-              {submitStatus === 'error' && (
-                <div role="alert" className="mx-5 mt-6 flex gap-3 rounded-2xl bg-red-50 p-4 text-red-800 ring-1 ring-red-100 sm:mx-8">
-                  <FaExclamationTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
-                  <div className="text-sm">
-                    <p className="font-bold">Não foi possível abrir o WhatsApp</p>
-                    <p className="mt-0.5">Permita pop-ups para este site e tente novamente, ou fale conosco pelo (75) 3254-1599.</p>
-                  </div>
-                </div>
-              )}
-
-              <form id="job-registration-form" onSubmit={handleSubmit} noValidate className="grid gap-x-4 gap-y-5 px-5 pt-7 pb-8 sm:grid-cols-2 sm:px-8">
-                {FIELDS.map(({ name, label, type = 'text', placeholder, autoComplete, wide, textarea }) => {
-                  const id = `vaga-${name}`;
-                  const error = errors[name];
-                  const common = {
-                    id,
-                    name,
-                    required: true,
-                    placeholder,
-                    autoComplete,
-                    'aria-invalid': error ? true : undefined,
-                    'aria-describedby': error ? `${id}-error` : undefined,
-                    className: `${inputClass(!!error)} ${textarea ? 'resize-none' : ''}`,
-                    // Revalida ao sair do campo; enquanto há erro, revalida a cada digitação
-                    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                      const value = e.currentTarget.value;
-                      setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
-                    },
-                    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                      const value = e.currentTarget.value;
-                      if (error) setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
-                    },
-                  };
-                  return (
-                    <div key={name} className={wide ? 'sm:col-span-2' : undefined}>
-                      <label htmlFor={id} className="mb-1.5 block text-sm font-bold text-gray-800">
-                        {label}
-                        <span className="ml-0.5 text-[#003f7f]" aria-hidden="true">*</span>
-                      </label>
-                      {textarea ? (
-                        <textarea {...common} rows={4} />
-                      ) : (
-                        <input {...common} type={type} {...(type === 'number' ? { min: 1, inputMode: 'numeric' as const } : {})} />
-                      )}
-                      {error && (
-                        <p id={`${id}-error`} className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-600">
-                          <FaExclamationCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
-                          {error}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </form>
-            </div>
-
-            <div className={FOOTER}>
-              <button type="button" onClick={handleClose} className={`${BTN_SECONDARY} max-sm:hidden sm:ml-auto`}>
-                Cancelar
-              </button>
-              <button type="submit" form="job-registration-form" className={`${BTN_PRIMARY} flex-1 sm:flex-none`}>
-                <FaWhatsapp className="h-5 w-5" aria-hidden="true" />
-                Enviar via WhatsApp
-              </button>
-            </div>
+            <button type="button" onClick={handleClose} className={`${modalButton.secondary} max-sm:hidden sm:ml-auto`}>
+              Cancelar
+            </button>
+            <button type="submit" form={formId} className={`${modalButton.primary} flex-1 sm:flex-none`}>
+              <FaWhatsapp className="h-5 w-5" aria-hidden="true" />
+              Enviar via WhatsApp
+              <span className="sr-only">(abre em nova aba)</span>
+            </button>
           </>
-        )}
-      </div>
-    </div>,
-    document.body
+        )
+      }
+    >
+      {success ? (
+        <div className="px-6 pt-14 pb-[max(2.5rem,env(safe-area-inset-bottom))] text-center sm:px-10 sm:pt-16 sm:pb-12">
+          <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#00a859]/10 text-[#00a859] ring-8 ring-[#00a859]/5 transition-[scale,opacity] duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] starting:scale-50 starting:opacity-0 motion-reduce:transition-none">
+            <FaWhatsapp className="h-9 w-9" aria-hidden="true" />
+          </span>
+          <h2 id={titleId} className="mt-6 text-2xl font-black tracking-tight text-balance text-[#003f7f] sm:text-3xl">
+            Mensagem pronta no WhatsApp
+          </h2>
+          <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000]" aria-hidden="true" />
+          {/* role=status: leitores de tela anunciam o próximo passo */}
+          <p role="status" className="mx-auto mt-5 max-w-[42ch] text-pretty text-gray-600">
+            Finalize o cadastro enviando a mensagem com os dados da vaga para a nossa equipe.
+          </p>
+          {/* O formulário some: o foco vem para cá para não cair fora do diálogo */}
+          <button type="button" onClick={handleClose} autoFocus className={`${modalButton.primary} mt-8 w-full sm:w-auto sm:min-w-48`}>
+            Concluir
+          </button>
+          {/* Tempo até fechar sozinho (some com movimento reduzido: a barra parada não diria nada) */}
+          <div aria-hidden="true" className="mx-auto mt-8 h-1 max-w-48 overflow-hidden rounded-full bg-gray-100 motion-reduce:hidden">
+            <div
+              style={{ transitionDuration: `${AUTO_CLOSE_MS}ms` }}
+              className="h-full origin-left scale-x-0 bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] transition-[scale] ease-linear starting:scale-x-100"
+            />
+          </div>
+        </div>
+      ) : (
+        <ModalBody className="max-sm:pt-8">
+          <ModalChip tone="accent" icon={FaBriefcase}>
+            Balcão de Empregos
+          </ModalChip>
+          <div className="mt-4">
+            <ModalTitle id={titleId}>Cadastre sua vaga</ModalTitle>
+          </div>
+          <p className="mt-3 max-w-[60ch] text-pretty text-gray-600 sm:text-[1.0625rem]">
+            Preencha os dados abaixo para enviar as informações da sua vaga diretamente para nossa equipe via WhatsApp.
+          </p>
+
+          {/* Para onde vão os dados */}
+          <div className="mt-5 flex items-center gap-3.5 rounded-2xl bg-linear-to-br from-[#003f7f] to-[#0052a3] p-4 text-white shadow-[0_18px_40px_-20px_rgba(0,63,127,0.8)] sm:p-5">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/12 text-[#00d670] ring-1 ring-white/20">
+              <FaWhatsapp className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <p className="text-sm text-white/85">
+              <strong className="block font-bold text-white">Envio pelo WhatsApp da CDL</strong>
+              A mensagem já sai pronta com os dados da vaga para o {CONTACT.whatsapp.label}.
+            </p>
+          </div>
+
+          <form
+            id={formId}
+            onSubmit={handleSubmit}
+            onInput={(e) => setDirty(Array.from(new FormData(e.currentTarget).values()).some((value) => String(value).trim() !== ''))}
+            noValidate
+            className="mt-7 grid gap-x-4 gap-y-5 sm:grid-cols-2"
+          >
+            {FIELDS.map(({ name, label, type = 'text', placeholder, autoComplete, wide, textarea }) => {
+              const fieldId = `${id}-${name}`;
+              const error = errors[name];
+              const common = {
+                id: fieldId,
+                name,
+                required: true,
+                placeholder,
+                autoComplete,
+                'aria-invalid': error ? true : undefined,
+                'aria-describedby': error ? `${fieldId}-error` : undefined,
+                className: `${inputClass(!!error)} ${textarea ? 'resize-none' : ''}`,
+                // Valida ao sair do campo só o que foi preenchido (passar por um campo vazio com Tab não acende o
+                // "obrigatório" em todos; isso fica para o envio); enquanto há erro, revalida a cada digitação
+                onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  const value = e.currentTarget.value;
+                  if (value.trim() || error) setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
+                },
+                onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  const value = e.currentTarget.value;
+                  if (error) setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
+                },
+              };
+              return (
+                <div key={name} className={wide ? 'sm:col-span-2' : undefined}>
+                  <label htmlFor={fieldId} className="mb-1.5 block text-sm font-bold text-gray-800">
+                    {label}
+                    <span className="ml-0.5 text-[#003f7f]" aria-hidden="true">*</span>
+                  </label>
+                  {textarea ? (
+                    <textarea {...common} rows={4} />
+                  ) : (
+                    <input {...common} type={type} {...(type === 'number' ? { min: 1, inputMode: 'numeric' as const } : {})} />
+                  )}
+                  {error && (
+                    <p id={`${fieldId}-error`} className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-600">
+                      <FaExclamationCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      {error}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+
+            {blocked > 0 && (
+              <div
+                ref={alertRef}
+                role="alert"
+                className="flex gap-3 rounded-2xl bg-red-50 p-4 text-red-800 ring-1 ring-red-200 sm:col-span-2"
+              >
+                <FaExclamationTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
+                <div className="text-sm">
+                  <p className="font-bold">Não foi possível abrir o WhatsApp</p>
+                  <p className="mt-0.5">Permita pop-ups para este site e tente novamente, ou fale conosco pelo {CONTACT.whatsapp.label}.</p>
+                </div>
+              </div>
+            )}
+            {/* Aviso LGPD perto do envio: só informa o uso (não é um aceite);
+                nova aba para não perder o que já foi digitado */}
+            <p className="sm:col-span-2 text-xs text-pretty text-gray-500">
+              Os dados vão na mensagem de WhatsApp para a CDL e serão usados para divulgar a vaga, conforme a{' '}
+              <a href="/politica-de-privacidade" target="_blank" rel="noopener" className="font-semibold text-[#003f7f] underline underline-offset-2 hover:text-[#0066cc]">
+                Política de Privacidade<span className="sr-only"> (abre em nova aba)</span>
+              </a>
+              .
+            </p>
+          </form>
+        </ModalBody>
+      )}
+    </ModalShell>
   );
 };
 

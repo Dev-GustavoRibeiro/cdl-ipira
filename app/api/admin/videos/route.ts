@@ -8,22 +8,50 @@ import { todayISO } from '@/lib/date';
 const UNAUTHORIZED = { error: 'Não autorizado' };
 const INVALID_LINK = { error: 'URL do vídeo e da thumbnail devem ser endereços http(s)://' };
 
-// Helper para extrair ID do YouTube
-function getYoutubeId(url: string): string | null {
-  if (!url) return null;
-  
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /youtube\.com\/shorts\/([^&\n?#]+)/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
-  }
-  
-  return null;
+const INVALID_YOUTUBE = { error: 'Link do YouTube não reconhecido. Copie o endereço da página do vídeo (ex.: https://www.youtube.com/watch?v=…).' };
+const INVALID_DURATION = { error: 'Duração inválida. Use minutos:segundos (5:30) ou horas:minutos:segundos (1:05:30).' };
+
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Título',
+  description: 'Descrição',
+  video_url: 'Link do YouTube',
+  thumbnail: 'Capa',
+  category: 'Categoria',
+  duration: 'Duração',
+};
+
+/** "Campo 'video_url' deve ser..." -> "Link do YouTube deve ser..." (mensagem que o painel mostra no aviso) */
+function friendlyErrors(errors: string[]): string {
+  return errors.map((e) => e.replace(/Campo '(\w+)'/, (_, key: string) => FIELD_LABELS[key] || key)).join(' ');
 }
+
+function parseId(value: unknown): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/**
+ * ID (11 caracteres) de links do YouTube: watch?v= (em qualquer posição), youtu.be/, /embed/, /shorts/, /live/, /v/.
+ * Qualquer outro endereço é recusado: o site embute https://www.youtube.com/embed/{id}.
+ */
+function getYoutubeId(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, '');
+  let id: string | null | undefined = null;
+  if (host === 'youtu.be') id = url.pathname.split('/')[1];
+  else if (host === 'youtube.com' || host === 'youtube-nocookie.com' || host === 'music.youtube.com') {
+    id = url.searchParams.get('v') ?? url.pathname.match(/^\/(?:embed|shorts|live|v)\/([^/?#]+)/)?.[1];
+  }
+  return id && /^[\w-]{11}$/.test(id) ? id : null;
+}
+
+const DURATION_REGEX = /^\d{1,3}(:[0-5]\d){1,2}$/;
 
 // GET - Listar todos os vídeos (incluindo inativos para admin)
 export async function GET() {
@@ -74,15 +102,21 @@ export async function POST(request: NextRequest) {
     });
     
     if (!valid) {
-      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+      return NextResponse.json({ error: friendlyErrors(errors), details: errors }, { status: 400 });
     }
 
     if (!isSafeLink(sanitized.video_url) || (sanitized.thumbnail && !isSafeLink(sanitized.thumbnail))) {
       return NextResponse.json(INVALID_LINK, { status: 400 });
     }
     
-    // Extrair YouTube ID
     const youtubeId = getYoutubeId(sanitized.video_url as string);
+    if (!youtubeId) {
+      return NextResponse.json(INVALID_YOUTUBE, { status: 400 });
+    }
+
+    if (sanitized.duration && !DURATION_REGEX.test(String(sanitized.duration))) {
+      return NextResponse.json(INVALID_DURATION, { status: 400 });
+    }
     
     const { data, error } = await supabaseAdmin
       .from('videos')
@@ -133,7 +167,8 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     
-    const { id, ...updateData } = body;
+    const { id: rawId, ...updateData } = body;
+    const id = parseId(rawId);
     
     if (!id) {
       return NextResponse.json({ error: 'ID do vídeo é obrigatório' }, { status: 400 });
@@ -155,15 +190,21 @@ export async function PUT(request: NextRequest) {
     });
     
     if (!valid) {
-      return NextResponse.json({ error: 'Dados inválidos', details: errors }, { status: 400 });
+      return NextResponse.json({ error: friendlyErrors(errors), details: errors }, { status: 400 });
     }
 
     if (!isSafeLink(sanitized.video_url) || (sanitized.thumbnail && !isSafeLink(sanitized.thumbnail))) {
       return NextResponse.json(INVALID_LINK, { status: 400 });
     }
     
-    // Extrair YouTube ID
     const youtubeId = getYoutubeId(sanitized.video_url as string);
+    if (!youtubeId) {
+      return NextResponse.json(INVALID_YOUTUBE, { status: 400 });
+    }
+
+    if (sanitized.duration && !DURATION_REGEX.test(String(sanitized.duration))) {
+      return NextResponse.json(INVALID_DURATION, { status: 400 });
+    }
     
     const { data, error } = await supabaseAdmin
       .from('videos')
@@ -210,7 +251,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = parseId(searchParams.get('id'));
     
     if (!id) {
       return NextResponse.json({ error: 'ID do vídeo é obrigatório' }, { status: 400 });
@@ -236,7 +277,7 @@ export async function DELETE(request: NextRequest) {
     // Registrar auditoria
     await auditServer.delete(
       'videos',
-      id,
+      id.toString(),
       video?.title || 'Vídeo desconhecido',
       {},
       request

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { FaArrowRight, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaUsers } from 'react-icons/fa';
+import { FaArrowRight, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTicketAlt, FaUsers } from 'react-icons/fa';
 import { formatDateBR } from '@/lib/date';
 import { isOptimizableImage } from '@/lib/images';
 import { CardsSkeleton, StateBlock, cardClass, primaryButton, staggerDelay } from '../../noticias/components/LoadStates';
@@ -20,6 +20,8 @@ const EventsGrid = ({ events, isLoading, onOpenModal, onResetFilters }: EventsGr
   return (
     <section className="py-10 sm:py-12 md:py-16 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Título da lista para leitores de tela: os cartões (h3) vêm logo depois do h1 */}
+        <h2 className="sr-only">Lista de eventos</h2>
         {isLoading ? (
           <CardsSkeleton label="Carregando eventos" />
         ) : events.length === 0 ? (
@@ -41,7 +43,9 @@ const EventsGrid = ({ events, isLoading, onOpenModal, onResetFilters }: EventsGr
               // Data vem formatada (DD/MM/YYYY) ou crua do banco (YYYY-MM-DD)
               const [day, month, year] = (formatDateBR(event.date) || event.date || '').split('/');
               const isUpcoming = event.status === 'upcoming';
-              const ctaLabel = isUpcoming ? 'Inscrever-se' : 'Ver Detalhes';
+              // Sorteio, feira…: evento futuro sem inscrição
+              const isFreeEntry = event.status !== 'past' && event.registration_enabled === false;
+              const ctaLabel = isUpcoming && !isFreeEntry ? 'Inscrever-se' : 'Ver Detalhes';
               return (
                 <article key={event.id} className={cardClass} style={staggerDelay(index)}>
                   {/* Botão cobrindo o cartão inteiro: clique, toque e teclado abrem o evento */}
@@ -57,7 +61,7 @@ const EventsGrid = ({ events, isLoading, onOpenModal, onResetFilters }: EventsGr
                     {event.image ? (
                       <Image
                         src={event.image}
-                        alt={event.title}
+                        alt=""
                         fill
                         unoptimized={!isOptimizableImage(event.image)}
                         className="object-cover transition-transform duration-700 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
@@ -90,7 +94,7 @@ const EventsGrid = ({ events, isLoading, onOpenModal, onResetFilters }: EventsGr
                       <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-10">
                         <div className="bg-white rounded-xl px-2.5 py-2 shadow-lg text-center">
                           <div className="text-[#003f7f] text-lg font-black leading-none">{day}</div>
-                          <div className="text-[#00a859] text-[10px] font-bold mt-1">
+                          <div className="text-[#00703c] text-[11px] font-bold mt-1">
                             {month}/{year}
                           </div>
                         </div>
@@ -124,7 +128,13 @@ const EventsGrid = ({ events, isLoading, onOpenModal, onResetFilters }: EventsGr
                           <span className="truncate">{event.location}</span>
                         </li>
                       )}
-                      {!!event.attendees && (
+                      {isFreeEntry && (
+                        <li className="flex items-center gap-2 font-semibold text-[#00703a]">
+                          <FaTicketAlt className="w-3.5 h-3.5 text-[#00a859] shrink-0" aria-hidden="true" />
+                          <span>Entrada livre</span>
+                        </li>
+                      )}
+                      {!!event.attendees && event.registration_enabled !== false && (
                         <li className="flex items-center gap-2">
                           <FaUsers className="w-3.5 h-3.5 text-[#003f7f] shrink-0" aria-hidden="true" />
                           <span>{event.attendees} participantes</span>

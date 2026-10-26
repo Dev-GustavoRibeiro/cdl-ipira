@@ -46,7 +46,7 @@ const VicePresidenteSection = ({ vicePresidentes }: VicePresidenteSectionProps) 
                       </span>
                       Contribuição
                     </p>
-                    <p className="mt-4 max-w-[60ch] text-sm leading-relaxed text-pretty text-gray-700 sm:text-base">{vice.contribution}</p>
+                    <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-pretty text-gray-700">{vice.contribution}</p>
                   </div>
                 )}
               </div>

@@ -4,7 +4,6 @@ import React from 'react';
 import {
   Breadcrumb,
   HeroSection,
-  QuoteSection,
   MissaoVisaoSection,
   ValoresSection,
   CompromissoSection,
@@ -16,7 +15,7 @@ export default function MissaoVisaoValoresPage() {
     <>
       <Breadcrumb />
       <HeroSection />
-      <QuoteSection />
+      {/* Citação da diretoria sai até a diretoria aprovar o texto (QuoteSection fica guardado) */}
       <MissaoVisaoSection />
       <ValoresSection />
       <CompromissoSection />

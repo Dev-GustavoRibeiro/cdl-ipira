@@ -40,5 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# supabase
-supabase/
+# supabase: as migrations entram no git; o grant tem o e-mail do admin e fica fora
+supabase/.temp/
+supabase/.branches/
+supabase/migrations/grant-admin-role.sql
+
+# claude code (launch.json local e git worktree de outra sessão)
+.claude/

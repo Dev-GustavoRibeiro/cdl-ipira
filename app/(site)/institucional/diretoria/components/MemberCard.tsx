@@ -76,7 +76,7 @@ const MemberCard = ({ member, accent, index = 0 }: MemberCardProps) => {
               <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
               Contribuição
             </p>
-            <p className="mt-1.5 text-sm leading-relaxed text-pretty text-gray-600">{member.contribution}</p>
+            <p className="mt-1.5 text-base leading-relaxed text-pretty text-gray-600 lg:text-[15px]">{member.contribution}</p>
           </div>
         )}
       </div>

@@ -23,7 +23,7 @@ export interface Campaign {
 export type CampaignStatus = 'upcoming' | 'active' | 'finished';
 
 export const CAMPAIGN_STATUS_LABEL: Record<CampaignStatus, { text: string; color: string }> = {
-  upcoming: { text: 'Em breve', color: 'bg-[#00a859] text-white' },
+  upcoming: { text: 'Em breve', color: 'bg-[#00a859] text-[#001a3d]' }, // texto branco no verde dá 3,1:1; o navy dá 5,5:1 (como o selo "Próximo" de eventos)
   active: { text: 'Em andamento', color: 'bg-[#ffd000] text-[#003f7f]' },
   finished: { text: 'Realizada', color: 'bg-gray-600 text-white' },
 };
@@ -35,6 +35,21 @@ export function getCampaignStatus(
   if (campaign.start_date > today) return 'upcoming';
   if (campaign.end_date && campaign.end_date < today) return 'finished';
   return 'active';
+}
+
+const STATUS_ORDER: Record<CampaignStatus, number> = { active: 0, upcoming: 1, finished: 2 };
+
+/** Ordem de exibição: em andamento > em breve (a que começa antes) > encerradas (a que terminou por último). */
+export function compareCampaigns(
+  a: Pick<Campaign, 'start_date' | 'end_date'>,
+  b: Pick<Campaign, 'start_date' | 'end_date'>,
+  today: string = todayISO()
+): number {
+  const status = getCampaignStatus(a, today);
+  const byStatus = STATUS_ORDER[status] - STATUS_ORDER[getCampaignStatus(b, today)];
+  if (byStatus || status === 'active') return byStatus;
+  if (status === 'upcoming') return a.start_date.localeCompare(b.start_date);
+  return (b.end_date ?? b.start_date).localeCompare(a.end_date ?? a.start_date);
 }
 
 /** 'Natal Premiado 2026!' -> 'natal-premiado-2026' */

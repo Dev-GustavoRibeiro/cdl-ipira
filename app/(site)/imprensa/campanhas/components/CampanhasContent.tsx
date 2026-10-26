@@ -4,18 +4,15 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaBullhorn, FaExclamationTriangle } from 'react-icons/fa';
 import { supabase } from '@/lib/supabase';
-import { getCampaignStatus } from '@/lib/campaigns';
+import { compareCampaigns } from '@/lib/campaigns';
 import { todayISO } from '@/lib/date';
 import Breadcrumb from './Breadcrumb';
 import HeroSection from './HeroSection';
 import FeaturedCampaign from './FeaturedCampaign';
 import CampaignsGrid from './CampaignsGrid';
 import CampaignActivities from './CampaignActivities';
-import { Campaign, CampaignStatus, isMissingSchema } from './types';
+import { Campaign, isMissingSchema } from './types';
 import { CardsSkeleton, StateBlock, primaryButton, secondaryButton } from '../../noticias/components/LoadStates';
-
-// Destaque: entre as marcadas, em andamento > em breve > encerrada mais recente
-const statusPriority: Record<CampaignStatus, number> = { active: 0, upcoming: 1, finished: 2 };
 
 export default function CampanhasContent() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -51,10 +48,10 @@ export default function CampanhasContent() {
     setReloadKey((key) => key + 1);
   };
 
+  // Grade e destaque na mesma ordem: em andamento > em breve > encerradas (destaque = primeira marcada)
   const today = todayISO();
-  const featured = campaigns
-    .filter((campaign) => campaign.is_featured)
-    .sort((a, b) => statusPriority[getCampaignStatus(a, today)] - statusPriority[getCampaignStatus(b, today)])[0];
+  const ordered = [...campaigns].sort((a, b) => compareCampaigns(a, b, today));
+  const featured = ordered.find((campaign) => campaign.is_featured);
 
   return (
     <>
@@ -101,7 +98,7 @@ export default function CampanhasContent() {
       ) : (
         <>
           {featured && <FeaturedCampaign campaign={featured} />}
-          <CampaignsGrid campaigns={campaigns} />
+          <CampaignsGrid campaigns={ordered} />
           <CampaignActivities />
         </>
       )}

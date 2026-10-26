@@ -47,6 +47,8 @@ const PartnersGrid = ({ parceiros, isLoading, searchTerm, totalCount, onClearSea
       className="pt-6 sm:pt-10 pb-12 md:pb-16 bg-linear-to-b from-white to-gray-50 scroll-mt-[calc(var(--header-height,0px)+4.5rem)] sm:scroll-mt-[calc(var(--header-height,0px)+5.5rem)]"
     >
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Título da lista para leitores de tela: os nomes das empresas (h3) vêm logo depois do h1 */}
+        <h2 className="sr-only">Lista de empresas associadas</h2>
         {/* Contagem (anunciada a cada busca) */}
         <div className="flex items-center justify-between gap-3 mb-5 sm:mb-8 min-h-7" aria-live="polite">
           {!isLoading && totalCount > 0 && (
@@ -121,13 +123,14 @@ const PartnersGrid = ({ parceiros, isLoading, searchTerm, totalCount, onClearSea
                     {parceiro.name}
                   </h3>
 
+                  {/* Texto pequeno: verde escuro (6,2:1); o #00a859 dá só 3,1:1 */}
                   {website && (
                     <a
                       href={website}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`Visitar site de ${parceiro.name} (abre em nova aba)`}
-                      className="mt-2 mx-auto inline-flex items-center gap-1.5 text-xs font-bold text-[#00a859] hover:text-[#003f7f] transition-colors"
+                      className="mt-2 mx-auto inline-flex items-center gap-1.5 text-xs font-bold text-[#00703c] hover:text-[#003f7f] transition-colors"
                     >
                       <FaGlobe className="w-3 h-3" aria-hidden="true" />
                       Visitar site
@@ -140,25 +143,7 @@ const PartnersGrid = ({ parceiros, isLoading, searchTerm, totalCount, onClearSea
           </ul>
         )}
 
-        {/* Estatísticas */}
-        {!isLoading && totalCount > 0 && (
-          <div className="mt-10 sm:mt-14 rounded-3xl bg-linear-to-br from-[#003f7f] via-[#0052a3] to-[#0066cc] px-4 py-6 sm:p-10 shadow-[0_24px_60px_-28px_rgba(0,63,127,0.6)]">
-            <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center">
-              <div>
-                <p className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-white tabular-nums">{totalCount}</p>
-                <p className="mt-1 text-xs sm:text-base font-semibold text-white/80">Empresas Associadas</p>
-              </div>
-              <div>
-                <p className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-[#00d670]">30+</p>
-                <p className="mt-1 text-xs sm:text-base font-semibold text-white/80">Anos de Parceria</p>
-              </div>
-              <div>
-                <p className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-[#ffd000]">100%</p>
-                <p className="mt-1 text-xs sm:text-base font-semibold text-white/80">Comprometidos com o Comércio</p>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Sem painel de estatísticas: o único número com fonte (o total do banco) já aparece acima da lista */}
       </div>
     </section>
   );

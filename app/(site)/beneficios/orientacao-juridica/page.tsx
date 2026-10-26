@@ -12,6 +12,7 @@ import {
   services,
   faqs
 } from './components';
+import { formGuardFields } from '@/lib/form-guard';
 
 export default function OrientacaoJuridicaPage() {
   const [selectedFaq, setSelectedFaq] = useState<number | null>(null);
@@ -42,6 +43,8 @@ export default function OrientacaoJuridicaPage() {
           email: formData.get('email'),
           assunto: formData.get('assunto'),
           descricao: formData.get('descricao'),
+          // Campos anti-robô (armadilha e tempo de preenchimento) que a API exige
+          ...formGuardFields(form),
         }),
       });
 

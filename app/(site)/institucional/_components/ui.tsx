@@ -46,7 +46,7 @@ export function InstitucionalBreadcrumb({ current, linkSection = true }: Breadcr
   return (
     <div className="bg-[#003f7f] text-white">
       <nav aria-label="Breadcrumb" className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <ol className="flex min-w-0 items-center gap-2 py-2.5 text-xs text-white/75 sm:py-3 sm:text-sm">
+        <ol className="flex min-w-0 items-center gap-2 py-3.5 text-xs text-white/75 sm:py-3 sm:text-sm">
           <li className="shrink-0">
             <Link href="/" className={`inline-flex items-center gap-1.5 ${linkClass}`}>
               <FaHome aria-hidden="true" className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -93,9 +93,9 @@ interface PageHeroProps {
   overlapBottom?: boolean;
 }
 
-/** Trecho do título em destaque: amarelo no hero escuro, verde no claro. */
+/** Trecho do título em destaque: amarelo no hero escuro, verde escuro no claro (o #00a859 dá 2,8–3,0:1 no fundo cinza; o #00703c, 5,6:1). */
 export function HeroHighlight({ children, dark }: { children: React.ReactNode; dark?: boolean }) {
-  return <span className={`block ${dark ? 'text-[#ffd000]' : 'text-[#00a859]'}`}>{children}</span>;
+  return <span className={`block ${dark ? 'text-[#ffd000]' : 'text-[#00703c]'}`}>{children}</span>;
 }
 
 export function PageHero({ icon: Icon, eyebrow, title, description, image, children, overlapBottom }: PageHeroProps) {

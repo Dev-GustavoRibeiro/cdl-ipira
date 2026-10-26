@@ -55,10 +55,10 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'ID da inscrição e do evento são obrigatórios' }, { status: 400 });
         }
 
-        // Buscar dados antes de excluir para auditoria
+        // Confere que a inscrição é deste evento (o contador do evento é decrementado abaixo)
         const { data: registration } = await supabaseAdmin
             .from('event_registrations')
-            .select('name')
+            .select('id')
             .eq('id', id)
             .eq('event_id', eventId)
             .single();
@@ -96,10 +96,11 @@ export async function DELETE(request: NextRequest) {
             console.error('Erro ao atualizar contador:', countError);
         }
 
+        // Título neutro: a exclusão costuma ser pedido do titular, e o log não pode guardar o nome que ele mandou apagar
         await auditServer.delete(
             'event_registrations',
             String(id),
-            registration.name,
+            `Inscrição #${id}`,
             { eventId },
             request
         );

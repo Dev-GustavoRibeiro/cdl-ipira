@@ -131,7 +131,8 @@ export async function POST(request: NextRequest) {
     const { error } = await supabaseAdmin.storage
       .from(bucket)
       .upload(filePath, buffer, {
-        contentType: file.type,
+        // 'image/jpg' não é um tipo registrado: o storage serve como image/jpeg
+        contentType: file.type === 'image/jpg' ? 'image/jpeg' : file.type,
         upsert: false
       });
 

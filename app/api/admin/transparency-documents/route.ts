@@ -23,6 +23,10 @@ function validatePayload(payload: ReturnType<typeof sanitizePayload>) {
     return 'Título, arquivo e data são obrigatórios.';
   }
 
+  if (!/^\d{4}-\d{2}-\d{2}/.test(payload.date)) {
+    return 'Data inválida.';
+  }
+
   if (!isSafeLink(payload.file_url, 1000)) {
     return 'O arquivo deve ser um endereço http(s):// ou um caminho do site.';
   }

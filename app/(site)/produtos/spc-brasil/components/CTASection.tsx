@@ -10,7 +10,7 @@ const CTASection = () => {
     <CTABand
       className="bg-gray-50"
       title="Comece a Usar o SPC Brasil Hoje"
-      description="Todas as funcionalidades são gratuitas e podem ser acessadas diretamente no site do SPC Brasil."
+      description="Preços, prazos e disponibilidade de cada serviço são definidos pelo SPC Brasil. Fale com a CDL para saber como usar com o seu CPF ou CNPJ."
       actions={
         <>
           <a href="https://www.spcbrasil.org.br" target="_blank" rel="noopener noreferrer" className={btnYellow}>
@@ -19,7 +19,7 @@ const CTASection = () => {
             <span className="sr-only">(abre em nova aba)</span>
           </a>
           <Link href="/imprensa/contato" className={btnGlass}>
-            Falar com Especialista
+            Falar com a CDL
             <FaArrowRight aria-hidden="true" className="h-3.5 w-3.5 transition-[translate] duration-200 group-hover:translate-x-1 motion-reduce:transition-none" />
           </Link>
         </>

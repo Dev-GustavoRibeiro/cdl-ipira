@@ -1,19 +1,34 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaSpinner, FaSave, FaCloudUploadAlt, FaStar } from 'react-icons/fa';
+import React, { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
+import { FaPlus, FaEdit, FaTrash, FaStar, FaBullhorn, FaExternalLinkAlt, FaRedo, FaEyeSlash, FaNewspaper, FaCalendarAlt, FaImages } from 'react-icons/fa';
 import { toast } from 'sonner';
 import Modal from '@/app/components/Modal';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { fetchWithCSRF } from '@/lib/csrf-client';
-import { Campaign, getCampaignStatus, CAMPAIGN_STATUS_LABEL } from '@/lib/campaigns';
+import { type Campaign, type CampaignStatus, getCampaignStatus } from '@/lib/campaigns';
 import { formatDateBR, todayISO } from '@/lib/date';
+import { isOptimizableImage } from '@/lib/images';
+import {
+  AdminCard, AdminPageHeader, Button, Checkbox, DataTable, EmptyState, FilterPills, FormField, IconButton, ImageUploadField,
+  Input, SearchInput, StatusBadge, Textarea, cx, focusRing, type DataTableColumn, type StatusVariant, useOpenOnNovo,
+} from '@/app/admin/_components';
 
 interface Campanha extends Campaign {
   news_count: number;
   events_count: number;
   albums_count: number;
 }
+
+type Filter = 'all' | CampaignStatus;
+
+const STATUS: Record<CampaignStatus, { label: string; variant: StatusVariant }> = {
+  active: { label: 'Em andamento', variant: 'success' },
+  upcoming: { label: 'Em breve', variant: 'info' },
+  finished: { label: 'Realizada', variant: 'neutral' },
+};
+const PAGE_SIZE = 10;
 
 const emptyForm = () => ({
   title: '',
@@ -25,109 +40,131 @@ const emptyForm = () => ({
   is_featured: false,
   is_active: true,
 });
+type FormState = ReturnType<typeof emptyForm>;
+type FormErrors = Partial<Record<keyof FormState, string>>;
 
-const inputClass = 'w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent';
+async function request<T = unknown>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetchWithCSRF(url, init);
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error || `Erro ${response.status} ao falar com o servidor.`);
+  return data as T;
+}
+
+const errorMessage = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
+const isValidLink = (value: string) => !value || /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i.test(value.trim());
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+function validate(form: FormState): FormErrors {
+  const errors: FormErrors = {};
+  if (!form.title.trim()) errors.title = 'Informe o título da campanha.';
+  if (!form.start_date) errors.start_date = 'Informe a data de início.';
+  if (form.end_date && form.start_date && form.end_date < form.start_date) errors.end_date = 'O término deve ser igual ou depois do início.';
+  if (!isValidLink(form.cover_image)) errors.cover_image = 'Use um endereço que comece com https://';
+  return errors;
+}
+
+function Thumb({ src }: { src: string | null }) {
+  return (
+    <span className="relative flex h-12 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#ffd000]/25 text-[#003f7f]/50 ring-1 ring-gray-200">
+      {src ? (
+        <Image src={src} alt="" fill sizes="64px" className="object-cover" unoptimized={!isOptimizableImage(src)} />
+      ) : (
+        <FaBullhorn aria-hidden="true" className="h-4 w-4" />
+      )}
+    </span>
+  );
+}
 
 export default function AdminCampanhasPage() {
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [page, setPage] = useState(1);
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<FormState>(emptyForm);
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState(emptyForm);
 
-  // Delete modal state
   const [campanhaToDelete, setCampanhaToDelete] = useState<Campanha | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const loadCampanhas = useCallback(
+    () =>
+      request<Campanha[]>('/api/admin/campanhas')
+        .then((data) => {
+          setCampanhas(data);
+          setLoadError(false);
+        })
+        .catch((error) => {
+          setLoadError(true);
+          toast.error(errorMessage(error, 'Erro ao carregar campanhas.'));
+        })
+        .finally(() => setIsLoading(false)),
+    []
+  );
 
   useEffect(() => {
-    fetchCampanhas();
-  }, []);
+    loadCampanhas();
+  }, [loadCampanhas]);
 
-  async function fetchCampanhas() {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/admin/campanhas');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao carregar campanhas');
-      setCampanhas(data);
-    } catch (error) {
-      console.error('Erro ao carregar campanhas:', error);
-      toast.error('Erro ao carregar campanhas');
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function confirmDelete() {
-    if (!campanhaToDelete) return;
-
-    try {
-      const response = await fetchWithCSRF(`/api/admin/campanhas?id=${campanhaToDelete.id}`, {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao excluir campanha');
-
-      toast.success('Campanha excluída com sucesso');
-      fetchCampanhas();
-    } catch (error) {
-      console.error('Erro ao excluir campanha:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao excluir campanha');
-    } finally {
-      setCampanhaToDelete(null);
-    }
-  }
-
-  const handleOpenModal = (campanha?: Campanha) => {
-    if (campanha) {
-      setEditingId(campanha.id);
-      setFormData({
-        title: campanha.title,
-        summary: campanha.summary || '',
-        description: campanha.description || '',
-        cover_image: campanha.cover_image || '',
-        start_date: campanha.start_date,
-        end_date: campanha.end_date || '',
-        is_featured: campanha.is_featured,
-        is_active: campanha.is_active,
-      });
-    } else {
-      setEditingId(null);
-      setFormData(emptyForm());
-    }
-    setIsModalOpen(true);
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setFormData((current) => ({ ...current, [key]: value }));
+    setErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const openModal = (campanha?: Campanha) => {
+    setEditingId(campanha?.id ?? null);
+    setFormData(
+      campanha
+        ? {
+            title: campanha.title,
+            summary: campanha.summary || '',
+            description: campanha.description || '',
+            cover_image: campanha.cover_image || '',
+            start_date: campanha.start_date,
+            end_date: campanha.end_date || '',
+            is_featured: campanha.is_featured,
+            is_active: campanha.is_active,
+          }
+        : emptyForm()
+    );
+    setErrors({});
+    setIsModalOpen(true);
+  };
+  // Atalhos do painel (?novo=1) abrem direto o formulário de criação
+  useOpenOnNovo(() => openModal());
 
+  const closeModal = () => {
+    if (!isSaving && !isUploading) setIsModalOpen(false);
+  };
+
+  const handleImageSelect = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setErrors((current) => ({ ...current, cover_image: 'Escolha um arquivo de imagem (PNG, JPG ou WebP).' }));
+      return;
+    }
+    // Limite real de envio pelo painel: 10 MB (proxy do Next), mesmo o bucket aceitando 20 MB
+    if (file.size > 10 * 1024 * 1024) {
+      setErrors((current) => ({ ...current, cover_image: 'A imagem passa de 10 MB. Reduza o tamanho e tente de novo.' }));
+      return;
+    }
     setIsUploading(true);
-
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      uploadFormData.append('bucket', 'gallery');
-      uploadFormData.append('folder', 'campaigns');
-
-      const response = await fetchWithCSRF('/api/upload', {
-        method: 'POST',
-        body: uploadFormData
-      });
-
-      const data = await response.json();
-      if (!response.ok || !data.url) throw new Error(data.error || 'Erro ao enviar imagem');
-
-      setFormData((current) => ({ ...current, cover_image: data.url }));
-      toast.success('Imagem enviada com sucesso!');
+      const body = new FormData();
+      body.append('file', file);
+      body.append('bucket', 'gallery');
+      body.append('folder', 'campaigns');
+      const data = await request<{ url?: string }>('/api/upload', { method: 'POST', body });
+      if (!data.url) throw new Error('O envio não retornou o endereço da imagem.');
+      setField('cover_image', data.url);
+      toast.success('Imagem enviada.');
     } catch (error) {
-      console.error('Erro ao enviar imagem:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao enviar imagem');
+      toast.error(errorMessage(error, 'Erro ao enviar a imagem.'));
     } finally {
       setIsUploading(false);
     }
@@ -135,408 +172,355 @@ export default function AdminCampanhasPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
+    const found = validate(formData);
+    setErrors(found);
+    const firstInvalid = Object.keys(found)[0];
+    if (firstInvalid) {
+      document.getElementById(`campanha-${firstInvalid}`)?.focus();
+      return;
+    }
 
+    setIsSaving(true);
     try {
-      const response = await fetchWithCSRF('/api/admin/campanhas', {
+      await request('/api/admin/campanhas', {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(editingId && { id: editingId }), ...formData })
+        body: JSON.stringify({ ...(editingId && { id: editingId }), ...formData, cover_image: formData.cover_image.trim() }),
       });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao salvar campanha');
-
-      toast.success(editingId ? 'Campanha atualizada!' : 'Campanha criada!');
+      toast.success(editingId ? 'Campanha atualizada.' : 'Campanha criada.');
       setIsModalOpen(false);
-      fetchCampanhas();
+      loadCampanhas();
     } catch (error) {
-      console.error('Erro ao salvar campanha:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao salvar campanha.');
+      toast.error(errorMessage(error, 'Erro ao salvar a campanha.'));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    const checked = (e.target as HTMLInputElement).checked;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value,
-    });
+  const confirmDelete = async () => {
+    if (!campanhaToDelete) return;
+    setIsDeleting(true);
+    try {
+      await request(`/api/admin/campanhas?id=${campanhaToDelete.id}`, { method: 'DELETE' });
+      toast.success('Campanha excluída.');
+      setCampanhaToDelete(null);
+      loadCampanhas();
+    } catch (error) {
+      toast.error(errorMessage(error, 'Erro ao excluir a campanha.'));
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  const filteredCampanhas = campanhas.filter(campanha =>
-    campanha.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const today = todayISO();
+  const statusOf = (c: Campanha) => getCampaignStatus(c, today);
+  const term = searchTerm.trim().toLowerCase();
+  const searched = campanhas.filter((c) => !term || c.title.toLowerCase().includes(term) || c.summary?.toLowerCase().includes(term));
+  const filtered = searched.filter((c) => filter === 'all' || statusOf(c) === filter);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const countBy = (status: CampaignStatus) => searched.filter((c) => statusOf(c) === status).length;
+
+  const columns: DataTableColumn<Campanha>[] = [
+    {
+      key: 'title',
+      header: 'Campanha',
+      primary: true,
+      cell: (c) => (
+        <div className="flex min-w-0 items-center gap-3">
+          <Thumb src={c.cover_image} />
+          <div className="min-w-0">
+            <p className="line-clamp-3 font-semibold text-gray-900 md:line-clamp-2 md:max-w-sm">{c.title}</p>
+            {c.summary && <p className="mt-0.5 line-clamp-1 text-xs font-normal text-gray-500 md:max-w-sm">{c.summary}</p>}
+            {(c.is_featured || !c.is_active) && (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {c.is_featured && (
+                  <StatusBadge variant="warning" dot={false}>
+                    <FaStar aria-hidden="true" className="h-2.5 w-2.5" />
+                    Destaque
+                  </StatusBadge>
+                )}
+                {!c.is_active && (
+                  <StatusBadge variant="neutral" dot={false}>
+                    <FaEyeSlash aria-hidden="true" className="h-2.5 w-2.5" />
+                    Oculta no site
+                  </StatusBadge>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'period',
+      header: 'Período',
+      className: 'tabular-nums',
+      cell: (c) => {
+        const s = STATUS[statusOf(c)];
+        return (
+          <span className="flex flex-col items-end gap-1 md:items-start">
+            <span>
+              <span className="whitespace-nowrap">{formatDateBR(c.start_date)}</span>{' '}
+              <span className="whitespace-nowrap text-gray-500">{c.end_date ? `até ${formatDateBR(c.end_date)}` : 'sem término'}</span>
+            </span>
+            <StatusBadge variant={s.variant}>{s.label}</StatusBadge>
+          </span>
+        );
+      },
+    },
+    {
+      key: 'content',
+      header: 'Conteúdos',
+      cell: (c) => (
+        <span className="inline-flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm text-gray-600 tabular-nums md:justify-start">
+          {(
+            [
+              [FaNewspaper, c.news_count, plural(c.news_count, 'notícia', 'notícias')],
+              [FaCalendarAlt, c.events_count, plural(c.events_count, 'evento', 'eventos')],
+              [FaImages, c.albums_count, plural(c.albums_count, 'álbum', 'álbuns')],
+            ] as const
+          ).map(([Icon, count, label]) => (
+            <span key={label} title={label} className="inline-flex items-center gap-1">
+              <Icon aria-hidden="true" className="h-3 w-3 text-gray-400" />
+              <span aria-hidden="true">{count}</span>
+              <span className="sr-only">{label}</span>
+            </span>
+          ))}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[#003f7f] mb-2">
-            Gerenciar Campanhas
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
-            Crie campanhas e vincule notícias, eventos e álbuns a elas
-          </p>
-        </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center gap-2 bg-[#00a859] text-white px-5 sm:px-6 py-3 rounded-lg font-bold hover:bg-[#00d670] transition-all duration-300 shadow-lg"
-        >
-          <FaPlus />
-          Nova Campanha
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Campanhas"
+        description="Crie campanhas e vincule notícias, eventos e álbuns a elas."
+        actions={
+          <Button icon={FaPlus} onClick={() => openModal()}>
+            Nova campanha
+          </Button>
+        }
+      />
 
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-        <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-          <input
-            type="text"
-            placeholder="Buscar campanhas..."
-            aria-label="Buscar campanhas"
+      <AdminCard flush>
+        <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+          <SearchInput
+            label="Buscar campanhas"
+            placeholder="Buscar por título ou resumo"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
+            onChange={(value) => {
+              setSearchTerm(value);
+              setPage(1);
+            }}
+            className="w-full xl:max-w-sm"
+          />
+          <FilterPills<Filter>
+            label="Filtrar por status"
+            value={filter}
+            onChange={(value) => {
+              setFilter(value);
+              setPage(1);
+            }}
+            options={[
+              { value: 'all', label: 'Todas', count: isLoading ? undefined : searched.length },
+              { value: 'active', label: 'Em andamento', count: isLoading ? undefined : countBy('active') },
+              { value: 'upcoming', label: 'Em breve', count: isLoading ? undefined : countBy('upcoming') },
+              { value: 'finished', label: 'Realizadas', count: isLoading ? undefined : countBy('finished') },
+            ]}
           />
         </div>
-      </div>
 
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#00a859] text-white">
-              <tr>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Campanha</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Período</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Status</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Destaque</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Conteúdos</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-8">
-                    <div className="flex justify-center items-center gap-2 text-[#00a859]">
-                      <FaSpinner className="animate-spin" />
-                      <span>Carregando campanhas...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredCampanhas.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-gray-500">
-                    Nenhuma campanha encontrada.
-                  </td>
-                </tr>
-              ) : (
-                filteredCampanhas.map((campanha) => {
-                  const statusBadge = CAMPAIGN_STATUS_LABEL[getCampaignStatus(campanha)];
-                  return (
-                    <tr key={campanha.id} className="hover:bg-gray-50">
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <div className="text-sm sm:text-base font-semibold text-gray-900">
-                          {campanha.title}
-                        </div>
-                        {!campanha.is_active && (
-                          <span className="inline-block mt-1 bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full text-xs font-bold">
-                            Oculta no site
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600 whitespace-nowrap">
-                        {formatDateBR(campanha.start_date)}
-                        {campanha.end_date ? ` a ${formatDateBR(campanha.end_date)}` : ' (sem término)'}
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${statusBadge.color}`}>
-                          {statusBadge.text}
-                        </span>
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        {campanha.is_featured ? (
-                          <FaStar className="w-4 h-4 text-[#ffd000]" role="img" aria-label="Em destaque" />
-                        ) : (
-                          <span className="text-gray-400"><span aria-hidden="true">—</span><span className="sr-only">Sem destaque</span></span>
-                        )}
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-600 whitespace-nowrap">
-                        {campanha.news_count} notícias · {campanha.events_count} eventos · {campanha.albums_count} álbuns
-                      </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4">
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/imprensa/campanhas/${campanha.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 text-[#003f7f] hover:bg-[#003f7f] hover:text-white rounded-lg transition-colors"
-                            title="Visualizar"
-                            aria-label={`Visualizar ${campanha.title} no site`}
-                          >
-                            <FaEye className="w-4 h-4" />
-                          </Link>
-                          <button
-                            onClick={() => handleOpenModal(campanha)}
-                            className="p-2 text-[#00a859] hover:bg-[#00a859] hover:text-white rounded-lg transition-colors"
-                            title="Editar"
-                            aria-label={`Editar ${campanha.title}`}
-                          >
-                            <FaEdit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setCampanhaToDelete(campanha)}
-                            className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors"
-                            title="Excluir"
-                            aria-label={`Excluir ${campanha.title}`}
-                          >
-                            <FaTrash className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+        <DataTable
+          caption="Lista de campanhas"
+          columns={columns}
+          rows={pageRows}
+          getRowId={(c) => c.id}
+          loading={isLoading}
+          rowActions={(c) => (
+            <>
+              {c.is_active && (
+                <a
+                  href={`/imprensa/campanhas/${c.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Ver “${c.title}” no site (abre em nova aba)`}
+                  title="Ver no site"
+                  className={cx(
+                    'inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-[#003f7f] pointer-fine:size-9',
+                    focusRing
+                  )}
+                >
+                  <FaExternalLinkAlt aria-hidden="true" className="h-3.5 w-3.5" />
+                </a>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              <IconButton icon={FaEdit} label={`Editar “${c.title}”`} onClick={() => openModal(c)} />
+              <IconButton icon={FaTrash} variant="danger" label={`Excluir “${c.title}”`} onClick={() => setCampanhaToDelete(c)} />
+            </>
+          )}
+          pagination={{ page: currentPage, totalPages, onPageChange: setPage, total: filtered.length, pageSize: PAGE_SIZE }}
+          empty={
+            loadError ? (
+              <EmptyState
+                icon={FaRedo}
+                title="Não foi possível carregar as campanhas"
+                description="Verifique a conexão e tente de novo."
+                action={
+                  <Button
+                    variant="secondary"
+                    icon={FaRedo}
+                    onClick={() => {
+                      setIsLoading(true);
+                      loadCampanhas();
+                    }}
+                  >
+                    Tentar novamente
+                  </Button>
+                }
+              />
+            ) : campanhas.length === 0 ? (
+              <EmptyState
+                icon={FaBullhorn}
+                title="Nenhuma campanha ainda"
+                description="Crie uma campanha para agrupar notícias, eventos e álbuns."
+                action={
+                  <Button icon={FaPlus} onClick={() => openModal()}>
+                    Nova campanha
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                title="Nenhuma campanha encontrada"
+                description="Tente outro termo de busca ou outro filtro."
+                action={
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setFilter('all');
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
+                }
+              />
+            )
+          }
+        />
+      </AdminCard>
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingId ? 'Editar Campanha' : 'Nova Campanha'}
-      >
-        <form onSubmit={handleSave} className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="md:col-span-2">
-              <label htmlFor="campanha-title" className="block text-sm font-bold text-gray-700 mb-2">
-                Título da Campanha *
-              </label>
-              <input
-                id="campanha-title"
-                type="text"
-                name="title"
+      <Modal isOpen={isModalOpen} onClose={closeModal} title={editingId ? 'Editar campanha' : 'Nova campanha'} subtitle="Campos com * são obrigatórios.">
+        <form onSubmit={handleSave} noValidate className="space-y-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <FormField label="Título da campanha" id="campanha-title" required error={errors.title} className="md:col-span-2">
+              <Input
                 value={formData.title}
-                onChange={handleChange}
+                onChange={(e) => setField('title', e.target.value)}
                 required
                 maxLength={150}
-                className={inputClass}
-                placeholder="Ex: Natal Premiado 2026"
+                placeholder="Ex.: Natal Premiado 2026"
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label htmlFor="campanha-start" className="block text-sm font-bold text-gray-700 mb-2">
-                Data de Início *
-              </label>
-              <input
-                id="campanha-start"
-                type="date"
-                name="start_date"
-                value={formData.start_date}
-                onChange={handleChange}
-                required
-                className={inputClass}
-              />
-            </div>
+            <FormField label="Data de início" id="campanha-start_date" required error={errors.start_date}>
+              <Input type="date" value={formData.start_date} onChange={(e) => setField('start_date', e.target.value)} required />
+            </FormField>
 
-            <div>
-              <label htmlFor="campanha-end" className="block text-sm font-bold text-gray-700 mb-2">
-                Data de Término
-              </label>
-              <input
-                id="campanha-end"
+            <FormField label="Data de término" id="campanha-end_date" error={errors.end_date} hint="Deixe em branco se não tiver data para acabar.">
+              <Input
                 type="date"
-                name="end_date"
                 value={formData.end_date}
-                onChange={handleChange}
-                min={formData.start_date}
-                className={inputClass}
+                min={formData.start_date || undefined}
+                onChange={(e) => setField('end_date', e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Deixe em branco se a campanha não tiver data para acabar.
-              </p>
-            </div>
+            </FormField>
 
-            <div className="md:col-span-2">
-              <label htmlFor="campanha-summary" className="block text-sm font-bold text-gray-700 mb-2">
-                Resumo
-              </label>
-              <textarea
-                id="campanha-summary"
-                name="summary"
+            <FormField
+              label="Resumo"
+              id="campanha-summary"
+              hint={`Frase que aparece nos cards da campanha. ${formData.summary.length}/300.`}
+              className="md:col-span-2"
+            >
+              <Textarea
                 value={formData.summary}
-                onChange={handleChange}
+                onChange={(e) => setField('summary', e.target.value)}
                 rows={2}
                 maxLength={300}
-                className={`${inputClass} resize-none`}
-                placeholder="Uma frase que aparece nos cards da campanha"
+                placeholder="Compre no comércio local e concorra a prêmios"
               />
-            </div>
+            </FormField>
 
-            <div className="md:col-span-2">
-              <label htmlFor="campanha-description" className="block text-sm font-bold text-gray-700 mb-2">
-                Descrição
-              </label>
-              <textarea
-                id="campanha-description"
-                name="description"
+            <FormField label="Descrição" id="campanha-description" className="md:col-span-2">
+              <Textarea
                 value={formData.description}
-                onChange={handleChange}
+                onChange={(e) => setField('description', e.target.value)}
                 rows={6}
                 maxLength={5000}
-                className={`${inputClass} resize-none`}
-                placeholder="Regulamento, prêmios, lojas participantes..."
+                placeholder="Regulamento, prêmios, lojas participantes…"
               />
-            </div>
+            </FormField>
 
-            <div className="md:col-span-2">
-              <label htmlFor="campanha-cover-file" className="block text-sm font-bold text-gray-700 mb-2">
-                Imagem de Capa
-              </label>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  {/* Opção 1: Upload de Arquivo */}
-                  <div className="flex-1">
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors focus-within:ring-2 focus-within:ring-[#003f7f]">
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        {isUploading ? (
-                          <FaSpinner className="w-8 h-8 text-gray-400 animate-spin mb-2" />
-                        ) : (
-                          <FaCloudUploadAlt className="w-8 h-8 text-gray-400 mb-2" />
-                        )}
-                        <p className="text-sm text-gray-500">
-                          <span className="font-semibold">Clique para enviar</span> uma imagem
-                        </p>
-                        <p className="text-xs text-gray-500">PNG, JPG ou WEBP</p>
-                      </div>
-                      <input
-                        id="campanha-cover-file"
-                        type="file"
-                        className="sr-only"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        onChange={handleImageUpload}
-                        disabled={isUploading}
-                      />
-                    </label>
-                  </div>
-
-                  {/* Preview da Imagem */}
-                  {formData.cover_image && (
-                    <div className="relative w-32 h-32 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={formData.cover_image}
-                        alt="Prévia da capa"
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, cover_image: '' })}
-                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                        title="Remover imagem"
-                        aria-label="Remover imagem"
-                      >
-                        <FaTrash className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Opção 2: URL Direta */}
-                <div className="flex gap-3 items-center">
-                  <label htmlFor="campanha-cover-url" className="text-sm text-gray-500">Ou cole a URL:</label>
-                  <input
-                    id="campanha-cover-url"
-                    type="url"
-                    name="cover_image"
-                    value={formData.cover_image}
-                    onChange={handleChange}
-                    className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#003f7f] focus:border-transparent"
-                    placeholder="https://exemplo.com/capa-campanha.jpg"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              <input
-                type="checkbox"
-                id="campanha-featured"
-                name="is_featured"
-                checked={formData.is_featured}
-                onChange={handleChange}
-                className="w-5 h-5 text-[#00a859] border-gray-300 rounded"
+            <div className="space-y-3 md:col-span-2">
+              <ImageUploadField
+                label="Imagem de capa"
+                id="campanha-cover-file"
+                value={formData.cover_image && isValidLink(formData.cover_image) ? formData.cover_image : null}
+                onSelect={handleImageSelect}
+                onRemove={() => setField('cover_image', '')}
+                uploading={isUploading}
+                hint="PNG, JPG ou WebP até 10 MB."
               />
-              <label htmlFor="campanha-featured" className="text-sm font-medium text-gray-700">Campanha em destaque</label>
+              <FormField label="Ou cole o endereço da imagem" id="campanha-cover_image" error={errors.cover_image}>
+                <Input
+                  type="url"
+                  inputMode="url"
+                  value={formData.cover_image}
+                  onChange={(e) => setField('cover_image', e.target.value)}
+                  placeholder="https://…"
+                />
+              </FormField>
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              <input
-                type="checkbox"
-                id="campanha-active"
-                name="is_active"
-                checked={formData.is_active}
-                onChange={handleChange}
-                className="w-5 h-5 text-[#00a859] border-gray-300 rounded"
-              />
-              <label htmlFor="campanha-active" className="text-sm font-medium text-gray-700">Visível no site</label>
-            </div>
+            <Checkbox
+              className="rounded-xl bg-gray-50 px-4 ring-1 ring-gray-200"
+              label="Campanha em destaque"
+              description="Aparece em evidência na página de campanhas."
+              checked={formData.is_featured}
+              onChange={(e) => setField('is_featured', e.target.checked)}
+            />
+            <Checkbox
+              className="rounded-xl bg-gray-50 px-4 ring-1 ring-gray-200"
+              label="Visível no site"
+              description="Desmarque para ocultar sem excluir."
+              checked={formData.is_active}
+              onChange={(e) => setField('is_active', e.target.checked)}
+            />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="submit"
-              disabled={isSaving || isUploading}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#003f7f] text-white px-6 py-3 rounded-lg font-bold hover:bg-[#0066cc] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FaSave />
-              {isSaving ? 'Salvando...' : 'Salvar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="inline-flex items-center justify-center gap-2 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-all duration-300"
-            >
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={closeModal} disabled={isSaving || isUploading}>
               Cancelar
-            </button>
+            </Button>
+            <Button type="submit" loading={isSaving} disabled={isUploading}>
+              {isSaving ? 'Salvando…' : editingId ? 'Salvar alterações' : 'Criar campanha'}
+            </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal
+      <ConfirmDialog
         isOpen={campanhaToDelete !== null}
-        onClose={() => setCampanhaToDelete(null)}
-        title="Confirmar Exclusão"
-      >
-        <div className="space-y-6">
-          <p className="text-gray-600">
-            Tem certeza que deseja excluir a campanha &quot;{campanhaToDelete?.title}&quot;? As notícias, eventos e álbuns vinculados
-            continuam no site, apenas sem campanha. Esta ação não pode ser desfeita.
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              onClick={() => setCampanhaToDelete(null)}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={confirmDelete}
-              className="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold transition-colors shadow-lg shadow-red-200"
-            >
-              Excluir
-            </button>
-          </div>
-        </div>
-      </Modal>
+        onClose={() => !isDeleting && setCampanhaToDelete(null)}
+        onConfirm={confirmDelete}
+        type="delete"
+        title="Excluir campanha?"
+        message={`“${campanhaToDelete?.title ?? ''}” será excluída. As notícias, eventos e álbuns vinculados continuam no site, só que sem campanha. Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

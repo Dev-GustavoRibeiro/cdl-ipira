@@ -1,12 +1,21 @@
-import type { Metadata } from 'next';
+import JsonLd from '@/app/components/seo/JsonLd';
+import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
+
+const PATH = '/imprensa/revista-cdl';
 
 // A página é client component; o metadata da rota fica neste layout de servidor
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Revista CDL',
-  description: 'Edições da Revista CDL Ipirá com notícias, artigos, entrevistas e informações sobre o comércio local e regional.',
-  alternates: { canonical: '/imprensa/revista-cdl' },
-};
+  description:
+    'Revista CDL Ipirá: as edições, com notícias, artigos e entrevistas sobre o comércio de Ipirá-BA e da região, são publicadas nesta página.',
+  path: PATH,
+});
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      {children}
+      <JsonLd data={[breadcrumbJsonLd(['Revista CDL', PATH])]} />
+    </>
+  );
 }

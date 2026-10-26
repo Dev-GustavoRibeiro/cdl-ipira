@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useId } from 'react';
-import { FaTimes, FaSearch, FaFileExport, FaEnvelope, FaPhone, FaBuilding, FaCalendar, FaTrash, FaUsers, FaExclamationTriangle } from 'react-icons/fa';
+import { FaTimes, FaSearch, FaFileExport, FaEnvelope, FaPhoneAlt, FaBuilding, FaCalendar, FaTrash, FaUsers, FaExclamationTriangle } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { fetchWithCSRF } from '@/lib/csrf-client';
@@ -13,13 +13,14 @@ interface RegistrationListModalProps {
   onClose: () => void;
   eventId: number | null;
   eventTitle: string;
+  /** Chamado depois de excluir um inscrito (para a página atualizar a contagem) */
+  onChanged?: () => void;
 }
 
 interface Registration {
   id: number;
   name: string;
   email: string;
-  cpf?: string;
   phone: string;
   company: string;
   created_at: string;
@@ -41,7 +42,7 @@ function initials(name: string) {
 // Mesmas colunas no cabeçalho e nas linhas (desktop); no celular cada inscrito vira um cartão
 const COLUMNS = 'md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)_7.5rem_2.5rem]';
 
-export default function RegistrationListModal({ isOpen, onClose, eventId, eventTitle }: RegistrationListModalProps) {
+export default function RegistrationListModal({ isOpen, onClose, eventId, eventTitle, onChanged }: RegistrationListModalProps) {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -103,8 +104,9 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
       toast.success('Inscrito excluído com sucesso');
       setRegistrationToDelete(null);
       fetchRegistrations();
-    } catch {
-      toast.error('Erro ao excluir inscrito');
+      onChanged?.();
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'Erro ao excluir inscrito');
     } finally {
       setIsDeleting(false);
     }
@@ -177,7 +179,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
             type="button"
             onClick={handleClose}
             aria-label="Fechar lista de inscritos"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-[background-color,color,scale] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-95 motion-reduce:transition-none"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 pointer-fine:size-10 text-gray-500 transition-[background-color,color,scale] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-95 motion-reduce:transition-none"
           >
             <FaTimes aria-hidden="true" className="h-4 w-4" />
           </button>
@@ -291,7 +293,6 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
                       </span>
                       <div className="min-w-0">
                         <p className="font-bold leading-snug text-gray-900">{reg.name}</p>
-                        {reg.cpf && <p className="text-xs text-gray-500">CPF {reg.cpf}</p>}
                       </div>
                     </div>
 
@@ -303,7 +304,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
                           <span className="truncate" title={reg.email}>{reg.email}</span>
                         </p>
                         <p className="flex items-center gap-2">
-                          <FaPhone aria-hidden="true" className="h-3 w-3 shrink-0 text-gray-400" />
+                          <FaPhoneAlt aria-hidden="true" className="h-3 w-3 shrink-0 text-gray-400" />
                           <span className="sr-only">Telefone:</span>
                           <span>{reg.phone}</span>
                         </p>
@@ -325,7 +326,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
                       onClick={() => setRegistrationToDelete(reg)}
                       title="Excluir inscrito"
                       aria-label={`Excluir inscrito ${reg.name}`}
-                      className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-xl text-red-600 ring-1 ring-red-100 transition-colors hover:bg-red-50 hover:ring-red-200 md:static"
+                      className="absolute top-4 right-4 flex size-11 items-center pointer-fine:size-10 justify-center rounded-xl text-red-600 ring-1 ring-red-100 transition-colors hover:bg-red-50 hover:ring-red-200 md:static"
                     >
                       <FaTrash aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
@@ -349,7 +350,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
           <button
             type="button"
             onClick={handleClose}
-            className="inline-flex h-10 items-center rounded-xl px-4 font-bold text-[#003f7f] transition-colors hover:bg-gray-100"
+            className="inline-flex min-h-11 items-center rounded-xl px-4 font-bold pointer-fine:min-h-10 text-[#003f7f] transition-colors hover:bg-gray-100"
           >
             Fechar
           </button>
@@ -358,7 +359,7 @@ export default function RegistrationListModal({ isOpen, onClose, eventId, eventT
 
       <ConfirmDialog
         isOpen={!!registrationToDelete}
-        onClose={() => setRegistrationToDelete(null)}
+        onClose={() => !isDeleting && setRegistrationToDelete(null)}
         onConfirm={handleConfirmDelete}
         title="Excluir Inscrito"
         message={`Tem certeza que deseja excluir a inscrição de ${registrationToDelete?.name ?? ''}? Esta ação não pode ser desfeita.`}

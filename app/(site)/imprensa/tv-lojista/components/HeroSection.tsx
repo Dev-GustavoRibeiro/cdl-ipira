@@ -16,8 +16,9 @@ const HeroSection = () => {
             TV Lojista
           </h1>
           <div className="h-1.5 w-24 rounded-full bg-linear-to-r from-[#003f7f] via-[#00a859] to-[#ffd000] mx-auto mb-5" aria-hidden="true"></div>
+          {/* Os vídeos são de terceiros: "da CDL" e "parceiros" só voltam com vídeo próprio e convênio confirmado */}
           <p className="text-gray-700 text-base md:text-lg">
-            Acompanhe vídeos, entrevistas, tutoriais e coberturas de eventos da CDL Ipirá
+            Vídeos com dicas para o comércio, selecionados pela CDL Ipirá.
           </p>
         </div>
       </div>

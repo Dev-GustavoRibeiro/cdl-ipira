@@ -53,7 +53,7 @@ const FiltersSection = ({
       <div
         role="group"
         aria-labelledby="categorias-vagas"
-        className="scrollbar-hide -mx-5 mt-2.5 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0"
+        className="scrollbar-hide -mx-5 mt-1.5 flex gap-2 overflow-x-auto px-5 py-1.5 sm:mx-0 sm:mt-2.5 sm:flex-wrap sm:overflow-visible sm:px-0 sm:py-0"
       >
         {categories.map((category) => {
           const active = selectedCategory === category;
@@ -63,7 +63,7 @@ const FiltersSection = ({
               type="button"
               aria-pressed={active}
               onClick={() => onCategoryChange(category)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition-[background-color,color,box-shadow,scale] duration-200 active:scale-[0.98] motion-reduce:transition-none ${
+              className={`touch-target inline-flex min-h-9 shrink-0 items-center rounded-full px-4 text-sm font-bold transition-[background-color,color,box-shadow,scale] duration-200 active:scale-[0.98] motion-reduce:transition-none ${
                 active
                   ? 'bg-[#003f7f] text-white shadow-[0_8px_20px_-8px_rgba(0,63,127,0.7)]'
                   : 'bg-gray-100 text-gray-700 hover:bg-[#003f7f]/10 hover:text-[#003f7f]'

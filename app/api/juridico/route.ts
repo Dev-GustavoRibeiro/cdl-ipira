@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidEmail } from '@/lib/security';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { checkFormGuard } from '@/lib/form-guard';
 
 /**
  * Formulário público de Orientação Jurídica.
@@ -24,6 +25,12 @@ export async function POST(request: NextRequest) {
   // JSON válido mas não-objeto (ex.: "null") também é requisição inválida
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ success: false, error: 'Requisição inválida.' }, { status: 400 });
+  }
+
+  // Anti-robô: campo-armadilha preenchido ou envio rápido demais
+  const botError = checkFormGuard(body);
+  if (botError) {
+    return NextResponse.json({ success: false, error: botError }, { status: 400 });
   }
 
   const nome = cleanText(body.nome);

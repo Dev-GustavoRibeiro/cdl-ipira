@@ -46,10 +46,6 @@ const ContentSection = () => {
                 ferramentas, orientações e suporte necessário para que possam prosperar em seus negócios.
               </p>
               <p>
-                Além disso, a CDL Ipirá desenvolve projetos sociais que beneficiam toda a comunidade, demonstrando nosso compromisso não apenas com
-                o comércio, mas também com o bem-estar social e o desenvolvimento integral de Ipirá.
-              </p>
-              <p>
                 Estamos comprometidos em ser uma instituição transparente, ética e eficiente, sempre buscando inovações e melhorias que agreguem
                 valor aos nossos associados e à comunidade como um todo.
               </p>

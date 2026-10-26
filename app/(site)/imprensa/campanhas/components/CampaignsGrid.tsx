@@ -48,7 +48,7 @@ const CampaignsGrid = ({ campaigns }: CampaignsGridProps) => {
               type="button"
               onClick={() => setSelectedStatus(filter.value)}
               aria-pressed={selectedStatus === filter.value}
-              className={`shrink-0 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-[background-color,color,box-shadow,transform] duration-200 active:scale-[0.98] ${
+              className={`touch-target inline-flex min-h-9 shrink-0 items-center px-4 rounded-full text-[13px] sm:text-sm font-bold transition-[background-color,color,box-shadow,scale] duration-200 active:scale-[0.98] ${
                 selectedStatus === filter.value
                   ? 'bg-[#003f7f] text-white shadow-[0_8px_20px_-8px_rgba(0,63,127,0.7)]'
                   : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-[#003f7f]/10 hover:text-[#003f7f]'
@@ -85,7 +85,7 @@ const CampaignsGrid = ({ campaigns }: CampaignsGridProps) => {
                     {campaign.cover_image ? (
                       <Image
                         src={campaign.cover_image}
-                        alt={campaign.title}
+                        alt=""
                         fill
                         unoptimized={!isOptimizableImage(campaign.cover_image)}
                         className="object-cover group-hover:scale-105 transition-transform duration-700 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
@@ -121,7 +121,7 @@ const CampaignsGrid = ({ campaigns }: CampaignsGridProps) => {
                         <FaCalendarAlt className="w-3 h-3 sm:w-4 sm:h-4 text-[#00a859] shrink-0" aria-hidden="true" />
                         <span className="truncate">{formatPeriod(campaign, formatDateBR)}</span>
                       </span>
-                      <span className="inline-flex items-center gap-1.5 text-[#00a859] font-bold text-sm shrink-0 transition-[gap] duration-300 group-hover:gap-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-[#00703c] font-bold text-sm shrink-0 transition-[gap] duration-300 group-hover:gap-2.5">
                         Ver mais
                         <FaArrowRight className="w-3 h-3" aria-hidden="true" />
                       </span>

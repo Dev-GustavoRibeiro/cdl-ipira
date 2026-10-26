@@ -1,26 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient, toAdminUser } from '@/lib/supabase-server';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logAuditServer } from '@/lib/audit-server';
 import {
   getClientIP,
-  logSecurityEvent,
   isValidEmail,
+  logSecurityEvent,
   generateCSRFToken,
   CSRF_COOKIE,
   CSRF_COOKIE_OPTIONS,
 } from '@/lib/security';
 
-// Verificar token Cloudflare Turnstile
+class LoginConfigError extends Error {}
+
+// 'on' quando o CAPTCHA do Supabase Auth (Attack Protection, com a chave secreta do Turnstile) estiver ligado: aí quem
+// confere o token é o Supabase, o que vale também para quem chama o Supabase direto, sem passar por esta rota. O token
+// do Turnstile só vale uma vez, então é conferido aqui OU lá, nunca nos dois.
+// Esta rota não tem como saber se o CAPTCHA está ligado no Supabase: para desfazer, desligue lá E apague esta variável
+// (com redeploy). Só desligar no Supabase deixa o login sem captcha nenhum.
+const CAPTCHA_IN_SUPABASE = process.env.SUPABASE_AUTH_CAPTCHA === 'on';
+
+// Confere o token do Cloudflare Turnstile aqui (quando o Supabase não confere)
 async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
-  // Sem chave configurada ou com chave de teste, pula a verificação
-  if (!secret || secret.startsWith('1x000000000000') || secret.startsWith('2x000000000000')) {
-    // Chaves de teste: 1x0000...AA = always passes, 2x0000...AB = always fails
-    if (!secret && process.env.NODE_ENV === 'production') {
-      console.warn('[SECURITY] TURNSTILE_SECRET_KEY não configurada: captcha do login desativado');
+  // Chaves de teste da Cloudflare: 1x0000... sempre passa; 2x0000... e 3x0000... sempre falham
+  if (!secret || /^[123]x0{10}/.test(secret)) {
+    // Em produção falha fechado: sem a chave real o captcha virava enfeite
+    if (process.env.NODE_ENV === 'production') {
+      throw new LoginConfigError('TURNSTILE_SECRET_KEY ausente ou de teste');
     }
-    return !secret?.startsWith('2x');
+    return !secret || secret.startsWith('1x');
   }
   try {
     const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
@@ -33,6 +43,16 @@ async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// Toda falha de login leva o mesmo tempo (piso fixo + variação): a demora não revela se o usuário/e-mail existe
+// (usuário inexistente nem chega ao Supabase; existente passa pelo bcrypt do Supabase Auth)
+const FAILURE_FLOOR_MS = 900;
+const FAILURE_JITTER_MS = 200;
+
+async function waitFailureFloor(startedAt: number): Promise<void> {
+  const wait = startedAt + FAILURE_FLOOR_MS + Math.random() * FAILURE_JITTER_MS - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
 }
 
 // Tentativas de login falhas por IP (força bruta); o Supabase Auth também limita por conta própria
@@ -66,7 +86,37 @@ function recordFailedAttempt(ip: string): void {
   loginAttempts.set(ip, attempts);
 }
 
+const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,50}$/;
+
+/**
+ * Login por e-mail da conta do Supabase Auth ou por nome de usuário. O usuário fica em app_metadata.username
+ * (só o service role altera) e aqui é convertido no e-mail da conta.
+ */
+async function resolveLoginEmail(identifier: string): Promise<string | null> {
+  if (identifier.includes('@')) return isValidEmail(identifier) ? identifier.toLowerCase() : null;
+  if (!USERNAME_RE.test(identifier)) return null;
+
+  const wanted = identifier.toLowerCase();
+  // ponytail: varre a lista de usuários (são poucos admins); trocar por consulta indexada se a base crescer
+  for (let page = 1; page <= 10; page++) {
+    let result;
+    try {
+      result = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 });
+    } catch (configError) {
+      // Sem SUPABASE_SERVICE_ROLE_KEY não há como localizar o usuário
+      throw new LoginConfigError(String(configError));
+    }
+    const { data, error } = result;
+    if (error) throw new LoginConfigError(error.message);
+    const match = data.users.find((u) => String(u.app_metadata?.username ?? '').toLowerCase() === wanted);
+    if (match?.email) return match.email.toLowerCase();
+    if (data.users.length < 200) break;
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
+  const startedAt = Date.now();
   const ip = getClientIP(request);
 
   const { blocked, remainingTime } = isIPBlocked(ip);
@@ -88,7 +138,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { email, password, turnstileToken } = body ?? {};
+    const { username, password, turnstileToken } = body ?? {};
+    const identifier = typeof username === 'string' ? username.trim() : '';
 
     if (!turnstileToken || typeof turnstileToken !== 'string') {
       return NextResponse.json(
@@ -97,7 +148,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!(await verifyTurnstile(turnstileToken, ip))) {
+    if (!CAPTCHA_IN_SUPABASE && !(await verifyTurnstile(turnstileToken, ip))) {
       logSecurityEvent({
         type: 'auth_failure',
         ip,
@@ -110,9 +161,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (typeof email !== 'string' || !isValidEmail(email.trim())) {
+    if (!identifier || identifier.length > 254) {
       return NextResponse.json(
-        { error: 'Informe um e-mail válido' },
+        { error: 'Informe o e-mail ou o usuário' },
         { status: 400 }
       );
     }
@@ -124,12 +175,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const loginEmail = await resolveLoginEmail(identifier);
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    const { data, error } = loginEmail
+      ? await supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password,
+          options: CAPTCHA_IN_SUPABASE ? { captchaToken: turnstileToken } : undefined,
+        })
+      : { data: null, error: { code: 'unknown_user' } };
 
     const admin = toAdminUser(data?.user);
 
@@ -143,22 +197,25 @@ export async function POST(request: NextRequest) {
       await logAuditServer({
         action: 'LOGIN',
         table_name: 'auth',
-        user_name: normalizedEmail,
+        user_name: identifier.slice(0, 100),
         details: {
           success: false,
-          reason: error ? 'Credenciais inválidas' : 'Usuário sem permissão de administrador',
+          reason: error?.code === 'captcha_failed' ? 'Verificação de segurança inválida'
+            : error ? 'Credenciais inválidas' : 'Usuário sem permissão de administrador',
         },
       }, request);
       logSecurityEvent({
         type: 'auth_failure',
         ip,
         path: '/api/admin/auth',
-        details: { email: normalizedEmail, reason: error?.code || 'not_admin' }
+        details: { usuario: identifier.slice(0, 100), reason: error?.code || 'not_admin' }
       });
 
-      // Mensagem genérica para não revelar se a conta existe
+      // Mensagem genérica (inclusive para captcha recusado pelo Supabase, que só é conferido para usuário existente)
+      // e tempo igual para não revelar se a conta existe
+      await waitFailureFloor(startedAt);
       return NextResponse.json(
-        { error: 'E-mail ou senha incorretos' },
+        { error: 'Usuário ou senha incorretos' },
         { status: 401 }
       );
     }
@@ -178,6 +235,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, user: admin });
   } catch (error) {
+    if (error instanceof LoginConfigError) {
+      console.error('[AUTH] Login indisponível, configuração do servidor incompleta:', error.message);
+      return NextResponse.json(
+        { error: 'Login indisponível: configuração do servidor incompleta.' },
+        { status: 503 }
+      );
+    }
     console.error('Erro na autenticação:', error);
     logSecurityEvent({
       type: 'suspicious_activity',

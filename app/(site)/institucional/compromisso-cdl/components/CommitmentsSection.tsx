@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FaFlag, FaHandshake, FaHeart, FaShieldAlt, FaUsers } from 'react-icons/fa';
+import { FaFlag, FaHandshake, FaShieldAlt, FaUsers } from 'react-icons/fa';
 import { SectionHeader, shadowCard } from '../../_components/ui';
 
 const commitments = [
@@ -26,13 +26,7 @@ const commitments = [
     icon: FaHandshake,
     tile: 'bg-linear-to-br from-[#ffd000] to-[#ffed4e] text-[#003f7f]',
   },
-  {
-    id: 4,
-    title: 'Compromisso Social',
-    description: 'Desenvolvemos projetos sociais que beneficiam a comunidade local.',
-    icon: FaHeart,
-    tile: 'bg-linear-to-br from-[#003f7f] to-[#0066cc] text-white',
-  },
+  // "Compromisso Social" volta quando a CDL indicar os projetos sociais pelo nome
 ];
 
 const CommitmentsSection = () => {
@@ -41,7 +35,7 @@ const CommitmentsSection = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader icon={FaFlag} eyebrow="O que defendemos" title="Nossos Compromissos" />
 
-        <ul className="mx-auto grid max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+        <ul className="mx-auto grid max-w-6xl grid-cols-1 gap-5 sm:gap-6 md:grid-cols-3">
           {commitments.map((commitment, index) => {
             const Icon = commitment.icon;
             return (
@@ -52,15 +46,14 @@ const CommitmentsSection = () => {
               >
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute -top-2 right-4 text-6xl font-black tracking-tighter text-[#003f7f]/[0.05] select-none"
-                >
-                  {String(index + 1).padStart(2, '0')}
-                </span>
+                  data-n={String(index + 1).padStart(2, '0')}
+                  className="pointer-events-none absolute -top-2 right-4 text-6xl font-black tracking-tighter text-[#003f7f]/[0.05] select-none before:content-[attr(data-n)]"
+                />
                 <span className={`relative flex h-14 w-14 items-center justify-center rounded-2xl shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)] ${commitment.tile}`}>
                   <Icon aria-hidden="true" className="h-6 w-6" />
                 </span>
                 <h3 className="relative mt-6 text-xl font-black tracking-tight text-[#003f7f]">{commitment.title}</h3>
-                <p className="relative mt-2.5 text-sm leading-relaxed text-pretty text-gray-600 sm:text-base">{commitment.description}</p>
+                <p className="relative mt-2.5 text-base leading-relaxed text-pretty text-gray-600">{commitment.description}</p>
               </li>
             );
           })}

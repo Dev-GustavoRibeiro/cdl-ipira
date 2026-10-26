@@ -7,20 +7,20 @@ import { ACCENTS, SectionHeader, cardSurface } from '../../_components/ProductUI
 const contentTypes = [
   {
     icon: FaVideo,
-    title: 'Vídeos de Boas-Vindas',
-    description: 'Apresente sua empresa aos associados da CDL com vídeos personalizados e profissionais.',
+    title: 'Vídeos de Apresentação',
+    description: 'Apresente sua empresa em vídeos publicados nos perfis da CDL.',
     accent: ACCENTS.blue
   },
   {
     icon: FaMicrophone,
-    title: 'Podcasts',
-    description: 'Participe de entrevistas e compartilhe conhecimento através do CDL Cast.',
+    title: 'Entrevistas',
+    description: 'Participe de entrevistas sobre o comércio e o seu ramo de atuação.',
     accent: ACCENTS.green
   },
   {
     icon: FaFileAlt,
-    title: 'Histórias Inspiradoras',
-    description: 'Conte a trajetória da sua empresa no projeto "Minha Empresa Faz História".',
+    title: 'Histórias de Empresas',
+    description: 'Conte a trajetória da sua empresa nos perfis da CDL.',
     accent: ACCENTS.yellow
   }
 ];

@@ -5,12 +5,9 @@ import { FaBalanceScale } from 'react-icons/fa';
 import { ACCENTS, SectionHeader, cardSurface } from '../../_components/ProductUI';
 import { features } from './FeaturesData';
 
-// Linhas da comparação; os valores iguais para as três soluções ficam fixos aqui
+// Linhas da comparação. Custo, prazo e disponibilidade não entram: quem define é o SPC Brasil, não a CDL
 const rows: { label: string; value: (feature: (typeof features)[number]) => string }[] = [
   { label: 'Tipo de Serviço', value: (f) => f.type },
-  { label: 'Custo', value: () => 'Gratuito' },
-  { label: 'Tempo de Ativação', value: () => 'Imediato' },
-  { label: 'Disponibilidade', value: () => '24/7' },
   { label: 'Benefício Principal', value: (f) => f.mainBenefit },
 ];
 
@@ -68,7 +65,7 @@ const ComparisonTable = () => {
         </div>
 
         {/* Celular: um cartão por solução, sem rolagem lateral */}
-        <ul className="mt-10 grid gap-5 md:hidden">
+        <ul className="mt-10 grid grid-cols-1 gap-5 md:hidden">
           {features.map((feature) => {
             const Icon = feature.icon;
             return (

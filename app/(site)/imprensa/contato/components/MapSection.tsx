@@ -1,5 +1,9 @@
+'use client';
+
 import React from 'react';
 import { FaMapMarkerAlt, FaExternalLinkAlt } from 'react-icons/fa';
+import { CONTACT } from '@/app/components/navigation/navItems';
+import ThirdPartyEmbed from '../../noticias/components/ThirdPartyEmbed';
 
 /** Abre a ficha da CDL no Google Maps (rotas, horários, fotos). */
 export const MAPS_URL =
@@ -24,19 +28,26 @@ const MapSection = () => {
         </div>
 
         <div className="relative mt-12 overflow-hidden rounded-3xl bg-white ring-1 ring-gray-200 shadow-[0_30px_60px_-30px_rgba(0,63,127,0.45)] md:mt-14">
-          <div className="relative aspect-4/3 bg-gray-200 sm:aspect-video lg:aspect-21/9">
-            <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d243.7698049399102!2d-39.73938862155856!3d-12.158816444321067!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x714db85e6de07eb%3A0xec56058059003bed!2sCDL%20-%20C%C3%A2mara%20de%20Dirigentes%20Lojistas%20de%20Ipir%C3%A1!5e0!3m2!1spt-BR!2sbr!4v1764212197479!5m2!1spt-BR!2sbr"
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              className="absolute inset-0 h-full w-full"
-              title="Localização CDL Ipirá"
-            />
-          </div>
+          {/* Sem consentimento, o aviso ocupa o lugar do mapa (cresce no celular se o texto não couber).
+              A partir de md ele fica à direita do cartão de endereço, que flutua no canto */}
+          <ThirdPartyEmbed provider="Google" className="aspect-4/3 sm:aspect-video md:pl-[27rem] lg:aspect-21/9">
+            <div className="relative aspect-4/3 bg-gray-200 sm:aspect-video lg:aspect-21/9">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d243.7698049399102!2d-39.73938862155856!3d-12.158816444321067!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x714db85e6de07eb%3A0xec56058059003bed!2sCDL%20-%20C%C3%A2mara%20de%20Dirigentes%20Lojistas%20de%20Ipir%C3%A1!5e0!3m2!1spt-BR!2sbr!4v1764212197479!5m2!1spt-BR!2sbr"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                // credentialless: o iframe roda numa sessão descartável (os cookies do Google não ficam no navegador da
+                // pessoa). O React já trata o atributo como booleano; os tipos ainda não, daí o spread
+                {...{ credentialless: true }}
+                className="absolute inset-0 h-full w-full"
+                title="Localização CDL Ipirá"
+              />
+            </div>
+          </ThirdPartyEmbed>
 
           {/* No celular o cartão fica abaixo do mapa; a partir de md flutua sobre ele */}
           <div className="p-5 sm:p-6 md:absolute md:bottom-6 md:left-6 md:max-w-sm md:rounded-2xl md:bg-white/95 md:shadow-[0_20px_50px_-20px_rgba(0,26,61,0.55)] md:ring-1 md:ring-gray-100 md:backdrop-blur">
@@ -47,7 +58,7 @@ const MapSection = () => {
               <div>
                 <p className="font-black tracking-tight text-[#003f7f]">CDL Ipirá</p>
                 <p className="mt-1 text-sm leading-relaxed text-gray-600">
-                  Avenida Cesár Cabral, Nº 164 - Passarela Center, L02, Centro, Ipirá-BA, 44600-000
+                  {CONTACT.address.join(', ')}
                 </p>
               </div>
             </div>

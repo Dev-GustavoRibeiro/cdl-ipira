@@ -20,6 +20,8 @@ const NewsGrid = ({ news, isLoading, onOpenModal, onResetFilter }: NewsGridProps
   return (
     <section className="py-10 sm:py-12 md:py-16 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Título da lista para leitores de tela: os cartões (h3) vêm logo depois do h1 */}
+        <h2 className="sr-only">Lista de notícias</h2>
         {isLoading ? (
           <CardsSkeleton label="Carregando notícias" />
         ) : news.length === 0 ? (
@@ -55,10 +57,13 @@ const NewsGrid = ({ news, isLoading, onOpenModal, onResetFilter }: NewsGridProps
                       <>
                         <Image
                           src={item.image}
-                          alt={item.title}
+                          alt=""
                           fill
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 384px"
                           unoptimized={!isOptimizableImage(item.image)}
+                          // 1ª linha da grade: candidata a LCP, carrega sem esperar o lazy
+                          loading={index < 3 ? 'eager' : undefined}
+                          fetchPriority={index === 0 ? 'high' : undefined}
                           className="object-cover transition-transform duration-700 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                         />
                         <div className="absolute inset-0 bg-linear-to-t from-black/30 via-transparent to-black/10"></div>
@@ -82,7 +87,7 @@ const NewsGrid = ({ news, isLoading, onOpenModal, onResetFilter }: NewsGridProps
                       <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
                         <div className="bg-white rounded-xl px-2.5 py-2 shadow-lg text-center">
                           <div className="text-[#003f7f] text-lg font-black leading-none">{day}</div>
-                          <div className="text-[#00a859] text-[10px] font-bold mt-1">
+                          <div className="text-[#00703c] text-[11px] font-bold mt-1">
                             {month}/{year}
                           </div>
                         </div>
@@ -107,7 +112,7 @@ const NewsGrid = ({ news, isLoading, onOpenModal, onResetFilter }: NewsGridProps
                         <FaUser className="w-3 h-3 shrink-0" aria-hidden="true" />
                         <span className="truncate">{item.author || 'CDL Ipirá'}</span>
                       </span>
-                      <span className="inline-flex items-center gap-1.5 text-[#00a859] font-bold text-sm shrink-0 transition-[gap] duration-300 group-hover:gap-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-[#00703c] font-bold text-sm shrink-0 transition-[gap] duration-300 group-hover:gap-2.5">
                         Leia mais
                         <FaArrowRight className="w-3 h-3" aria-hidden="true" />
                       </span>

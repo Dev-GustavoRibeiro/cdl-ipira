@@ -27,11 +27,11 @@ export const anchorOffset = 'scroll-mt-[calc(var(--header-height,0px)+1rem)]';
 
 export type Accent = 'blue' | 'green' | 'yellow' | 'sky';
 
-/* tile: ícone em bloco sólido; soft: ícone em fundo suave; bar: faixa de destaque.
-   O amarelo sempre leva conteúdo azul (branco no amarelo não tem contraste). */
+/* tile: ícone em bloco sólido (também leva os números dos passos); soft: ícone em fundo suave; bar: faixa de destaque.
+   Amarelo e verde levam conteúdo azul-escuro: branco no amarelo não tem contraste e no verde dá 3,1:1 (o navy dá 5,5:1). */
 export const ACCENTS: Record<Accent, { tile: string; soft: string; bar: string }> = {
   blue: { tile: 'bg-[#003f7f] text-white', soft: 'bg-[#003f7f]/10 text-[#003f7f] ring-[#003f7f]/15', bar: 'bg-[#003f7f]' },
-  green: { tile: 'bg-[#00a859] text-white', soft: 'bg-[#00a859]/10 text-[#00a859] ring-[#00a859]/15', bar: 'bg-[#00a859]' },
+  green: { tile: 'bg-[#00a859] text-[#001a3d]', soft: 'bg-[#00a859]/10 text-[#00a859] ring-[#00a859]/15', bar: 'bg-[#00a859]' },
   yellow: { tile: 'bg-[#ffd000] text-[#003f7f]', soft: 'bg-[#ffd000]/25 text-[#003f7f] ring-[#ffd000]/40', bar: 'bg-[#ffd000]' },
   sky: { tile: 'bg-[#0066cc] text-white', soft: 'bg-[#0066cc]/10 text-[#0066cc] ring-[#0066cc]/15', bar: 'bg-[#0066cc]' },
 };
@@ -166,7 +166,7 @@ export function HeroPanel({ title, description, items }: { title: string; descri
   return (
     <div className="rounded-3xl bg-white/[0.07] p-5 shadow-[0_30px_70px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/15 backdrop-blur-md sm:p-7">
       <h2 className="text-lg font-black tracking-tight text-balance text-white sm:text-xl">{title}</h2>
-      {description && <p className="mt-2 text-sm leading-relaxed text-white/75 sm:text-[15px]">{description}</p>}
+      {description && <p className="mt-2 text-base leading-relaxed text-white/75 sm:text-[15px]">{description}</p>}
       <ul className="mt-5 space-y-2.5">
         {items.map(({ icon: ItemIcon, title: itemTitle, text, accent, href }) => {
           const content = (

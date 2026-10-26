@@ -4,10 +4,12 @@ import React from 'react';
 import { FaListOl } from 'react-icons/fa';
 import { SectionHeader } from '../../_components/ProductUI';
 
+// Validação só por videoconferência (o que o site sempre disse): a presencial na CDL exige que ela seja
+// instalação de uma Autoridade de Registro, o que a CDL ainda não confirmou
 const steps = [
   { step: 1, title: 'Contato', desc: 'Entre em contato com a CDL Ipirá' },
   { step: 2, title: 'Documentação', desc: 'Envie os documentos necessários' },
-  { step: 3, title: 'Videoconferência', desc: 'Realize a validação por vídeo' },
+  { step: 3, title: 'Validação', desc: 'Confirme sua identidade por videoconferência' },
   { step: 4, title: 'Emissão', desc: 'Receba seu certificado digital' }
 ];
 
@@ -20,7 +22,7 @@ const EmissionProcessSection = () => {
           eyebrow="Passo a passo"
           icon={FaListOl}
           title="Como Emitir seu Certificado Digital"
-          subtitle="Processo simples, rápido e seguro"
+          subtitle="Do primeiro contato à emissão, em quatro etapas"
         />
 
         {/* Celular: passos na vertical ligados por uma linha; a partir do tablet, na horizontal */}

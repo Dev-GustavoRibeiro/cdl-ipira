@@ -29,16 +29,18 @@ export default function NoticiasPage() {
       try {
         const { data, error } = await supabase
           .from('news')
-          .select('*')
+          // A campanha ligada vem junto (o RLS devolve null para campanha desativada)
+          .select('*, campaigns(slug, title)')
           .eq('is_published', true)
           .order('date', { ascending: false });
 
         if (error) throw error;
 
         if (data) {
-          const formattedNews = data.map((item: { id: number; title: string; excerpt: string; content: string; image: string; date: string; category: string; color: string; author: string }) => {
+          const formattedNews = data.map(({ campaigns, ...item }: Omit<NewsItem, 'campaign'> & { campaigns: NewsItem['campaign'] }) => {
             return {
               ...item,
+              campaign: campaigns,
               date: formatDateBR(item.date) || item.date || ''
             };
           });

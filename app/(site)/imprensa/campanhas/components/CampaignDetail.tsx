@@ -19,6 +19,25 @@ interface CampaignDetailProps {
 
 const subscribeNoop = () => () => {};
 
+// "Como participar: ..." -> rótulo em negrito. Curto, numa linha e seguido de espaço (não pega "https://")
+const LABEL = /^([^:\n]{3,30}):(?=\s)/;
+
+function Paragraph({ text }: { text: string }) {
+  const label = LABEL.exec(text)?.[1];
+  return (
+    <p className="whitespace-pre-line">
+      {label ? (
+        <>
+          <strong className="font-bold text-[#003f7f]">{label}:</strong>
+          {text.slice(label.length + 1)}
+        </>
+      ) : (
+        text
+      )}
+    </p>
+  );
+}
+
 const CampaignDetail = ({ campaign, serverToday }: CampaignDetailProps) => {
   // O HTML fica em cache (revalidate) e o servidor roda em UTC:
   // hidrata com a data do servidor e, em seguida, recalcula o status com a data local do visitante
@@ -39,7 +58,7 @@ const CampaignDetail = ({ campaign, serverToday }: CampaignDetailProps) => {
         {campaign.cover_image ? (
           <Image
             src={campaign.cover_image}
-            alt={campaign.title}
+            alt=""
             fill
             priority
             unoptimized={!isOptimizableImage(campaign.cover_image)}
@@ -80,9 +99,7 @@ const CampaignDetail = ({ campaign, serverToday }: CampaignDetailProps) => {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mx-auto space-y-4 sm:space-y-5 text-gray-700 text-base sm:text-lg leading-relaxed">
               {paragraphs.map((paragraph, index) => (
-                <p key={index} className="whitespace-pre-line">
-                  {paragraph}
-                </p>
+                <Paragraph key={index} text={paragraph} />
               ))}
             </div>
           </div>

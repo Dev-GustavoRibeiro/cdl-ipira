@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { FaPaperPlane, FaCheck, FaExclamationCircle, FaChevronDown } from 'react-icons/fa';
+import { HONEYPOT_FIELD, stampFormOpenedAt } from '@/lib/form-guard';
 
 interface FormData {
   nome: string;
@@ -17,34 +18,52 @@ interface ContactFormProps {
   submitStatus: 'success' | 'error' | null;
   submitMessage?: string | null;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
-  onSubmit: (e: React.FormEvent) => void;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   /** Volta ao formulário depois do envio ("Enviar nova mensagem") */
   onReset?: () => void;
 }
 
-// Mesmo estilo de campo dos modais do site; o erro do campo aparece só depois que o usuário interage (:user-invalid)
+// Mesmo estilo de campo dos modais do site; o vermelho acompanha o aria-invalid que o Field liga.
+// Placeholder em gray-500: o gray-400 ficava em 2,5:1 sobre o fundo do campo (WCAG 1.4.3 pede 4,5:1)
 const fieldClass =
-  'w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-[15px] text-gray-900 placeholder:text-gray-400 transition-[border-color,background-color,box-shadow] duration-200 hover:border-gray-300 focus:border-[#003f7f] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#003f7f]/10 user-invalid:border-red-500 user-invalid:bg-red-50/40 disabled:cursor-not-allowed disabled:opacity-60';
+  'w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-base text-gray-900 placeholder:text-gray-500 sm:text-[15px] transition-[border-color,background-color,box-shadow] duration-200 hover:border-gray-300 focus:border-[#003f7f] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#003f7f]/10 aria-invalid:border-red-500 aria-invalid:bg-red-50/40 disabled:cursor-not-allowed disabled:opacity-60';
+
+type FieldAria = { 'aria-invalid'?: true; 'aria-describedby'?: string };
 
 interface FieldProps {
   id: string;
   label: string;
   error: string;
+  optional?: boolean;
   className?: string;
-  children: React.ReactNode;
+  /** Recebe os atributos que ligam o erro ao campo (aria-invalid e aria-describedby) */
+  children: (aria: FieldAria) => React.ReactNode;
 }
 
-function Field({ id, label, error, className, children }: FieldProps) {
+const isValid = (e: React.SyntheticEvent) => (e.target as HTMLInputElement).validity.valid;
+
+function Field({ id, label, error, optional, className, children }: FieldProps) {
+  // O erro aparece na tentativa de envio (invalid) ou ao sair de um campo preenchido errado, e some assim que o campo
+  // fica válido. No React esses eventos borbulham (até o invalid), então o contêiner ouve o campo de dentro.
+  const [invalid, setInvalid] = useState(false);
   return (
-    <div className={`group/field ${className ?? ''}`}>
+    <div
+      className={className}
+      onInvalid={() => setInvalid(true)}
+      onBlur={(e) => (e.target as HTMLInputElement).value && setInvalid(!isValid(e))}
+      onChange={(e) => invalid && setInvalid(!isValid(e))}
+    >
       <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-gray-800">
-        {label} <span aria-hidden="true" className="text-red-600">*</span>
+        {label}{' '}
+        {optional ? <span className="font-medium text-gray-500">(opcional)</span> : <span aria-hidden="true" className="text-red-600">*</span>}
       </label>
-      {children}
-      <p className="mt-1.5 hidden items-center gap-1.5 text-xs font-medium text-red-700 group-has-[:user-invalid]/field:flex">
-        <FaExclamationCircle aria-hidden="true" className="h-3 w-3 shrink-0" />
-        {error}
-      </p>
+      {children(invalid ? { 'aria-invalid': true, 'aria-describedby': `${id}-erro` } : {})}
+      {invalid && (
+        <p id={`${id}-erro`} className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-red-700">
+          <FaExclamationCircle aria-hidden="true" className="h-3 w-3 shrink-0" />
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -95,95 +114,119 @@ const ContactForm = ({
             </p>
           </div>
 
-          <form onSubmit={onSubmit} aria-busy={isSubmitting} className="grid gap-5 sm:grid-cols-2">
+          <form ref={stampFormOpenedAt} onSubmit={onSubmit} aria-busy={isSubmitting} className="grid gap-5 sm:grid-cols-2">
+            {/* Campo-armadilha anti-robô (lib/form-guard): invisível, fora do Tab e escondido dos leitores de tela */}
+            <div aria-hidden="true" className="sr-only">
+              <label htmlFor="contato-website">Não preencha este campo</label>
+              <input type="text" id="contato-website" name={HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" defaultValue="" />
+            </div>
+
             <Field id="nome" label="Nome completo" error="Informe seu nome." className="sm:col-span-2">
-              <input
-                type="text"
-                id="nome"
-                name="nome"
-                value={formData.nome}
-                onChange={onChange}
-                required
-                maxLength={120}
-                autoComplete="name"
-                disabled={isSubmitting}
-                className={fieldClass}
-                placeholder="Seu nome completo"
-              />
+              {(aria) => (
+                <input
+                  {...aria}
+                  type="text"
+                  id="nome"
+                  name="nome"
+                  value={formData.nome}
+                  onChange={onChange}
+                  required
+                  maxLength={120}
+                  autoComplete="name"
+                  disabled={isSubmitting}
+                  className={fieldClass}
+                  placeholder="Seu nome completo"
+                />
+              )}
             </Field>
 
             <Field id="email" label="E-mail" error="Informe um e-mail válido.">
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={onChange}
-                required
-                autoComplete="email"
-                disabled={isSubmitting}
-                className={fieldClass}
-                placeholder="seu@email.com"
-              />
+              {(aria) => (
+                <input
+                  {...aria}
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={onChange}
+                  required
+                  autoComplete="email"
+                  disabled={isSubmitting}
+                  className={fieldClass}
+                  placeholder="seu@email.com"
+                />
+              )}
             </Field>
 
-            <Field id="telefone" label="Telefone" error="Informe um telefone para contato.">
-              <input
-                type="tel"
-                id="telefone"
-                name="telefone"
-                value={formData.telefone}
-                onChange={onChange}
-                required
-                maxLength={30}
-                autoComplete="tel"
-                inputMode="tel"
-                disabled={isSubmitting}
-                className={fieldClass}
-                placeholder="(75) 99999-9999"
-              />
+            {/* Coleta mínima: o e-mail já basta para responder, o telefone fica a critério de quem escreve */}
+            <Field id="telefone" label="Telefone" error="Informe um telefone válido." optional>
+              {(aria) => (
+                <input
+                  {...aria}
+                  type="tel"
+                  id="telefone"
+                  name="telefone"
+                  value={formData.telefone}
+                  onChange={onChange}
+                  maxLength={30}
+                  autoComplete="tel"
+                  inputMode="tel"
+                  disabled={isSubmitting}
+                  className={fieldClass}
+                  placeholder="(75) 99999-9999"
+                />
+              )}
             </Field>
 
             <Field id="assunto" label="Assunto" error="Selecione um assunto." className="sm:col-span-2">
-              <div className="relative">
-                <select
-                  id="assunto"
-                  name="assunto"
-                  value={formData.assunto}
-                  onChange={onChange}
-                  required
-                  disabled={isSubmitting}
-                  className={`${fieldClass} appearance-none pr-11 invalid:text-gray-400`}
-                >
-                  <option value="">Selecione um assunto</option>
-                  <option value="associacao">Associação</option>
-                  <option value="spc">Consulta SPC</option>
-                  <option value="certificado">Certificado Digital</option>
-                  <option value="eventos">Eventos</option>
-                  <option value="duvidas">Dúvidas Gerais</option>
-                  <option value="outros">Outros</option>
-                </select>
-                <FaChevronDown aria-hidden="true" className="pointer-events-none absolute top-1/2 right-4 h-3 w-3 -translate-y-1/2 text-gray-500" />
-              </div>
+              {(aria) => (
+                <div className="relative">
+                  {/* Sem assunto escolhido o texto fica cinza como um placeholder (gray-500 para manter 4,5:1) */}
+                  <select
+                    {...aria}
+                    id="assunto"
+                    name="assunto"
+                    value={formData.assunto}
+                    onChange={onChange}
+                    required
+                    disabled={isSubmitting}
+                    className={`${fieldClass} appearance-none pr-11 invalid:text-gray-500`}
+                  >
+                    <option value="">Selecione um assunto</option>
+                    <option value="associacao">Associação</option>
+                    <option value="spc">Consulta SPC</option>
+                    <option value="certificado">Certificado Digital</option>
+                    <option value="eventos">Eventos</option>
+                    <option value="duvidas">Dúvidas Gerais</option>
+                    <option value="privacidade">Privacidade e meus dados (LGPD)</option>
+                    <option value="outros">Outros</option>
+                  </select>
+                  <FaChevronDown aria-hidden="true" className="pointer-events-none absolute top-1/2 right-4 h-3 w-3 -translate-y-1/2 text-gray-500" />
+                </div>
+              )}
             </Field>
 
             <Field id="mensagem" label="Mensagem" error="Escreva sua mensagem." className="sm:col-span-2">
-              <textarea
-                id="mensagem"
-                name="mensagem"
-                value={formData.mensagem}
-                onChange={onChange}
-                required
-                maxLength={5000}
-                rows={6}
-                disabled={isSubmitting}
-                className={`${fieldClass} resize-y min-h-36`}
-                placeholder="Escreva sua mensagem aqui..."
-              />
+              {(aria) => (
+                <textarea
+                  {...aria}
+                  id="mensagem"
+                  name="mensagem"
+                  value={formData.mensagem}
+                  onChange={onChange}
+                  required
+                  maxLength={5000}
+                  rows={6}
+                  disabled={isSubmitting}
+                  className={`${fieldClass} resize-y min-h-36`}
+                  placeholder="Escreva sua mensagem aqui..."
+                />
+              )}
             </Field>
 
             {submitStatus === 'error' && (
-              <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 sm:col-span-2 animate-scale-in">
+              // Foco no erro: o botão fica desativado durante o envio e o foco do teclado cairia no topo da página
+              <div ref={focusOnMount} tabIndex={-1} role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 outline-none sm:col-span-2 animate-scale-in">
                 <FaExclamationCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                 <p className="font-semibold text-red-800">
                   {submitMessage || 'Erro ao enviar mensagem. Tente novamente ou entre em contato por telefone.'}
@@ -211,6 +254,15 @@ const ContactForm = ({
               </button>
               <p className="mt-3 text-center text-xs text-gray-500">
                 <span aria-hidden="true" className="text-red-600">*</span> Campos obrigatórios
+              </p>
+              {/* Aviso LGPD perto do envio: só informa o uso (a base é o legítimo interesse, não um aceite);
+                  nova aba para não perder o que já foi digitado */}
+              <p className="mt-1 text-center text-xs text-pretty text-gray-500">
+                Seus dados serão usados para responder ao seu contato, conforme a{' '}
+                <a href="/politica-de-privacidade" target="_blank" rel="noopener" className="font-semibold text-[#003f7f] underline underline-offset-2 hover:text-[#0066cc]">
+                  Política de Privacidade<span className="sr-only"> (abre em nova aba)</span>
+                </a>
+                .
               </p>
             </div>
           </form>

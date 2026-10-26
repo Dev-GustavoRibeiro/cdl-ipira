@@ -2,24 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { isValidEmail } from '@/lib/security';
 import { isTodayOrFuture } from '@/lib/date';
+import { checkFormGuard } from '@/lib/form-guard';
 
-const DUPLICATE_CPF = { error: 'CPF já inscrito neste evento', code: 'DUPLICATE_CPF' };
+// Uma inscrição por e-mail em cada evento (o CPF deixou de ser pedido: coleta mínima). E-mail novo ou já inscrito
+// recebem a mesma resposta: dizer "já inscrito" revelava a terceiros que aquela pessoa vai ao evento.
+// Resta o contador público (events.attendees, que o anon lê): só o e-mail novo soma 1. Fecha com confirmação por
+// e-mail (o contador só sobe ao confirmar) ou deixando de publicar o número exato.
+const REGISTERED = { success: true, message: 'Inscrição realizada com sucesso' };
 
 // Remove caracteres de controle e < > (o React já escapa na exibição; não convertemos para entidades HTML)
 function cleanText(value: unknown, maxLength: number): string {
     if (typeof value !== 'string') return '';
     return value.replace(/[\x00-\x1F\x7F<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
-}
-
-// CPF: 11 dígitos, não todos iguais, com os dois dígitos verificadores corretos
-function isValidCPF(digits: string): boolean {
-    if (!/^\d{11}$/.test(digits) || /^(\d)\1{10}$/.test(digits)) return false;
-    for (const length of [9, 10]) {
-        let sum = 0;
-        for (let i = 0; i < length; i++) sum += Number(digits[i]) * (length + 1 - i);
-        if (((sum * 10) % 11) % 10 !== Number(digits[length])) return false;
-    }
-    return true;
 }
 
 export async function POST(request: NextRequest) {
@@ -29,15 +23,43 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
         }
 
+        // Anti-robô: campo-armadilha preenchido ou envio rápido demais
+        const botError = checkFormGuard(body);
+        if (botError) {
+            return NextResponse.json({ error: botError }, { status: 400 });
+        }
+
         const eventId = Number(body.event_id);
         const name = cleanText(body.name, 120);
         const email = cleanText(body.email, 254).toLowerCase();
         const phone = typeof body.phone === 'string' ? body.phone.replace(/[^\d+\-() ]/g, '').trim().slice(0, 30) : '';
-        const cpfDigits = typeof body.cpf === 'string' ? body.cpf.replace(/\D/g, '') : '';
         const company = cleanText(body.company, 120) || null;
 
-        if (!Number.isInteger(eventId) || eventId <= 0 || !name || !email || !cpfDigits || !phone) {
+        if (!Number.isInteger(eventId) || eventId <= 0 || !name || !email || !phone) {
             return NextResponse.json({ error: 'Campos obrigatórios faltando' }, { status: 400 });
+        }
+
+        // 1. O evento precisa existir, estar ativo, não ter passado e aceitar inscrição
+        // (antes de validar os campos: evento fechado responde o motivo certo)
+        const { data: event } = await supabaseAdmin
+            .from('events')
+            .select('id, date, is_active, attendees, registration_enabled')
+            .eq('id', eventId)
+            .maybeSingle();
+
+        if (!event || !event.is_active) {
+            return NextResponse.json({ error: 'Evento não encontrado' }, { status: 404 });
+        }
+
+        if (!isTodayOrFuture(event.date)) {
+            return NextResponse.json({ error: 'As inscrições para este evento estão encerradas.' }, { status: 400 });
+        }
+
+        if (event.registration_enabled === false) {
+            return NextResponse.json(
+                { error: 'Este evento tem entrada livre e não recebe inscrições.', code: 'REGISTRATION_DISABLED' },
+                { status: 400 }
+            );
         }
 
         if (name.length < 3) {
@@ -53,41 +75,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Informe um telefone válido com DDD.' }, { status: 400 });
         }
 
-        if (!isValidCPF(cpfDigits)) {
-            return NextResponse.json({ error: 'Informe um CPF válido.' }, { status: 400 });
-        }
-
-        // Mesmo formato da máscara do formulário (000.000.000-00), para a checagem de duplicidade bater com os registros existentes
-        const cpf = cpfDigits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-
-        // 1. O evento precisa existir, estar ativo e não ter passado
-        const { data: event } = await supabaseAdmin
-            .from('events')
-            .select('id, date, is_active, attendees')
-            .eq('id', eventId)
-            .maybeSingle();
-
-        if (!event || !event.is_active) {
-            return NextResponse.json({ error: 'Evento não encontrado' }, { status: 404 });
-        }
-
-        if (!isTodayOrFuture(event.date)) {
-            return NextResponse.json({ error: 'As inscrições para este evento estão encerradas.' }, { status: 400 });
-        }
-
-        // 2. Verificar se já existe inscrição com este CPF para este evento
-        const { data: existing } = await supabaseAdmin
-            .from('event_registrations')
-            .select('id')
-            .eq('event_id', eventId)
-            .eq('cpf', cpf)
-            .limit(1);
-
-        if (existing && existing.length > 0) {
-            return NextResponse.json(DUPLICATE_CPF, { status: 409 });
-        }
-
-        // 3. Inserir a inscrição
+        // 2. Inserir a inscrição
         const { error: insertError } = await supabaseAdmin
             .from('event_registrations')
             .insert([
@@ -95,22 +83,22 @@ export async function POST(request: NextRequest) {
                     event_id: eventId,
                     name,
                     email,
-                    cpf,
                     phone,
                     company
                 }
             ]);
 
         if (insertError) {
-            // Violação de unicidade (inscrições simultâneas com o mesmo CPF)
+            // E-mail já inscrito neste evento (índice único da migração 20261024120000_event_registrations_email_unique.sql):
+            // mesma resposta de sucesso e sem somar participante
             if (insertError.code === '23505') {
-                return NextResponse.json(DUPLICATE_CPF, { status: 409 });
+                return NextResponse.json(REGISTERED);
             }
             console.error('Erro ao inserir inscrição:', insertError.code, insertError.message);
             return NextResponse.json({ error: 'Erro ao processar inscrição' }, { status: 500 });
         }
 
-        // 4. Incrementar o contador de participantes no evento
+        // 3. Incrementar o contador de participantes no evento
         try {
             await supabaseAdmin
                 .from('events')
@@ -121,7 +109,7 @@ export async function POST(request: NextRequest) {
             console.error('Erro ao atualizar contador de participantes:', countError);
         }
 
-        return NextResponse.json({ success: true, message: 'Inscrição realizada com sucesso' });
+        return NextResponse.json(REGISTERED);
 
     } catch (error) {
         console.error('Erro interno na inscrição:', error);

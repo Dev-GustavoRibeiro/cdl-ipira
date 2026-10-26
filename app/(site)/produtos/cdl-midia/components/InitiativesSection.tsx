@@ -2,41 +2,42 @@
 
 import React from 'react';
 import type { IconType } from 'react-icons';
-import { FaUsers, FaFileAlt, FaMicrophone, FaNewspaper, FaLightbulb } from 'react-icons/fa';
+import { FaUsers, FaFileAlt, FaVideo, FaNewspaper, FaLightbulb } from 'react-icons/fa';
 import { ACCENTS, type Accent, SectionHeader, anchorOffset, cardLift, cardSurface } from '../../_components/ProductUI';
 
-// tag: resumo curto usado no painel do hero
+// tag: resumo curto usado no painel do hero.
+// Formatos genéricos: os programas com nome (CDL Conecta, Minha Empresa Faz História, CDL Cast, CDL News) só voltam se a CDL confirmar que estão ativos.
 export const initiatives: { id: number; title: string; tag: string; icon: IconType; description: string; accent: Accent }[] = [
   {
     id: 1,
-    title: 'CDL Conecta',
-    tag: 'Networking digital',
+    title: 'Divulgação de Associados',
+    tag: 'Posts e stories',
     icon: FaUsers,
-    description: 'Conectando empresas e fortalecendo relacionamentos através de conteúdo estratégico e networking digital.',
+    description: 'Publicações nos perfis da CDL que apresentam empresas associadas.',
     accent: 'blue'
   },
   {
     id: 2,
-    title: 'Minha Empresa Faz História',
-    tag: 'Histórias inspiradoras',
+    title: 'Histórias de Empresas',
+    tag: 'Trajetórias',
     icon: FaFileAlt,
-    description: 'Destaque a trajetória e os valores da sua empresa através de histórias inspiradoras e conteúdo relevante.',
+    description: 'Conteúdos que contam a trajetória de empresas do comércio de Ipirá.',
     accent: 'green'
   },
   {
     id: 3,
-    title: 'CDL Cast',
-    tag: 'Podcasts',
-    icon: FaMicrophone,
-    description: 'Podcasts exclusivos com informações estratégicas, entrevistas e conteúdos que inspiram o empreendedorismo.',
+    title: 'Vídeos e Entrevistas',
+    tag: 'Vídeo',
+    icon: FaVideo,
+    description: 'Conversas com empresários sobre o comércio local e o seu ramo de atuação.',
     accent: 'yellow'
   },
   {
     id: 4,
-    title: 'CDL News',
-    tag: 'Notícias do mercado',
+    title: 'Notícias do Comércio',
+    tag: 'Informação',
     icon: FaNewspaper,
-    description: 'Notícias, atualizações e informações relevantes sobre o mercado, economia e oportunidades de negócio.',
+    description: 'Informações sobre o comércio, a economia local e as ações da CDL Ipirá.',
     accent: 'sky'
   }
 ];
@@ -47,10 +48,10 @@ const InitiativesSection = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           id="midia-iniciativas"
-          eyebrow="Iniciativas"
+          eyebrow="Formatos"
           icon={FaLightbulb}
-          title="Nossas Iniciativas"
-          subtitle="Projetos exclusivos que geram visibilidade e reconhecimento para sua empresa"
+          title="Formatos de Divulgação"
+          subtitle="Conteúdos publicados nos perfis da CDL Ipirá, conforme a programação de conteúdo"
         />
 
         <ul className="mt-12 grid gap-5 sm:grid-cols-2 sm:gap-6 md:mt-14 lg:gap-8 xl:grid-cols-4">
@@ -65,9 +66,8 @@ const InitiativesSection = () => {
                     <span className={`flex h-14 w-14 items-center justify-center rounded-2xl ${accent.tile} shadow-[0_12px_24px_-12px_rgba(0,63,127,0.6)]`}>
                       <Icon aria-hidden="true" className="h-6 w-6" />
                     </span>
-                    <span aria-hidden="true" className="text-3xl font-black tracking-tight text-[#003f7f]/10">
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
+                    {/* Número decorativo no ::before: não é texto para leitor de tela nem para a checagem de contraste */}
+                    <span aria-hidden="true" data-n={String(index + 1).padStart(2, '0')} className="text-3xl font-black tracking-tight text-[#003f7f]/10 before:content-[attr(data-n)]" />
                   </div>
                   <h3 className="mt-6 text-xl font-black leading-tight tracking-tight text-balance text-[#003f7f]">{initiative.title}</h3>
                   <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-gray-500">{initiative.tag}</p>

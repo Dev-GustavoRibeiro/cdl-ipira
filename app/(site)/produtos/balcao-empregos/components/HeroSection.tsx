@@ -17,7 +17,7 @@ const HeroSection = ({ onOpenModal }: HeroSectionProps) => {
       title="Balcão de"
       highlight="Empregos"
       lead="Oportunidades de emprego, você encontra no site da CDL."
-      description="Com o CDL Balcão de Empregos, você terá acesso aos currículos dos melhores profissionais da cidade!"
+      description="Divulgue as vagas da sua empresa e receba o contato de candidatos interessados."
       actions={
         <>
           <button type="button" onClick={onOpenModal} aria-haspopup="dialog" className={btnYellow}>
@@ -32,11 +32,12 @@ const HeroSection = ({ onOpenModal }: HeroSectionProps) => {
       }
       aside={
         <HeroPanel
-          title="Contrate agora!"
+          title="Para empresas"
+          // "Gratuito para associados" só volta quando a CDL confirmar a regra (e se não associados podem anunciar)
           items={[
-            { icon: FaBriefcase, title: 'Acesso a Talentos', text: 'Encontre profissionais qualificados e prontos para contribuir com seu negócio.', accent: 'green' },
-            { icon: FaUser, title: 'Processo Simplificado', text: 'Cadastre suas vagas e receba currículos de candidatos interessados.', accent: 'sky' },
-            { icon: FaFileAlt, title: 'Gratuito para Associados', text: 'Serviço exclusivo e gratuito para associados da CDL Ipirá.', accent: 'yellow' },
+            { icon: FaFileAlt, title: 'Envio pelo WhatsApp', text: 'Preencha os dados da vaga e envie para a equipe da CDL pelo WhatsApp.', accent: 'yellow' },
+            { icon: FaBriefcase, title: 'Divulgação da Vaga', text: 'A CDL publica a vaga no site para quem procura emprego em Ipirá.', accent: 'green' },
+            { icon: FaUser, title: 'Contato dos Candidatos', text: 'Os candidatos se apresentam pelo WhatsApp da CDL ou diretamente à sua empresa.', accent: 'sky' },
           ]}
         />
       }

@@ -35,6 +35,8 @@ const VideosGrid = ({ videos, isLoading, onVideoClick, onResetFilter }: VideosGr
   return (
     <section ref={sectionRef} className="py-10 sm:py-12 md:py-16 bg-white scroll-mt-[var(--header-height,0px)]">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Título da lista para leitores de tela: os cartões (h3) não pertencem ao h2 do player */}
+        <h2 className="sr-only">Lista de vídeos</h2>
         {isLoading ? (
           <CardsSkeleton label="Carregando vídeos" />
         ) : videos.length === 0 ? (
@@ -58,15 +60,20 @@ const VideosGrid = ({ videos, isLoading, onVideoClick, onResetFilter }: VideosGr
                   type="button"
                   onClick={() => onVideoClick(video)}
                   aria-label={`Assistir: ${video.title}`}
+                  // A página devolve o foco a este botão quando o player fecha
+                  data-video-card={video.id}
                   className="absolute inset-0 z-20 w-full cursor-pointer rounded-2xl focus-inset"
                 />
-                {/* Thumbnail do Vídeo */}
-                <div className="relative h-48 sm:h-56 md:h-60 overflow-hidden bg-linear-to-br from-[#003f7f] to-[#0066cc] shrink-0">
+                {/* Thumbnail do Vídeo: 16:9 com object-cover corta as tarjas pretas do hqdefault (4:3), como na home */}
+                <div className="relative aspect-video overflow-hidden bg-linear-to-br from-[#003f7f] to-[#0066cc] shrink-0">
                   <Image
                     src={video.thumbnail}
-                    alt={video.title}
+                    alt=""
                     fill
                     unoptimized={!isOptimizableImage(video.thumbnail)}
+                    // 1ª linha da grade: candidata a LCP, carrega sem esperar o lazy
+                    loading={index < 3 ? 'eager' : undefined}
+                    fetchPriority={index === 0 ? 'high' : undefined}
                     className="object-cover transition-transform duration-700 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 384px"
                   />
@@ -120,7 +127,7 @@ const VideosGrid = ({ videos, isLoading, onVideoClick, onResetFilter }: VideosGr
                       )}
                       <span className="truncate">{formatDateBR(video.date) || video.date}</span>
                     </span>
-                    <span className="inline-flex items-center gap-1.5 text-[#00a859] font-bold text-sm shrink-0 transition-[gap] duration-300 group-hover:gap-2.5">
+                    <span className="inline-flex items-center gap-1.5 text-[#00703c] font-bold text-sm shrink-0 transition-[gap] duration-300 group-hover:gap-2.5">
                       Assistir
                       <FaArrowRight className="w-3 h-3" aria-hidden="true" />
                     </span>

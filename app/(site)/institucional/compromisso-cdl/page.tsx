@@ -1,5 +1,6 @@
 import React from 'react';
-import type { Metadata } from 'next';
+import JsonLd from '@/app/components/seo/JsonLd';
+import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
 import {
   Breadcrumb,
   HeroSection,
@@ -7,10 +8,14 @@ import {
   ContentSection
 } from './components';
 
-export const metadata: Metadata = {
+const PATH = '/institucional/compromisso-cdl';
+
+export const metadata = pageMetadata({
   title: 'Compromisso da CDL',
-  description: 'Conheça o compromisso da CDL Ipirá com o desenvolvimento do comércio local e o fortalecimento dos associados.',
-};
+  description:
+    'O compromisso da CDL Ipirá com os associados: representação, serviços e ações que fortalecem o comércio e o desenvolvimento econômico de Ipirá-BA.',
+  path: PATH,
+});
 
 export default function CompromissoCDLPage() {
   return (
@@ -19,6 +24,7 @@ export default function CompromissoCDLPage() {
       <HeroSection />
       <CommitmentsSection />
       <ContentSection />
+      <JsonLd data={[breadcrumbJsonLd(['Compromisso CDL', PATH])]} />
     </>
   );
 }

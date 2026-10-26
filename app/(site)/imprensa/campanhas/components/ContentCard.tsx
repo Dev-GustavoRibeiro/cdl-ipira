@@ -52,7 +52,7 @@ const ContentCard = ({
           <>
             <Image
               src={image}
-              alt={title}
+              alt=""
               fill
               unoptimized={!isOptimizableImage(image)}
               className="object-cover transition-transform duration-700 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
@@ -68,7 +68,7 @@ const ContentCard = ({
 
         {/* Badge */}
         <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10 max-w-[60%]">
-          <span className="bg-white/90 backdrop-blur-sm text-[#003f7f] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-black shadow-lg flex items-center gap-1.5">
+          <span className="bg-white/90 backdrop-blur-sm text-[#003f7f] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-black shadow-lg flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 bg-[#00a859] rounded-full shrink-0"></span>
             <span className="truncate">{badge}</span>
           </span>
@@ -79,7 +79,7 @@ const ContentCard = ({
           <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
             <div className="bg-white rounded-xl px-2.5 py-2 shadow-lg text-center">
               <div className="text-[#003f7f] text-lg font-black leading-none">{day}</div>
-              <div className="text-[#00a859] text-[10px] font-bold mt-1">{month}/{year}</div>
+              <div className="text-[#00703c] text-[11px] font-bold mt-1">{month}/{year}</div>
             </div>
           </div>
         )}
@@ -96,7 +96,7 @@ const ContentCard = ({
           </p>
         )}
         <div className="mt-auto pt-4 border-t border-gray-100">
-          <span className="inline-flex items-center gap-1.5 text-[#00a859] font-bold text-sm transition-[gap] duration-300 group-hover:gap-2.5">
+          <span className="inline-flex items-center gap-1.5 text-[#00703c] font-bold text-sm transition-[gap] duration-300 group-hover:gap-2.5">
             {actionLabel}
             <FaArrowRight className="w-3 h-3" aria-hidden="true" />
           </span>

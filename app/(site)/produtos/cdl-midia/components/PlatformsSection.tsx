@@ -8,7 +8,7 @@ const platforms = [
   {
     name: 'Facebook',
     icon: FaFacebook,
-    description: 'Conteúdo exclusivo, eventos e interação com a comunidade empresarial'
+    description: 'Publicações, eventos e interação com a comunidade empresarial'
   },
   {
     name: 'Instagram',

@@ -68,7 +68,7 @@ const PresidenteSection = ({ presidente }: PresidenteSectionProps) => {
                     </span>
                     Contribuição
                   </p>
-                  <p className="mt-4 max-w-[60ch] text-sm leading-relaxed text-pretty text-white/90 sm:text-base">{presidente.contribution}</p>
+                  <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-pretty text-white/90">{presidente.contribution}</p>
                 </div>
               )}
             </div>

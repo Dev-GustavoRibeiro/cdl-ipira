@@ -34,9 +34,9 @@ const timelineEvents = [
     tone: tones.yellow,
   },
   {
-    year: 'Presente',
-    title: 'Referência Regional',
-    description: 'Hoje somos referência em representação comercial, com mais de 100 associados e uma visão ambiciosa para 2030.',
+    year: 'Hoje',
+    title: 'CDL Ipirá Hoje',
+    description: 'A CDL Ipirá reúne empresas associadas de Ipirá e trabalha pela visão que definiu para 2030.',
     icon: FaStar,
     tone: tones.blue,
   },
@@ -86,18 +86,17 @@ const TimelineSection = () => {
                     onRight ? 'md:col-start-3' : 'md:col-start-1'
                   }`}
                 >
-                  {/* Número da fase como marca d'água */}
+                  {/* Número da fase como marca d'água: vai no ::before (decoração, fora da checagem de contraste) */}
                   <span
                     aria-hidden="true"
-                    className="pointer-events-none absolute -top-2 right-4 text-7xl font-black tracking-tighter text-[#003f7f]/[0.05] select-none"
-                  >
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
+                    data-n={String(index + 1).padStart(2, '0')}
+                    className="pointer-events-none absolute -top-2 right-4 text-7xl font-black tracking-tighter text-[#003f7f]/[0.05] select-none before:content-[attr(data-n)]"
+                  />
                   <span className="relative inline-flex items-center gap-2 rounded-full bg-[#003f7f]/[0.07] px-3 py-1 text-xs font-bold tracking-[0.12em] text-[#003f7f] uppercase">
                     {event.year}
                   </span>
                   <h3 className="relative mt-4 text-xl font-black tracking-tight text-balance text-[#003f7f] sm:text-2xl">{event.title}</h3>
-                  <p className="relative mt-2.5 text-sm leading-relaxed text-pretty text-gray-600 sm:text-base">{event.description}</p>
+                  <p className="relative mt-2.5 text-base leading-relaxed text-pretty text-gray-600">{event.description}</p>
                 </article>
               </li>
             );

@@ -10,7 +10,7 @@ const EmptyState = () => {
         <StateBlock
           icon={FaBookOpen}
           title="Nenhuma edição disponível"
-          description="Em breve teremos novas edições da Revista CDL. Enquanto isso, acompanhe as notícias da CDL Ipirá."
+          description="Ainda não há edições publicadas da Revista CDL. Enquanto isso, acompanhe as notícias da CDL Ipirá."
         >
           <Link href="/imprensa/noticias" className={secondaryButton}>
             Ver notícias

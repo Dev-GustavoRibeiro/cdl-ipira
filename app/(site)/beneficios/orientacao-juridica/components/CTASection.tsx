@@ -1,5 +1,6 @@
 import React from 'react';
-import { FaPhone, FaEnvelope } from 'react-icons/fa';
+import { FaPhoneAlt, FaEnvelope } from 'react-icons/fa';
+import { CONTACT } from '@/app/components/navigation/navItems';
 
 const CTASection = () => {
   return (
@@ -13,22 +14,22 @@ const CTASection = () => {
             <div className="max-w-xl">
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#ffd000]">Atendimento direto</p>
               <h2 id="ajuda-titulo" className="mt-3 text-3xl font-black leading-tight tracking-tight text-balance sm:text-4xl">
-                Precisa de Ajuda Imediata?
+                Prefere falar agora?
               </h2>
               <p className="mt-3 text-base text-white/85 md:text-lg">
-                Entre em contato conosco através dos canais abaixo para atendimento rápido.
+                Fale com a equipe da CDL Ipirá pelos canais abaixo.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center lg:shrink-0">
               <a
-                href="tel:+5575999145061"
+                href={CONTACT.phone.href}
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-bold text-[#003f7f] shadow-[0_12px_30px_-12px_rgba(0,0,0,0.5)] transition-[translate,scale,background-color] duration-300 hover:-translate-y-0.5 hover:bg-[#ffd000] active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
-                <FaPhone aria-hidden="true" className="h-4 w-4" />
+                <FaPhoneAlt aria-hidden="true" className="h-4 w-4" />
                 Ligar Agora
               </a>
               <a
-                href="mailto:cdlipira@ipiratech.com.br"
+                href={CONTACT.email.href}
                 className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-white/70 px-7 py-3 text-sm font-bold text-white transition-[background-color,color,border-color,scale] duration-300 hover:border-white hover:bg-white hover:text-[#003f7f] active:scale-[0.98]"
               >
                 <FaEnvelope aria-hidden="true" className="h-4 w-4" />

@@ -1,35 +1,22 @@
 import React from 'react';
-import { FaGavel, FaFileContract, FaHandshake, FaShieldAlt } from 'react-icons/fa';
+import { FaGavel, FaFileContract } from 'react-icons/fa';
 import { Service, FAQ } from './types';
 
+// "Mediação e Conciliação" e "Proteção Legal" saíram: só voltam se a CDL confirmar que oferece esses serviços
 export const services: Service[] = [
   {
     id: 1,
-    title: 'Consultoria Jurídica',
-    description: 'Orientações jurídicas personalizadas para questões trabalhistas, tributárias, contratuais e empresariais.',
+    title: 'Dúvidas do Dia a Dia',
+    description: 'Orientação sobre dúvidas jurídicas ligadas à rotina da sua empresa.',
     icon: React.createElement(FaGavel, { className: "w-6 h-6 sm:w-7 sm:h-7", "aria-hidden": true }),
     color: 'from-[#003f7f] to-[#0066cc] text-white'
   },
   {
     id: 2,
-    title: 'Análise de Contratos',
-    description: 'Revisão e análise de contratos comerciais, parcerias, fornecedores e acordos diversos.',
+    title: 'Dúvidas sobre Contratos',
+    description: 'Orientação para entender contratos com clientes, fornecedores e parceiros antes de assinar.',
     icon: React.createElement(FaFileContract, { className: "w-6 h-6 sm:w-7 sm:h-7", "aria-hidden": true }),
     color: 'from-[#00a859] to-[#00d670] text-white'
-  },
-  {
-    id: 3,
-    title: 'Mediação e Conciliação',
-    description: 'Serviços de mediação para resolução de conflitos comerciais de forma rápida e eficiente.',
-    icon: React.createElement(FaHandshake, { className: "w-6 h-6 sm:w-7 sm:h-7", "aria-hidden": true }),
-    color: 'from-[#ffd000] to-[#ffed4e] text-[#003f7f]'
-  },
-  {
-    id: 4,
-    title: 'Proteção Legal',
-    description: 'Assessoria para proteção dos direitos do comerciante e orientações sobre legislação comercial.',
-    icon: React.createElement(FaShieldAlt, { className: "w-6 h-6 sm:w-7 sm:h-7", "aria-hidden": true }),
-    color: 'from-[#003f7f] to-[#0066cc] text-white'
   },
 ];
 
@@ -37,12 +24,12 @@ export const faqs: FAQ[] = [
   {
     id: 1,
     question: 'Quem pode utilizar o serviço de Orientação Jurídica?',
-    answer: 'O serviço é exclusivo para associados da CDL Ipirá. Basta estar em dia com as mensalidades para ter acesso gratuito às orientações jurídicas.'
+    answer: 'O serviço é oferecido aos associados da CDL Ipirá. Basta estar em dia com as mensalidades para ter acesso gratuito às orientações jurídicas.'
   },
   {
     id: 2,
     question: 'Quais tipos de questões podem ser orientadas?',
-    answer: 'Oferecemos orientação em questões trabalhistas, tributárias, contratuais, comerciais, consumeristas e outras relacionadas ao comércio e negócios.'
+    answer: 'Dúvidas jurídicas ligadas à atividade da sua empresa. Ao agendar, a equipe da CDL confirma se o assunto é atendido pelo benefício.'
   },
   {
     id: 3,
@@ -57,7 +44,7 @@ export const faqs: FAQ[] = [
   {
     id: 5,
     question: 'Posso receber orientação por telefone ou online?',
-    answer: 'Sim, oferecemos atendimento presencial, por telefone e online, conforme a disponibilidade e necessidade do associado.'
+    answer: 'A forma de atendimento é combinada com a equipe da CDL no agendamento, conforme a disponibilidade.'
   },
 ];
 

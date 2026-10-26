@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { FaArrowRight, FaBolt, FaClock, FaExternalLinkAlt, FaGift, FaShieldAlt } from 'react-icons/fa';
+import { FaArrowRight, FaExternalLinkAlt, FaShieldAlt, FaStore } from 'react-icons/fa';
 import { HeroPanel, ProductHero, btnGlass, btnYellow } from '../../_components/ProductUI';
 import { features } from './FeaturesData';
 
@@ -23,20 +23,16 @@ const HeroSection = () => {
             <span className="sr-only">(abre em nova aba)</span>
           </a>
           <Link href="/imprensa/contato" className={btnGlass}>
-            Falar com Especialista
+            Falar com a CDL
             <FaArrowRight aria-hidden="true" className="h-3.5 w-3.5 transition-[translate] duration-200 group-hover:translate-x-1 motion-reduce:transition-none" />
           </Link>
         </>
       }
-      chips={[
-        { icon: FaGift, label: 'Gratuito' },
-        { icon: FaBolt, label: 'Ativação imediata' },
-        { icon: FaClock, label: 'Disponível 24/7' },
-      ]}
+      chips={[{ icon: FaStore, label: 'Atendimento na CDL Ipirá' }]}
       aside={
         <HeroPanel
           title="Soluções Integradas"
-          description="Três ferramentas poderosas que trabalham juntas para oferecer proteção completa, facilitar negociações e construir um histórico creditício positivo."
+          description="Três serviços do SPC Brasil: aviso de consultas ao CPF/CNPJ, negociação de dívidas e histórico de pagamentos."
           items={features.map((feature) => ({
             icon: feature.icon,
             title: feature.title,

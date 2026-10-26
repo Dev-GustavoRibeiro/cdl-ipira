@@ -15,6 +15,13 @@ import {
 } from './components';
 import { StateBlock, primaryButton } from '../noticias/components/LoadStates';
 
+const matchesCategory = (event: Event, category: string) => category === 'Todos' || event.category === category;
+const matchesStatus = (event: Event, status: string) =>
+  status === 'Todos' ||
+  (status === 'Próximos' && event.status === 'upcoming') ||
+  (status === 'Em Andamento' && event.status === 'ongoing') ||
+  (status === 'Realizados' && event.status === 'past');
+
 export default function EventosPage() {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,7 +40,8 @@ export default function EventosPage() {
           .from('events')
           .select('*')
           .eq('is_active', true)
-          .order('date', { ascending: true });
+          .order('date', { ascending: true })
+          .order('time', { ascending: true });
 
         if (error) throw error;
 
@@ -63,7 +71,11 @@ export default function EventosPage() {
               image: item.image || ''
             };
           });
-          setAllEvents(formattedEvents);
+          // Hoje e próximos primeiro (do mais perto ao mais longe); realizados depois, do mais recente ao mais antigo
+          setAllEvents([
+            ...formattedEvents.filter((event) => event.status !== 'past'),
+            ...formattedEvents.filter((event) => event.status === 'past').reverse(),
+          ]);
         }
       } catch (error) {
         console.error('Erro ao carregar eventos:', error);
@@ -87,14 +99,12 @@ export default function EventosPage() {
     setIsModalOpen(true);
   };
 
-  const filteredEvents = allEvents.filter(event => {
-    const categoryMatch = selectedCategory === 'Todos' || event.category === selectedCategory;
-    const statusMatch = selectedStatus === 'Todos' || 
-      (selectedStatus === 'Próximos' && event.status === 'upcoming') ||
-      (selectedStatus === 'Em Andamento' && event.status === 'ongoing') ||
-      (selectedStatus === 'Realizados' && event.status === 'past');
-    return categoryMatch && statusMatch;
-  });
+  const filteredEvents = allEvents.filter((event) => matchesCategory(event, selectedCategory) && matchesStatus(event, selectedStatus));
+
+  // Contagem de cada opção combinada com o outro filtro (opção vazia fica desativada); carregando, sem contagem
+  const countStatus = (status: string) => allEvents.filter((e) => matchesCategory(e, selectedCategory) && matchesStatus(e, status)).length;
+  const countCategory = (category: string) => allEvents.filter((e) => matchesStatus(e, selectedStatus) && matchesCategory(e, category)).length;
+  const showCounts = !isLoading && !loadError;
 
   const upcomingEvents = allEvents.filter(e => e.status === 'upcoming');
 
@@ -107,6 +117,8 @@ export default function EventosPage() {
         setSelectedCategory={setSelectedCategory}
         selectedStatus={selectedStatus}
         setSelectedStatus={setSelectedStatus}
+        countStatus={showCounts ? countStatus : undefined}
+        countCategory={showCounts ? countCategory : undefined}
       />
       {loadError ? (
         <section className="py-10 sm:py-12 md:py-16 bg-white">

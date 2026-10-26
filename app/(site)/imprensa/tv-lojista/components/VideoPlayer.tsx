@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { formatDateBR } from '@/lib/date';
+import ThirdPartyEmbed from '../../noticias/components/ThirdPartyEmbed';
 import { Video } from './types';
 
 interface VideoPlayerProps {
@@ -20,7 +21,9 @@ const VideoPlayer = ({ video, onClose }: VideoPlayerProps) => {
   return (
     <section id="video-player" aria-label="Player de vídeo" className="py-8 sm:py-12 bg-white border-b border-gray-200 scroll-mt-[var(--header-height,0px)]">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto animate-blur-fade-in">
+        {/* Largura limitada pela altura livre (tela - header - título e respiros): em notebook 1280x720 o player 16:9
+            inteiro, com a barra de controles, cabe na tela */}
+        <div className="max-w-[min(64rem,max(18rem,calc((100dvh-var(--header-height,0px)-9rem)*16/9)))] mx-auto animate-blur-fade-in">
           <div className="mb-4 flex items-start justify-between gap-3">
             <h2 ref={titleRef} tabIndex={-1} className="text-xl sm:text-3xl font-black tracking-[-0.015em] text-[#003f7f]">
               {video.title}
@@ -28,7 +31,7 @@ const VideoPlayer = ({ video, onClose }: VideoPlayerProps) => {
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 w-10 h-10 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-[#003f7f] hover:text-white active:scale-[0.98] transition-[background-color,color,transform] duration-200"
+              className="shrink-0 w-11 h-11 inline-flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-[#003f7f] hover:text-white active:scale-[0.98] transition-[background-color,color,scale] duration-200"
               aria-label="Fechar vídeo"
             >
               <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -37,15 +40,25 @@ const VideoPlayer = ({ video, onClose }: VideoPlayerProps) => {
             </button>
           </div>
           
-          <div className="relative w-full aspect-video rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl bg-black">
-            <iframe
-              src={video.videoUrl}
-              title={video.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="absolute inset-0 w-full h-full"
-            ></iframe>
-          </div>
+          {/* Sem consentimento, o aviso ocupa o lugar do player (cresce no celular se o texto não couber em 16:9) */}
+          <ThirdPartyEmbed
+            provider="YouTube"
+            link={video.youtube_id ? { href: `https://www.youtube.com/watch?v=${video.youtube_id}`, label: 'Assistir no YouTube' } : undefined}
+            className="aspect-video rounded-xl sm:rounded-2xl shadow-2xl"
+          >
+            <div className="relative w-full aspect-video rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl bg-black">
+              <iframe
+                src={video.videoUrl}
+                title={video.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                // credentialless: o iframe roda numa sessão descartável (os cookies do YouTube não ficam no navegador da
+                // pessoa). O React já trata o atributo como booleano; os tipos ainda não, daí o spread
+                {...{ credentialless: true }}
+                className="absolute inset-0 w-full h-full"
+              ></iframe>
+            </div>
+          </ThirdPartyEmbed>
 
           <div className="mt-4 sm:mt-6 p-4 sm:p-6 bg-gray-50 rounded-xl sm:rounded-2xl">
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-3 sm:mb-4 text-sm sm:text-base text-gray-600">
@@ -78,7 +91,7 @@ const VideoPlayer = ({ video, onClose }: VideoPlayerProps) => {
                 </span>
               </div>
             </div>
-            <p className="text-gray-700 text-sm sm:text-base leading-relaxed">
+            <p className="text-gray-700 text-base leading-relaxed">
               {video.description}
             </p>
           </div>

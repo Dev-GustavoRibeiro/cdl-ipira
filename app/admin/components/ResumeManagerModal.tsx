@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useIsClient, useModalBehavior } from '@/lib/hooks/useModalBehavior';
 import { fetchWithCSRF } from '@/lib/csrf-client';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { Button, EmptyState, FormField, IconButton, Input, cx, focusRing } from '../_components';
 
 interface Resume {
   id: number;
@@ -25,10 +26,6 @@ interface ResumeManagerModalProps {
   jobId: number | null;
   jobTitle: string;
 }
-
-const INPUT =
-  'h-11 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-900 transition-colors hover:border-gray-300 focus:border-[#003f7f]';
-const LABEL = 'mb-1.5 block text-sm font-bold text-gray-700';
 
 export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }: ResumeManagerModalProps) {
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -62,14 +59,19 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
       .catch((error) => {
         console.error('Erro ao carregar currículos:', error);
         setLoadError(true);
-        toast.error('Erro ao carregar currículos.');
+        toast.error(error instanceof Error ? error.message : 'Erro ao carregar currículos.');
       })
       .finally(() => setIsLoading(false));
   }, [jobId]);
 
-  // Ao reabrir (talvez para outra vaga), mostra o carregamento em vez da lista anterior
+  // Ao reabrir (talvez para outra vaga), mostra o carregamento em vez da lista anterior e o formulário limpo
   const handleClose = () => {
+    if (isUploading) return;
     setIsLoading(true);
+    setName('');
+    setEmail('');
+    setPhone('');
+    setFile(null);
     onClose();
   };
 
@@ -148,7 +150,7 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
     } catch (error: unknown) {
       console.error('Erro no upload:', error);
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast.error(`Erro ao salvar currículo: ${message}`);
+      toast.error(message);
     } finally {
       setIsUploading(false);
     }
@@ -188,7 +190,7 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
       setResumeToDelete(null);
     } catch (error) {
       console.error('Erro ao excluir:', error);
-      toast.error('Erro ao excluir currículo.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir currículo.');
     } finally {
       setIsDeleting(false);
     }
@@ -226,7 +228,11 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
             type="button"
             onClick={handleClose}
             aria-label="Fechar gerenciador de currículos"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-[background-color,color,scale] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-95 motion-reduce:transition-none"
+            disabled={isUploading}
+            className={cx(
+              'flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-[background-color,color,scale] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-95 disabled:opacity-50 motion-reduce:transition-none',
+              focusRing
+            )}
           >
             <FaTimes aria-hidden="true" className="h-4 w-4" />
           </button>
@@ -242,45 +248,20 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
             </h3>
 
             <form onSubmit={handleUpload} className="space-y-4">
-              <div>
-                <label htmlFor="resume-name" className={LABEL}>Nome do candidato *</label>
-                <input
-                  id="resume-name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoComplete="off"
-                  className={INPUT}
-                  required
-                />
-              </div>
+              <FormField label="Nome do candidato" required>
+                <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" required maxLength={150} />
+              </FormField>
+              <FormField label="E-mail">
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" maxLength={254} />
+              </FormField>
+              <FormField label="Telefone">
+                <Input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" maxLength={30} />
+              </FormField>
 
               <div>
-                <label htmlFor="resume-email" className={LABEL}>E-mail</label>
-                <input
-                  id="resume-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="off"
-                  className={INPUT}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="resume-phone" className={LABEL}>Telefone</label>
-                <input
-                  id="resume-phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  autoComplete="off"
-                  className={INPUT}
-                />
-              </div>
-
-              <div>
-                <span className={LABEL}>Arquivo *</span>
+                <span className="mb-1.5 block text-sm font-semibold text-gray-700">
+                  Arquivo<span aria-hidden="true" className="ml-0.5 text-red-600">*</span>
+                </span>
                 {/* sr-only (e não hidden) para o campo continuar acessível pelo teclado; o rótulo abaixo é a área clicável */}
                 <input
                   type="file"
@@ -312,23 +293,9 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
                 </label>
               </div>
 
-              <button
-                type="submit"
-                disabled={isUploading}
-                aria-busy={isUploading}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#003f7f] text-sm font-bold text-white shadow-[0_14px_30px_-14px_rgba(0,63,127,0.7)] transition-[background-color,scale] duration-200 hover:bg-[#0052a3] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transition-none"
-              >
-                {isUploading ? (
-                  <>
-                    <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent motion-reduce:animate-none" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <FaCloudUploadAlt aria-hidden="true" /> Salvar currículo
-                  </>
-                )}
-              </button>
+              <Button type="submit" loading={isUploading} icon={FaCloudUploadAlt} className="w-full">
+                {isUploading ? 'Enviando…' : 'Salvar currículo'}
+              </Button>
             </form>
           </section>
 
@@ -356,35 +323,25 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
                 ))}
               </div>
             ) : loadError ? (
-              <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-gray-200 px-4 py-12 text-center">
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600 ring-8 ring-red-50">
-                  <FaExclamationTriangle aria-hidden="true" className="h-5 w-5" />
-                </span>
-                <p className="mt-5 font-black text-[#003f7f]">Não foi possível carregar os currículos</p>
-                <button
-                  type="button"
-                  onClick={() => { setIsLoading(true); fetchResumes(); }}
-                  className="mt-5 inline-flex h-10 items-center rounded-xl bg-[#003f7f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0052a3]"
-                >
-                  Tentar novamente
-                </button>
-              </div>
+              <EmptyState
+                icon={FaExclamationTriangle}
+                title="Não foi possível carregar os currículos"
+                action={<Button onClick={() => { setIsLoading(true); fetchResumes(); }}>Tentar novamente</Button>}
+                className="rounded-2xl border-2 border-dashed border-gray-200"
+              />
             ) : resumes.length === 0 ? (
-              <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/60 px-4 py-12 text-center">
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#003f7f]/10 text-[#003f7f] ring-8 ring-[#003f7f]/5">
-                  <FaFileAlt aria-hidden="true" className="h-5 w-5" />
-                </span>
-                <p className="mt-5 font-black text-balance text-[#003f7f]">Nenhum currículo nesta vaga ainda</p>
-                <p className="mt-1.5 max-w-[40ch] text-sm text-pretty text-gray-600">
-                  Adicione os currículos recebidos pelo formulário para manter tudo num só lugar.
-                </p>
-              </div>
+              <EmptyState
+                icon={FaFileAlt}
+                title="Nenhum currículo nesta vaga ainda"
+                description="Adicione os currículos recebidos para manter tudo num só lugar."
+                className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/60"
+              />
             ) : (
               <ul className="space-y-3">
                 {resumes.map((resume) => {
                   const isPdf = /\.pdf$/i.test(resume.file_url);
                   const FileIcon = isPdf ? FaFilePdf : FaFileAlt;
-                  const meta = [resume.candidate_email, resume.candidate_phone, new Date(resume.created_at).toLocaleDateString('pt-BR')].filter(Boolean);
+                  const meta = [resume.candidate_email, resume.candidate_phone, new Date(resume.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Bahia' })].filter(Boolean);
                   return (
                     <li
                       key={resume.id}
@@ -409,26 +366,21 @@ export default function ResumeManagerModal({ isOpen, onClose, jobId, jobTitle }:
                         </p>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-1">
                         <a
                           href={`/api/admin/resumes/download?fileUrl=${encodeURIComponent(resume.file_url)}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Baixar/Visualizar"
-                          aria-label={`Baixar currículo de ${resume.candidate_name}`}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl text-[#003f7f] ring-1 ring-[#003f7f]/15 transition-colors hover:bg-[#003f7f] hover:text-white"
+                          title="Abrir currículo"
+                          className={cx(
+                            'relative inline-flex size-11 items-center justify-center rounded-xl text-[#003f7f] ring-1 ring-inset ring-gray-300 transition-colors hover:bg-[#003f7f] hover:text-white hover:ring-[#003f7f] pointer-fine:size-9',
+                            focusRing
+                          )}
                         >
                           <FaDownload aria-hidden="true" className="h-3.5 w-3.5" />
+                          <span className="sr-only">Abrir o currículo de {resume.candidate_name} (nova aba)</span>
                         </a>
-                        <button
-                          type="button"
-                          onClick={() => setResumeToDelete(resume)}
-                          title="Excluir"
-                          aria-label={`Excluir currículo de ${resume.candidate_name}`}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl text-red-600 ring-1 ring-red-100 transition-colors hover:bg-red-50 hover:ring-red-200"
-                        >
-                          <FaTrash aria-hidden="true" className="h-3.5 w-3.5" />
-                        </button>
+                        <IconButton icon={FaTrash} variant="danger" label={`Excluir o currículo de ${resume.candidate_name}`} onClick={() => setResumeToDelete(resume)} />
                       </div>
                     </li>
                   );

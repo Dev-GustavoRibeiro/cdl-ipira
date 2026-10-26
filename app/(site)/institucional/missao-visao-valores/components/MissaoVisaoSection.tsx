@@ -60,17 +60,6 @@ const MissaoVisaoSection = () => {
               Ser reconhecida como a <strong className="text-[#003f7f]">melhor entidade da Bahia até 2030</strong>, destacando-se em práticas de
               compliance, excelência na fidelização e na entrega de <strong className="text-[#003f7f]">soluções inovadoras e eficazes</strong>.
             </p>
-
-            {/* Caminho até 2030 (ilustrativo) */}
-            <div className="mt-auto pt-8" aria-hidden="true">
-              <div className="flex items-center justify-between text-xs font-bold tracking-[0.12em] text-gray-500 uppercase">
-                <span>Hoje</span>
-                <span className="text-[#003f7f]">Meta 2030</span>
-              </div>
-              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-gray-100">
-                <div className="h-full w-3/5 rounded-full bg-linear-to-r from-[#00a859] to-[#00d670]" />
-              </div>
-            </div>
           </article>
         </div>
       </div>

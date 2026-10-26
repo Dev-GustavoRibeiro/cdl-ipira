@@ -28,7 +28,7 @@ const chip = 'inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-
 
 function JobsSkeleton() {
   return (
-    <div role="status" aria-label="Carregando vagas" className="grid gap-4 sm:gap-5">
+    <div role="status" aria-label="Carregando vagas" className="grid grid-cols-1 gap-4 sm:gap-5">
       {[0, 1, 2].map((i) => (
         <div key={i} aria-hidden="true" className={`p-5 sm:p-7 ${cardSurface} animate-pulse motion-reduce:animate-none`}>
           <div className="flex items-start gap-4">
@@ -77,7 +77,7 @@ const JobsGrid = ({ jobs, isLoading, onJobClick, onResetFilters }: JobsGridProps
   }
 
   return (
-    <ul className="grid gap-4 sm:gap-5">
+    <ul className="grid grid-cols-1 gap-4 sm:gap-5">
       {jobs.map((job, index) => (
         <li key={job.id} className="animate-scale-in" style={staggerDelay(index)}>
           <article className={`group relative flex h-full flex-col p-5 sm:p-7 ${cardSurface} ${cardLift} has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#003f7f] has-focus-visible:ring-2 has-focus-visible:ring-[#ffd000]`}>
@@ -109,7 +109,7 @@ const JobsGrid = ({ jobs, isLoading, onJobClick, onResetFilters }: JobsGridProps
                   <span className="block text-xl leading-none font-black text-[#003f7f] sm:text-2xl">
                     {String(job.quantity).padStart(2, '0')}
                   </span>
-                  <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-[#003f7f]">
+                  <span className="mt-1 block text-[11px] font-bold uppercase tracking-wider text-[#003f7f]">
                     {job.quantity === 1 ? 'vaga' : 'vagas'}
                   </span>
                 </div>

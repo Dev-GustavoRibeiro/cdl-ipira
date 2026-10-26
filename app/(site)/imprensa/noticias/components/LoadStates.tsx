@@ -5,10 +5,10 @@ import type { IconType } from 'react-icons';
    (notícias, eventos, galeria, TV Lojista, revista, campanhas e empresas associadas). */
 
 export const primaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-full bg-[#003f7f] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_28px_-12px_rgba(0,63,127,0.7)] transition-[translate,scale,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-[#0052a3] active:scale-[0.98] motion-reduce:hover:translate-y-0';
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#003f7f] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_28px_-12px_rgba(0,63,127,0.7)] transition-[translate,scale,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-[#0052a3] active:scale-[0.98] motion-reduce:hover:translate-y-0';
 
 export const secondaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-full border-2 border-[#003f7f] px-6 py-2.5 text-sm font-bold text-[#003f7f] transition-[translate,scale,background-color,color] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-[0.98]';
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-full border-2 border-[#003f7f] px-6 py-2.5 text-sm font-bold text-[#003f7f] transition-[translate,scale,background-color,color] duration-200 hover:bg-[#003f7f] hover:text-white active:scale-[0.98]';
 
 interface StateBlockProps {
   icon: IconType;
@@ -28,7 +28,8 @@ export function StateBlock({ icon: Icon, title, description, children }: StateBl
       <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#003f7f]/10 text-[#003f7f] ring-8 ring-[#003f7f]/5">
         <Icon className="h-7 w-7" aria-hidden="true" />
       </span>
-      <h3 className="text-xl font-black tracking-[-0.015em] text-[#003f7f] sm:text-2xl">{title}</h3>
+      {/* h2: o bloco costuma vir logo depois do h1 da página (lista vazia, erro de carregamento) */}
+      <h2 className="text-xl font-black tracking-[-0.015em] text-[#003f7f] sm:text-2xl">{title}</h2>
       {description && <p className="mt-2 text-sm text-gray-600 sm:text-base">{description}</p>}
       {children && <div className="mt-6 flex flex-wrap items-center justify-center gap-3">{children}</div>}
     </div>

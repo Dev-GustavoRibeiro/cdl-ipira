@@ -43,14 +43,14 @@ const HeroSection = ({ searchTerm, onSearchTermChange, onSubmit, onClear }: Hero
                 onChange={(e) => onSearchTermChange(e.target.value)}
                 placeholder="O que você está procurando?"
                 minLength={2}
-                className="min-w-0 flex-1 bg-transparent px-2 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 sm:px-3 sm:py-3.5 sm:text-lg [&::-webkit-search-cancel-button]:appearance-none"
+                className="min-w-0 flex-1 bg-transparent px-2 py-3 text-base text-gray-900 outline-none placeholder:text-gray-500 sm:px-3 sm:py-3.5 sm:text-lg [&::-webkit-search-cancel-button]:appearance-none"
                 autoFocus
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={onClear}
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                   aria-label="Limpar pesquisa"
                 >
                   <FaTimes aria-hidden="true" className="h-4 w-4" />
@@ -58,7 +58,7 @@ const HeroSection = ({ searchTerm, onSearchTermChange, onSubmit, onClear }: Hero
               )}
               <button
                 type="submit"
-                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#003f7f] px-4 py-3 text-sm font-bold text-white transition-[background-color,scale] duration-200 hover:bg-[#0052a3] active:scale-[0.98] sm:px-7 sm:py-3.5 sm:text-base"
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-[#003f7f] px-4 py-3 text-sm font-bold text-white transition-[background-color,scale] duration-200 hover:bg-[#0052a3] active:scale-[0.98] sm:px-7 sm:py-3.5 sm:text-base"
               >
                 <FaSearch aria-hidden="true" className="h-3.5 w-3.5 sm:hidden" />
                 <span className="sr-only sm:not-sr-only">Buscar</span>
