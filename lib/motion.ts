@@ -11,6 +11,12 @@ if (typeof window !== 'undefined') {
   // A barra de endereço do celular aparece/some e muda a altura da janela: não recalcula os gatilhos por isso
   // (sem isso as seções "pulam" ao rolar no celular)
   ScrollTrigger.config({ ignoreMobileResize: true });
+  // Tela de carregamento aberta (LoadingScreen): o relógio do GSAP para e as entradas das seções ficam no quadro
+  // inicial até o site abrir. Fica aqui, e não na tela, para o GSAP só ir às páginas que já o usam.
+  if (window.__cdlLd && !window.__cdlLd.pronto) {
+    gsap.globalTimeline.pause();
+    window.addEventListener('cdl:site-pronto', () => gsap.globalTimeline.resume(), { once: true });
+  }
 }
 
 export { gsap, ScrollTrigger, SplitText, useGSAP };

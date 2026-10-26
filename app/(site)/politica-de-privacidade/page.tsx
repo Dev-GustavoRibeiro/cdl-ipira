@@ -364,7 +364,6 @@ const sections: LegalSection[] = [
             ['a11y-preferences', 'Guarda suas preferências de acessibilidade (tamanho do texto, contraste etc.)', 'Até você restaurar o padrão ou limpar os dados do navegador'],
             ['cdl-recent-searches', 'Mostra suas últimas buscas no site como atalho', 'Até você limpar os dados do navegador'],
             ['install-prompt-shown', 'Evita repetir o convite para instalar o site como aplicativo', 'Até você limpar os dados do navegador'],
-            ['cdl_loaded', 'Evita repetir a tela de abertura na mesma visita', 'Até fechar a aba'],
             // Gravados pelo próprio script do VLibras (só existem com a opção ligada)
             ['@vlibras-widget e @vlibras/player', 'Guardam as preferências do tradutor VLibras, só se você ligar o tradutor de Libras', 'Até você limpar os dados do navegador'],
           ]}

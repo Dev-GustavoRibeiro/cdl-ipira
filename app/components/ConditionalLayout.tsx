@@ -26,11 +26,13 @@ export default function ConditionalLayout({
     <>
       {/* Preferências de acessibilidade gravadas (texto maior, alto contraste...) aplicadas antes da primeira pintura */}
       <script dangerouslySetInnerHTML={{ __html: bootScript(legivel.variable) }} />
+      {/* Logo no começo do body: o script dela precisa rodar antes do resto da página (e ela vem antes do link abaixo,
+          que continua sendo o 1º Tab) */}
+      <LoadingScreen />
       {/* Visível só ao receber foco pelo teclado (.skip-link em globals.css) */}
       <a href="#conteudo" className="skip-link">
         Pular para o conteúdo
       </a>
-      <LoadingScreen />
       <Header />
       <main id="conteudo" tabIndex={-1} className="scroll-mt-[var(--header-height,0px)]">
         {children}
