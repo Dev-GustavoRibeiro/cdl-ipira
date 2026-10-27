@@ -9,13 +9,13 @@ import SmartLink from './navigation/SmartLink';
 import { OPEN_CONSENT_EVENT } from '@/lib/consent';
 
 // Direção de arte: cena vertical (4:5) no celular e panorâmica (21:9) a partir de md. Imagem decorativa (Higgsfield).
-const { srcSet: desktopSrcSet } = getImageProps({
+const { props: desktopImage } = getImageProps({
   src: '/images/footer/rua-comercial-desktop.webp',
   alt: '',
   width: 2688,
   height: 1152,
   sizes: '100vw',
-}).props;
+});
 const { props: mobileImage } = getImageProps({
   src: '/images/footer/rua-comercial-mobile.webp',
   alt: '',
@@ -59,7 +59,7 @@ const Footer = () => (
       className="relative isolate flex min-h-[43rem] flex-col justify-between gap-10 overflow-hidden rounded-t-[1.75rem] bg-[#001a3d] md:min-h-[min(50vw,54rem)] md:rounded-t-[2.5rem]"
     >
       <picture className="absolute inset-x-0 top-52 bottom-0 -z-10 [mask-image:linear-gradient(to_bottom,transparent,#000_24%)] md:top-0 md:[mask-image:none]">
-        <source media="(min-width: 768px)" srcSet={desktopSrcSet} sizes="100vw" />
+        <source media="(min-width: 768px)" srcSet={desktopImage.srcSet ?? desktopImage.src} sizes="100vw" />
         <img {...mobileImage} alt="" className="h-full w-full object-cover object-bottom md:object-[50%_40%]" />
       </picture>
       {/* Véus só onde o texto precisa: canto superior esquerdo (contatos, só a partir de md) e base (frase) */}

@@ -57,6 +57,9 @@ const nextConfig: NextConfig = {
   ],
 
   images: {
+    // A cota de otimização de imagens da Vercel acabou: /_next/image responde 402 e as imagens somem.
+    // Servidas como estão até a cota voltar (ou o plano mudar); para religar, remova esta linha.
+    unoptimized: true,
     // Qualidades permitidas para imagens
     qualities: [75, 100],
     // Domínios permitidos para imagens
